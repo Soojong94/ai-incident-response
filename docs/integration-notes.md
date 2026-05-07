@@ -125,16 +125,27 @@ def ncp_headers(method: str, path: str) -> dict:
 
 | 항목 | 결과 |
 |------|------|
-| 인증 서명 | ✅ 401/403 없음 → 서명 정상 |
-| API 경로 | ❌ 404 "URL not found" — 정확한 경로 미확인 |
+| 인증 서명 | ✅ HTTP 200 |
+| SearchEvent | ✅ `POST /cw_fea/real/cw/api/event/search` |
+| GetRuleGroupList | ✅ `POST /cw_fea/real/cw/api/rule/group/ruleGrp/query` |
+| GetRuleGroup | ✅ `GET /cw_fea/real/cw/api/rule/group/ruleGrp/query/{prodKey}/{id}` |
+| QueryData | ✅ `POST /cw_fea/real/cw/api/data/query` |
+| GetProductSchema | ✅ `GET /cw_fea/real/cw/api/schema?prodName=...` |
 
-**미확인 경로 예시 (모두 404):**
-- `/cw_fea/real/cw/api/rule/group/list`
-- `/cw_fea/real/cw/api/event/search`
+**확인된 주요 엔드포인트:**
 
-> 정확한 엔드포인트 경로는 NCP 공식 API 문서에서 확인 필요:  
-> https://api.ncloud-docs.com/docs/management-cloudinsight  
-> 현재는 **Mock 수집기**로 대체, NCP 키 + 경로 확인 후 실제 구현으로 교체
+| API | Method | Path | 주요 파라미터 |
+|-----|--------|------|--------------|
+| SearchEvent | POST | `/cw_fea/real/cw/api/event/search` | `startTime`, `endTime` (Unix ms 문자열) |
+| SearchEventById | POST | `/cw_fea/real/cw/api/event/searchById` | `eventId`, `ruleId` |
+| QueryData | POST | `/cw_fea/real/cw/api/data/query` | `timeStart/End`, `cw_key`, `productName`, `metric`, `interval`, `aggregation`, `dimensions` |
+| GetRuleGroupList | POST | `/cw_fea/real/cw/api/rule/group/ruleGrp/query` | `prodKey`, `pageSize`, `pageNum` |
+| GetProductSchema | GET | `/cw_fea/real/cw/api/schema` | `prodName`, `cw_key` |
+
+**SearchEvent 응답 필드 (events[]):**  
+`eventId`, `eventLevel`(INFO/WARNING/CRITICAL), `ruleName`, `metric`, `detectValue`, `resourceName`, `prodName`, `regionCode`, `startTime/endTime`, `dimension.instanceNo`
+
+**QueryData 응답:** `[[timestamp_ms, value], ...]` 형식의 시계열 배열
 
 ---
 
@@ -144,9 +155,49 @@ def ncp_headers(method: str, path: str) -> dict:
 |------|----|
 | Base URL | `https://cloudloganalytics.apigw.ntruss.com` |
 | 인증 | Cloud Insight와 동일한 HMAC-SHA256 방식 |
+| 문서 | https://api.ncloud-docs.com/docs/analytics-cloudloganalytics |
 
-**테스트 결과:** 인증은 정상이나 API 경로 미확인 (404).  
-Cloud Insight와 동일하게 Mock으로 대체 후 경로 확인 시 실제 구현.
+**확인된 주요 엔드포인트:**
+
+| API | Method | Path | 설명 |
+|-----|--------|------|------|
+| SearchLogs | POST | `/api/{regionCode}-v1/logs/search` | 로그 조회 |
+| GetLogStatus (total) | GET | `/api/{regionCode}-v1/logs/status/total` | 전체 로그 수 |
+| GetLogStatus (period) | GET | `/api/{regionCode}-v1/logs/status/period` | 기간별 로그 수 |
+| ExportLogs | POST | `/api/{regionCode}-v1/logs/export` | Object Storage로 내보내기 |
+
+**regionCode:** `kr`(한국), `sgn`(싱가포르), `jpn`(일본), `uswn`(미국서부), `den`(독일)
+
+**SearchLogs 요청 Body:**
+
+```json
+{
+  "timestampFrom": "1746584400",
+  "timestampTo":   "1746588000",
+  "keyword":       "error",
+  "logTypes":      "SYSLOG",
+  "pageNo":        1,
+  "pageSize":      100
+}
+```
+
+**SearchLogs 응답:**
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "result": {
+    "totalCount": 42,
+    "searchResult": [
+      { "logTime": "...", "logType": "SYSLOG", "servername": "web-01", "logDetail": "..." }
+    ]
+  }
+}
+```
+
+> **현황**: 인증 방식 확인 완료. 실제 로그 수집 테스트는 CLA 서비스 활성화 후 가능.  
+> MVP에서는 Mock 수집기로 대체, `src/collector/ncp_collector.py`에 CLA 호출 코드 작성 완료.
 
 ---
 
@@ -156,6 +207,6 @@ Cloud Insight와 동일하게 Mock으로 대체 후 경로 확인 시 실제 구
 AI 분석   : Timely Native API (gpt-5.1, output_schema)
            → 나중에 Claude API로 ai_client.py 내부만 교체
 알람 수신  : NCP Cloud Insight Webhook (HMAC 검증)
-로그 수집  : Mock → NCP CLA API (경로 확인 후 교체)
+로그 수집  : Mock (기본) → NCP CLA SearchLogs API (CLA 활성화 후 교체)
 알림      : 웹 대시보드만 (Slack 추후)
 ```

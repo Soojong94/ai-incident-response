@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}장애 목록 — AI 장애 대응{% endblock %}
+{% block content %}
+<div style="display:flex; align-items:center; margin-bottom:20px;">
+  <h2 style="font-size:20px;">장애 목록</h2>
+  <button class="refresh-btn" onclick="location.reload()">새로고침</button>
+</div>
+
+{% if incidents %}
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>알람명</th>
+      <th>리소스</th>
+      <th>메트릭</th>
+      <th>현재값</th>
+      <th>발생시간</th>
+      <th>심각도</th>
+      <th>상태</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for inc in incidents %}
+    <tr>
+      <td><a href="/incidents/{{ inc.id }}">{{ inc.id }}</a></td>
+      <td><a href="/incidents/{{ inc.id }}">{{ inc.alarm_name or '-' }}</a></td>
+      <td>{{ inc.resource_name or '-' }}</td>
+      <td>{{ inc.metric_type or '-' }}</td>
+      <td>{{ inc.current_value or '-' }}</td>
+      <td style="font-size:12px; color:#718096;">
+        {{ inc.alarm_time.strftime('%Y-%m-%d %H:%M:%S') if inc.alarm_time else '-' }}
+      </td>
+      <td>
+        {% if inc.severity %}
+          <span class="sev-{{ inc.severity }}">{{ inc.severity }}</span>
+        {% else %}-{% endif %}
+      </td>
+      <td><span class="badge badge-{{ inc.status }}">{{ inc.status }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">
+  <p style="font-size:18px; margin-bottom:8px;">장애 이력이 없습니다</p>
+  <p>Cloud Insight Webhook을 수신하거나 <code>/test/trigger</code>로 테스트 알람을 생성하세요.</p>
+</div>
+{% endif %}
+
+<script>
+  // 처리 중인 인시던트가 있으면 10초마다 자동 새로고침
+  const hasProcessing = document.querySelectorAll('.badge-processing').length > 0;
+  if (hasProcessing) setTimeout(() => location.reload(), 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}장애 #{{ incident.id }} — AI 장애 대응{% endblock %}
+{% block content %}
+<div style="margin-bottom:20px;">
+  <a href="/">&larr; 목록으로</a>
+</div>
+
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+  <h2 style="font-size:20px;">장애 #{{ incident.id }} — {{ incident.alarm_name or '알람' }}</h2>
+  <span class="badge badge-{{ incident.status }}">{{ incident.status }}</span>
+  {% if incident.severity %}
+    <span class="sev-{{ incident.severity }}" style="font-size:18px;">{{ incident.severity }}</span>
+  {% endif %}
+</div>
+
+<!-- 알람 기본 정보 -->
+<div class="card">
+  <h2>알람 정보</h2>
+  <div class="meta-grid">
+    <div class="meta-item"><label>리소스</label><span>{{ incident.resource_name or '-' }}</span></div>
+    <div class="meta-item"><label>메트릭</label><span>{{ incident.metric_type or '-' }}</span></div>
+    <div class="meta-item"><label>현재값</label><span>{{ incident.current_value or '-' }}</span></div>
+    <div class="meta-item"><label>임계값</label><span>{{ incident.threshold_value or '-' }}</span></div>
+    <div class="meta-item"><label>발생시간</label><span>{{ incident.alarm_time.strftime('%Y-%m-%d %H:%M:%S') if incident.alarm_time else '-' }}</span></div>
+    <div class="meta-item"><label>등록시간</label><span>{{ incident.created_at.strftime('%Y-%m-%d %H:%M:%S') if incident.created_at else '-' }}</span></div>
+  </div>
+</div>
+
+<!-- AI 분석 결과 -->
+{% set analysis = incident.analysis_result %}
+{% if analysis %}
+<div class="card">
+  <h2>AI 분석 결과
+    <span style="font-size:12px; color:#718096; font-weight:normal; margin-left:8px;">
+      신뢰도: {{ analysis.confidence }}
+    </span>
+  </h2>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+    <div>
+      <h3>원인 분류</h3>
+      <p style="font-size:15px; color:#f6ad55; font-weight:600;">{{ analysis.cause_category }}</p>
+    </div>
+    <div>
+      <h3>심각도</h3>
+      <p class="sev-{{ analysis.severity }}" style="font-size:15px;">{{ analysis.severity }}</p>
+    </div>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <h3>원인 상세</h3>
+    <p style="font-size:14px; line-height:1.6; color:#cbd5e0;">{{ analysis.cause_detail }}</p>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <h3>영향 범위</h3>
+    <p style="font-size:14px; color:#cbd5e0;">{{ analysis.impact_scope }}</p>
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <h3>즉시 조치 사항</h3>
+    <ul class="actions-list">
+      {% if analysis.immediate_actions %}
+        {% for action in analysis.immediate_actions %}
+          <li>{{ action }}</li>
+        {% endfor %}
+      {% endif %}
+    </ul>
+  </div>
+
+  <div>
+    <h3>재발 방지 권고</h3>
+    <p style="font-size:14px; line-height:1.6; color:#cbd5e0;">{{ analysis.prevention }}</p>
+  </div>
+</div>
+
+{% elif incident.status == 'processing' %}
+<div class="card" style="text-align:center; padding:40px;">
+  <p style="font-size:16px; margin-bottom:8px;">AI 분석 진행 중...</p>
+  <p style="color:#718096;">분석 완료까지 최대 1분 소요됩니다.</p>
+</div>
+<script>setTimeout(() => location.reload(), 5000);</script>
+
+{% elif incident.status == 'ai_failed' %}
+<div class="card" style="border-color:#742a2a;">
+  <h2 style="color:#fc8181;">AI 분석 실패</h2>
+  <p style="color:#718096;">자동 분석에 실패했습니다. 수동으로 로그를 확인해 주세요.</p>
+</div>
+{% endif %}
+
+<!-- 수집 로그 -->
+{% if incident.logs %}
+<div class="card">
+  <h2>수집된 로그
+    <span style="font-size:12px; color:#718096; font-weight:normal; margin-left:8px;">
+      {{ incident.logs | length }}줄
+      {% if incident.logs[0].source %}({{ incident.logs[0].source }}){% endif %}
+    </span>
+  </h2>
+  <pre>{% for log in incident.logs %}{{ log.log_content }}
+{% endfor %}</pre>
+</div>
+{% endif %}
+
+{% endblock %}

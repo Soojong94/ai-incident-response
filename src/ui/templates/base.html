@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}AI 장애 대응{% endblock %}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+    a { color: #63b3ed; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .navbar {
+      background: #1a1d2e; border-bottom: 1px solid #2d3748; padding: 12px 24px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .navbar h1 { font-size: 18px; font-weight: 700; color: #e2e8f0; }
+    .navbar span { font-size: 12px; color: #718096; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 12px; font-weight: 600;
+    }
+    .badge-processing  { background: #2b6cb0; color: #bee3f8; }
+    .badge-analyzed    { background: #276749; color: #c6f6d5; }
+    .badge-ai_failed   { background: #742a2a; color: #fed7d7; }
+
+    .sev-Critical { color: #fc8181; font-weight: 700; }
+    .sev-High     { color: #f6ad55; font-weight: 700; }
+    .sev-Medium   { color: #f6e05e; }
+    .sev-Low      { color: #68d391; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th { background: #1a1d2e; color: #a0aec0; font-size: 12px; text-align: left; padding: 10px 12px; border-bottom: 1px solid #2d3748; }
+    td { padding: 10px 12px; border-bottom: 1px solid #1a1d2e; font-size: 14px; }
+    tr:hover td { background: #1a1d2e; }
+
+    .card { background: #1a1d2e; border: 1px solid #2d3748; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .card h2 { font-size: 16px; color: #a0aec0; margin-bottom: 12px; }
+    .card h3 { font-size: 14px; color: #718096; margin-bottom: 8px; }
+
+    pre { background: #0f1117; border: 1px solid #2d3748; border-radius: 4px; padding: 12px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; color: #a0aec0; }
+
+    .actions-list { list-style: none; }
+    .actions-list li { padding: 6px 0; border-bottom: 1px solid #2d3748; font-size: 14px; }
+    .actions-list li:before { content: "▸ "; color: #63b3ed; }
+
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .meta-item label { font-size: 11px; color: #718096; display: block; margin-bottom: 2px; }
+    .meta-item span  { font-size: 14px; }
+
+    .refresh-btn {
+      background: #2b6cb0; color: white; border: none; padding: 8px 16px;
+      border-radius: 4px; cursor: pointer; font-size: 14px; margin-left: auto;
+    }
+    .refresh-btn:hover { background: #2c5282; }
+
+    .empty { text-align: center; padding: 60px; color: #4a5568; }
+  </style>
+</head>
+<body>
+  <nav class="navbar">
+    <h1><a href="/" style="color:inherit;text-decoration:none;">AI 장애 대응 시스템</a></h1>
+    <span>NCP Cloud Insight + Timely GPT</span>
+  </nav>
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>
