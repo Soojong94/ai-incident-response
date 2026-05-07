@@ -114,6 +114,7 @@ class NCPPoller:
         new_events = [
             e for e in events
             if str(e.get("eventId", "")) not in self._seen_event_ids
+            and e.get("eventLevel", "") in ("WARNING", "CRITICAL")
         ]
 
         if not new_events:

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 import uuid
@@ -14,10 +15,12 @@ class TimelyAIClient:
     """
     Timely GPT Native API 클라이언트.
     Claude API로 교체 시 이 클래스 내부만 수정.
+    동시 분석은 1건으로 제한 — 나머지는 Semaphore 큐에서 순서대로 처리.
     """
 
     _token: str | None = None
     _token_expires: float = 0
+    _sem = asyncio.Semaphore(1)
 
     async def _get_token(self) -> str:
         if self._token and time.time() < self._token_expires:
@@ -35,6 +38,10 @@ class TimelyAIClient:
         return self._token
 
     async def analyze(self, alarm_data: dict, logs: list[str]) -> dict:
+        async with self._sem:
+            return await self._analyze(alarm_data, logs)
+
+    async def _analyze(self, alarm_data: dict, logs: list[str]) -> dict:
         token = await self._get_token()
         prompt = build_user_prompt(alarm_data, logs)
         session_id = f"incident-{alarm_data.get('alarm_id', uuid.uuid4().hex[:8])}"

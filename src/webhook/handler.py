@@ -52,6 +52,7 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
 
         from src.analyzer.ai_client import ai_client
         try:
+            logger.info("AI 분석 요청 (incident=%d) — 진행 중인 분석 있으면 큐 대기", incident_id)
             result = await ai_client.analyze(alarm_data, logs)
             create_analysis(db, incident_id, result)
             update_incident_status(db, incident_id, "analyzed", severity=result.get("severity"))
