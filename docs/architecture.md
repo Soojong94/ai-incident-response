@@ -14,23 +14,22 @@
 │                                                       │
 │  ┌─────────────┐   ┌──────────────┐   ┌───────────┐  │
 │  │  Webhook    │→  │  Collector   │→  │ Analyzer  │  │
-│  │  Receiver   │   │  (로그수집)   │   │ (Claude)  │  │
+│  │  Receiver   │   │  (Mock/NCP)  │   │(Timely AI)│  │
 │  └─────────────┘   └──────────────┘   └─────┬─────┘  │
 │         │                 │                  │        │
 │         ↓                 ↓                  ↓        │
 │  ┌──────────────────────────────────────────────────┐ │
 │  │                    DB (SQLite)                    │ │
-│  │  incidents / logs / analysis_results              │ │
+│  │  incidents / incident_logs / analysis_results     │ │
 │  └──────────────────────────────────────────────────┘ │
 │                                                       │
-│  ┌─────────────┐                   ┌───────────────┐  │
-│  │  Responder  │                   │    Web UI     │  │
-│  │  (Slack)    │                   │  (대시보드)    │  │
-│  └─────────────┘                   └───────────────┘  │
+│  ┌─────────────────────────────────────────────────┐  │
+│  │              Web UI (대시보드)                   │  │
+│  │  장애 목록 / 상세 / AI 분석 결과                  │  │
+│  └─────────────────────────────────────────────────┘  │
+│                                                       │
+│  [ Slack Responder — Phase 2 ]                        │
 └──────────────────────────────────────────────────────┘
-          │
-          ↓
-   [Slack Channel]   [담당자 확인]
 ```
 
 ---
@@ -40,22 +39,20 @@
 ### 1. Webhook Receiver (`src/webhook/`)
 
 - 엔드포인트: `POST /webhook/alarm`
-- HMAC-SHA256 서명 검증
-- 알람 페이로드 파싱 및 정규화
-- `Incident` 레코드 DB 생성
-- 비동기로 Collector 파이프라인 시작
+- HMAC-SHA256 서명 검증 (`WEBHOOK_SECRET` 설정 시)
+- 알람 페이로드 파싱 및 정규화 (camelCase/snake_case 모두 수용)
+- `Incident` 레코드 DB 생성 (status: `processing`)
+- `BackgroundTasks`로 비동기 파이프라인 즉시 시작 → 202 반환
 
 **Cloud Insight Alarm 페이로드 예시**
 ```json
 {
   "alarmName": "CPU-High-Alert",
-  "serverName": "web-01",
-  "serverIp": "192.168.1.10",
-  "metric": "cpu_used_rto",
+  "resourceName": "web-01",
+  "metricType": "cpu",
   "threshold": 85,
   "currentValue": 92.4,
-  "timestamp": "2026-05-07T14:32:00+09:00",
-  "severity": "CRITICAL"
+  "alarmTime": "2026-05-07T14:32:00+09:00"
 }
 ```
 
@@ -63,110 +60,127 @@
 
 ### 2. Collector (`src/collector/`)
 
-#### 2-1. NCP Log Analytics API
+#### 현재: Mock 수집기 (`mock_collector.py`)
+
+알람 메트릭 유형에 따라 실제와 유사한 로그를 생성하여 반환.
+NCP 키 및 API 경로 확인 후 실제 수집기로 교체 예정.
+
+지원 메트릭 유형별 Mock 로그: CPU / Memory / Disk / Network / HTTP
+
+#### 향후: NCP Log Analytics API (`ncp_collector.py`)
+
 ```
-GET /api/v1/logs
-  ?startTime={alarm_time - 15min}
-  &endTime={alarm_time + 15min}
-  &serverIp={target_ip}
+POST https://cloudloganalytics.apigw.ntruss.com/{path}
+  startTime: alarm_time - 15min
+  endTime:   alarm_time + 15min
+  serverIp:  target_ip
 ```
 
-#### 2-2. SSH 로그 Pull (fallback)
-```python
-# paramiko 사용
-# /var/log/messages, /var/log/syslog
-# 앱 로그 경로는 고객사 프로파일에서 조회
-```
+> **현황**: NCP HMAC 서명 검증 완료, 정확한 API 경로 미확인.
+> 참고: `docs/integration-notes.md`
 
-#### 2-3. 메트릭 수집
-- Cloud Insight Metric API로 알람 전후 30분 메트릭 시계열 수집
-- CPU, Memory, Disk I/O, Network 4개 항목
+#### 수집 실패 시 처리
+
+로그 수집 실패해도 파이프라인 중단하지 않음 (graceful degradation).
+알람 정보만으로 AI 분석 계속 진행.
 
 ---
 
 ### 3. Analyzer (`src/analyzer/`)
 
-#### Claude API 호출 흐름
+#### AI API: Timely GPT Native API
+
 ```
-1. 수집된 데이터 컨텍스트 패키징
-2. system prompt (SRE 역할) + user prompt (알람+로그+메트릭)
-3. Claude API 호출 (tool use로 구조화 응답 강제)
-4. 결과 파싱 및 DB 저장
+1. GET  /sdk-auth/authenticate  (X-Timely-API: {key}) → JWT
+2. POST /llm-completion         (Bearer: {jwt})
+   body: { session_id, messages, model, instructions,
+           output_type: "JSON", output_schema, locale: "ko" }
+3. response["parsed"]  →  구조화된 분석 결과 dict
 ```
 
-#### 토큰 관리
-- 로그 최대 8,000 토큰으로 잘라내기 (긴 로그는 에러 라인 우선 추출)
-- 메트릭은 5분 평균으로 집계 후 전달
-- 전체 입력 토큰 목표: 10,000 이하
+Base URL: `https://hello.timelygpt.co.kr/api/v2/chat`  
+모델: `gpt-5.1`  
+JWT 유효시간: ~55분 (자동 갱신)
+
+**Claude API 교체 시:** `src/analyzer/ai_client.py` 내부만 수정.
+
+#### 분석 결과 포맷
+
+```json
+{
+  "cause_category": "리소스 부족 | 애플리케이션 오류 | 외부 서비스 장애 | 인프라 이슈",
+  "cause_detail": "구체적 원인 설명 (2-3문장)",
+  "severity": "Critical | High | Medium | Low",
+  "impact_scope": "영향 범위 설명",
+  "immediate_actions": ["조치1", "조치2", "조치3"],
+  "prevention": "재발 방지 권고",
+  "confidence": "높음 | 보통 | 낮음"
+}
+```
+
+#### 응답 시간
+
+단순 채팅 ~3초, output_schema 분석 ~30~60초.  
+웹훅은 202 즉시 반환 후 BackgroundTasks에서 처리하므로 문제 없음.
 
 ---
 
-### 4. Responder (`src/responder/`)
+### 4. Responder — Phase 2
 
-#### Slack 메시지 구조
+현재 미구현. 향후 Slack Incoming Webhook 연동 예정.
+
 ```
 🚨 [CRITICAL] CPU 과부하 - web-01
-
-📊 알람 정보
-• 서버: web-01 (192.168.1.10)
-• 항목: CPU 사용률 92.4% (임계값: 85%)
-• 발생: 2026-05-07 14:32
-
-🤖 AI 분석 결과
-• 원인: 애플리케이션 오류 - 특정 프로세스 CPU 독점
-• 영향: 웹 서버 응답 지연 예상
-
-⚡ 즉시 조치
-1. top/htop으로 CPU 점유 프로세스 확인
-2. 해당 프로세스 재시작 또는 종료
-3. 애플리케이션 로그 무한루프 패턴 확인
-
-🔗 상세 분석: https://central-server/incidents/42
+📊 알람 정보 / 🤖 AI 분석 결과 / ⚡ 즉시 조치 / 🔗 상세 링크
 ```
 
 ---
 
 ### 5. DB 스키마 (`src/db/`)
 
-```sql
--- 장애 이력
-CREATE TABLE incidents (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  alarm_name TEXT,
-  server_name TEXT,
-  server_ip TEXT,
-  metric TEXT,
-  threshold REAL,
-  current_value REAL,
-  severity TEXT,
-  occurred_at DATETIME,
-  status TEXT DEFAULT 'open',  -- open / analyzing / resolved
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+#### incidents
 
--- 수집된 로그
-CREATE TABLE incident_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  incident_id INTEGER REFERENCES incidents(id),
-  log_source TEXT,  -- ncp_api / ssh
-  log_content TEXT,
-  collected_at DATETIME
-);
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | INTEGER PK | |
+| alarm_id | TEXT UNIQUE | Cloud Insight 알람 ID |
+| alarm_name | TEXT | 알람 이름 |
+| resource_name | TEXT | 대상 서버/리소스 |
+| metric_type | TEXT | CPU / Memory / Disk / Network / HTTP |
+| threshold_value | TEXT | 임계값 |
+| current_value | TEXT | 측정값 |
+| alarm_time | DATETIME | 알람 발생 시각 |
+| status | TEXT | `processing` / `analyzed` / `ai_failed` |
+| severity | TEXT | Critical / High / Medium / Low |
+| raw_alarm | JSON | 원본 페이로드 |
+| created_at | DATETIME | |
+| updated_at | DATETIME | |
 
--- AI 분석 결과
-CREATE TABLE analysis_results (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  incident_id INTEGER REFERENCES incidents(id),
-  cause_category TEXT,
-  cause_detail TEXT,
-  severity TEXT,
-  impact_scope TEXT,
-  immediate_actions TEXT,  -- JSON array
-  prevention TEXT,
-  raw_response TEXT,
-  analyzed_at DATETIME
-);
-```
+#### incident_logs
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | INTEGER PK | |
+| incident_id | INTEGER FK | |
+| source | TEXT | `mock` / `ncp_api` / `ssh` |
+| log_content | TEXT | 로그 원문 |
+| log_timestamp | DATETIME | |
+
+#### analysis_results
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| id | INTEGER PK | |
+| incident_id | INTEGER FK UNIQUE | |
+| cause_category | TEXT | |
+| cause_detail | TEXT | |
+| severity | TEXT | |
+| impact_scope | TEXT | |
+| immediate_actions | JSON | list[str] |
+| prevention | TEXT | |
+| confidence | TEXT | 높음 / 보통 / 낮음 |
+| raw_response | TEXT | AI 원본 응답 |
+| created_at | DATETIME | |
 
 ---
 
@@ -174,11 +188,11 @@ CREATE TABLE analysis_results (
 
 ```
 중앙 서버 (NCP Server 또는 로컬)
-  └── uvicorn main:app --host 0.0.0.0 --port 8000
-        ├── /webhook/alarm  ← Cloud Insight가 호출
-        ├── /incidents      ← 웹 UI
-        └── /static         ← CSS/JS
+  └── uvicorn src.main:app --host 0.0.0.0 --port 8000
+        ├── POST /webhook/alarm  ← Cloud Insight가 호출
+        ├── GET  /               ← 웹 대시보드
+        └── GET  /incidents/{id} ← 장애 상세
 ```
 
-외부에서 Webhook을 받으려면 공인 IP 또는 NCP Load Balancer 필요.
+외부에서 Webhook을 받으려면 공인 IP 또는 NCP Load Balancer 필요.  
 개발/데모 환경에서는 ngrok으로 로컬 터널링 가능.

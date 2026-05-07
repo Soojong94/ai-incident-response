@@ -4,60 +4,73 @@
 
 ## 개요
 
-NCP Cloud Insight 등 클라우드 모니터링 서비스의 알람을 Webhook으로 수신하여,
-관련 로그를 자동 수집하고 Claude AI가 원인을 분석 후 Slack으로 즉시 통보하는 중앙 서버 기반 시스템.
+NCP Cloud Insight의 알람을 Webhook으로 수신하여,
+관련 로그를 자동 수집하고 AI가 원인을 분석 후 웹 대시보드에서 즉시 확인할 수 있는 중앙 서버 기반 시스템.
 
 ## 핵심 기능
 
-- Cloud Insight / CloudWatch Webhook 수신
-- 알람 전후 로그 자동 수집 (NCP Log Analytics API / SSH)
-- Claude AI 원인 분석 및 조치 권고
-- Slack 실시간 알림
-- 웹 UI 기반 장애 이력 관리
+- Cloud Insight Webhook 수신 및 HMAC 검증
+- 알람 전후 로그 자동 수집 (NCP Log Analytics API / Mock)
+- AI 원인 분석 및 조치 권고 (Timely GPT `gpt-5.1` → 추후 Claude API)
+- 웹 UI 기반 장애 이력 관리 및 AI 분석 결과 조회
+- Slack 알림 (Phase 2)
 
 ## 기술 스택
 
-- **Backend**: Python 3.11 / FastAPI
-- **AI**: Claude API (claude-sonnet-4-6)
-- **DB**: SQLite (MVP) → MySQL (프로덕션)
-- **알림**: Slack Webhook
-- **대상 클라우드**: NCP (Naver Cloud Platform)
+| 항목 | 내용 |
+|------|------|
+| Backend | Python 3.11 / FastAPI |
+| AI | Timely GPT Native API (`gpt-5.1`) → 추후 Claude API 교체 |
+| DB | SQLite (MVP) → MySQL (프로덕션) |
+| 대상 클라우드 | NCP (Naver Cloud Platform) |
 
 ## 디렉토리 구조
 
 ```
 ai-incident-response/
-├── README.md
-├── PRD.md                    # 제품 요구사항 문서
+├── requirements.txt
+├── .env.example
 ├── CLAUDE.md                 # Claude Code 작업 지침
+├── PRD.md                    # 제품 요구사항 문서
 ├── docs/
 │   ├── architecture.md       # 시스템 아키텍처
-│   └── agent-design.md       # AI 에이전트 설계
-└── src/
-    ├── main.py               # FastAPI 진입점
-    ├── webhook/              # Webhook 수신
-    ├── collector/            # 로그/메트릭 수집
-    ├── analyzer/             # Claude AI 분석
-    ├── responder/            # Slack/Email 대응
-    ├── db/                   # 장애 이력 저장
-    └── ui/                   # 웹 대시보드
+│   ├── agent-design.md       # AI 에이전트 설계
+│   └── integration-notes.md  # API 테스트 결과 및 통합 노트
+├── scripts/
+│   └── test_api.py           # API 연결 테스트
+├── src/
+│   ├── main.py               # FastAPI 진입점
+│   ├── config.py             # 환경변수 설정
+│   ├── webhook/              # Webhook 수신
+│   ├── collector/            # 로그/메트릭 수집
+│   ├── analyzer/             # AI 분석
+│   ├── db/                   # 장애 이력 저장
+│   └── ui/                   # 웹 대시보드
+└── tests/
 ```
 
 ## 빠른 시작
 
 ```bash
-cd src
 pip install -r requirements.txt
 cp .env.example .env   # 환경변수 설정
-uvicorn main:app --reload
+uvicorn src.main:app --reload
 ```
 
 ## 환경변수
 
 | 변수 | 설명 |
 |------|------|
-| `CLAUDE_API_KEY` | Anthropic API 키 |
-| `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL |
+| `AI_API_KEY` | Timely GPT API 키 (`tgpt_sk_xxx`) 또는 Claude API 키 |
+| `AI_BASE_URL` | AI API Base URL |
+| `AI_MODEL` | 사용할 모델 (`gpt-5.1` 또는 `claude-sonnet-4-6`) |
 | `NCP_ACCESS_KEY` | NCP API Access Key |
 | `NCP_SECRET_KEY` | NCP API Secret Key |
-| `WEBHOOK_SECRET` | Cloud Insight Webhook 검증 시크릿 |
+| `WEBHOOK_SECRET` | Cloud Insight Webhook 검증 시크릿 (선택) |
+| `DATABASE_URL` | DB 연결 문자열 (기본: SQLite) |
+
+## 개발용 테스트 알람 발생
+
+```bash
+curl -X POST "http://localhost:8000/test/trigger?metric_type=CPU&resource_name=server-prod-01&current_value=95.3"
+```
