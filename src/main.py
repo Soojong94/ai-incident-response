@@ -41,6 +41,11 @@ async def webhook_alarm(request: Request, background_tasks: BackgroundTasks, db:
 
 # ── Dev test trigger ─────────────────────────────────────────────────────────
 
+@app.get("/test/demo", response_class=HTMLResponse)
+def demo_page(request: Request):
+    return templates.TemplateResponse("demo.html", {"request": request})
+
+
 @app.post("/test/trigger", status_code=202)
 async def test_trigger(
     background_tasks: BackgroundTasks,

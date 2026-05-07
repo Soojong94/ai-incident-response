@@ -64,18 +64,23 @@ _NORMAL_LOGS = [
 
 
 def generate_mock_logs(metric_type: str, alarm_time: datetime, count: int = 30) -> list[str]:
+    """알람 시점 기준 5분 전 로그 생성. 초반 2분은 정상, 이후 3분은 에러 중심."""
     metric_key = metric_type.lower()
     error_templates = _LOG_TEMPLATES.get(metric_key, _LOG_TEMPLATES["cpu"])
 
     logs = []
-    start = alarm_time - timedelta(minutes=15)
+    start = alarm_time - timedelta(minutes=5)
+    interval = timedelta(seconds=10)
 
     for i in range(count):
-        ts = (start + timedelta(seconds=i * 60)).strftime("%b %d %H:%M:%S")
-        if i < 10 or i > 20:
+        ts = (start + interval * i).strftime("%b %d %H:%M:%S")
+        elapsed_pct = i / count
+        if elapsed_pct < 0.4:
             tmpl = random.choice(_NORMAL_LOGS)
+        elif elapsed_pct < 0.7:
+            tmpl = random.choice(error_templates) if random.random() < 0.5 else random.choice(_NORMAL_LOGS)
         else:
-            tmpl = random.choice(error_templates) if random.random() < 0.7 else random.choice(_NORMAL_LOGS)
+            tmpl = random.choice(error_templates)
         logs.append(tmpl.format(ts=ts))
 
     return logs

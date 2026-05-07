@@ -58,15 +58,40 @@
     .refresh-btn:hover { background: #2c5282; }
 
     .empty { text-align: center; padding: 60px; color: #4a5568; }
+
+    /* Markdown rendered content */
+    .md-render p  { margin: 4px 0 8px; }
+    .md-render ul, .md-render ol { padding-left: 20px; margin: 6px 0; }
+    .md-render li { margin: 3px 0; line-height: 1.6; }
+    .md-render pre { margin: 8px 0; }
+    .md-render code { background: #2d3748; border-radius: 3px; padding: 1px 5px; font-size: 12px; color: #e2e8f0; }
+    .md-render pre code { padding: 0; background: none; }
+    .md-render h1, .md-render h2, .md-render h3 { color: #a0aec0; margin: 10px 0 4px; }
+
+    .action-item {
+      border: 1px solid #2d3748; border-radius: 6px;
+      padding: 12px 16px; margin-bottom: 10px;
+      font-size: 14px; line-height: 1.6; color: #cbd5e0;
+    }
+    .action-item:before { content: none; }
   </style>
 </head>
 <body>
   <nav class="navbar">
     <h1><a href="/" style="color:inherit;text-decoration:none;">AI 장애 대응 시스템</a></h1>
     <span>NCP Cloud Insight + Timely GPT</span>
+    <a href="/test/demo" style="margin-left:auto; background:#2b6cb0; color:white; padding:6px 14px; border-radius:4px; font-size:13px; text-decoration:none;">데모 알람 발생</a>
   </nav>
   <div class="container">
     {% block content %}{% endblock %}
   </div>
+<script>
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({ breaks: true, gfm: true });
+    document.querySelectorAll('.md-render').forEach(el => {
+      el.innerHTML = marked.parse(el.dataset.md || '');
+    });
+  }
+</script>
 </body>
 </html>

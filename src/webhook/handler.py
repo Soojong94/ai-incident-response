@@ -35,18 +35,20 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
     db = next(_get_db())
     try:
         logs: list[str] = []
-        use_ncp = bool(settings.ncp_access_key and settings.ncp_secret_key)
+        log_source = "mock"
 
-        if use_ncp:
+        if settings.ncp_access_key and settings.ncp_secret_key:
             try:
                 logs = await ncp_collector.collect(alarm_data)
+                log_source = "ncp_api"
             except Exception as e:
                 logger.warning("NCP log collection failed (%s), falling back to mock", e)
 
         if not logs:
             logs = await mock_collector.collect(alarm_data)
+            log_source = "mock"
 
-        add_logs(db, incident_id, logs, source="ncp_api" if use_ncp and logs else "mock")
+        add_logs(db, incident_id, logs, source=log_source)
 
         from src.analyzer.ai_client import ai_client
         try:

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}장애 #{{ incident.id }} — AI 장애 대응{% endblock %}
 {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <div style="margin-bottom:20px;">
   <a href="/">&larr; 목록으로</a>
 </div>
@@ -49,28 +50,26 @@
 
   <div style="margin-bottom:16px;">
     <h3>원인 상세</h3>
-    <p style="font-size:14px; line-height:1.6; color:#cbd5e0;">{{ analysis.cause_detail }}</p>
+    <div class="md-render" style="font-size:14px; line-height:1.7; color:#cbd5e0;" data-md="{{ analysis.cause_detail | e }}"></div>
   </div>
 
   <div style="margin-bottom:16px;">
     <h3>영향 범위</h3>
-    <p style="font-size:14px; color:#cbd5e0;">{{ analysis.impact_scope }}</p>
+    <div class="md-render" style="font-size:14px; line-height:1.6; color:#cbd5e0;" data-md="{{ analysis.impact_scope | e }}"></div>
   </div>
 
   <div style="margin-bottom:16px;">
     <h3>즉시 조치 사항</h3>
-    <ul class="actions-list">
-      {% if analysis.immediate_actions %}
-        {% for action in analysis.immediate_actions %}
-          <li>{{ action }}</li>
-        {% endfor %}
-      {% endif %}
-    </ul>
+    {% if analysis.immediate_actions %}
+      {% for action in analysis.immediate_actions %}
+        <div class="action-item md-render" data-md="{{ action | e }}"></div>
+      {% endfor %}
+    {% endif %}
   </div>
 
   <div>
     <h3>재발 방지 권고</h3>
-    <p style="font-size:14px; line-height:1.6; color:#cbd5e0;">{{ analysis.prevention }}</p>
+    <div class="md-render" style="font-size:14px; line-height:1.7; color:#cbd5e0;" data-md="{{ analysis.prevention | e }}"></div>
   </div>
 </div>
 

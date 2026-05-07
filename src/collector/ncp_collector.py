@@ -40,8 +40,8 @@ async def collect(alarm_data: dict) -> list[str]:
     except (ValueError, TypeError):
         alarm_time = datetime.now()
 
-    start_ts = int((alarm_time - timedelta(minutes=15)).timestamp())
-    end_ts = int((alarm_time + timedelta(minutes=15)).timestamp())
+    start_ts = int((alarm_time - timedelta(minutes=5)).timestamp())
+    end_ts = int(alarm_time.timestamp())
     resource = alarm_data.get("resource_name", "")
 
     path = f"/api/{REGION_CODE}-v1/logs/search"

@@ -22,7 +22,7 @@ class Incident(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
     logs = relationship("IncidentLog", back_populates="incident", cascade="all, delete-orphan")
-    analysis = relationship("AnalysisResult", back_populates="incident", uselist=False, cascade="all, delete-orphan")
+    analysis_result = relationship("AnalysisResult", back_populates="incident", uselist=False, cascade="all, delete-orphan")
 
 
 class IncidentLog(Base):
@@ -52,4 +52,4 @@ class AnalysisResult(Base):
     raw_response = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    incident = relationship("Incident", back_populates="analysis")
+    incident = relationship("Incident", back_populates="analysis_result")
