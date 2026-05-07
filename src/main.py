@@ -21,7 +21,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     init_db()
     logger.info("DB initialized")
+    from src.collector.ncp_poller import poller
+    await poller.start()
     yield
+    poller.stop()
 
 
 app = FastAPI(title="AI Incident Response", lifespan=lifespan)
