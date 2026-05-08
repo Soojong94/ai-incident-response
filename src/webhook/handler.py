@@ -30,14 +30,24 @@ async def receive_alarm(request: Request, payload: dict, db) -> dict:
 
 async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
     """Background task: collect logs → analyze → store result."""
-    from src.collector import mock_collector, ncp_collector
+    from src.collector import mock_collector, ncp_collector, obs_collector
 
     db = next(_get_db())
     try:
         logs: list[str] = []
         log_source = "mock"
 
-        if settings.ncp_access_key and settings.ncp_secret_key:
+        obs_key = alarm_data.get("obs_object_key") or alarm_data.get("obsObjectKey")
+        obs_bucket = alarm_data.get("obs_bucket") or alarm_data.get("obsBucket") or settings.obs_bucket
+
+        if obs_key and settings.ncp_access_key and settings.ncp_secret_key:
+            try:
+                logs = await obs_collector.collect(obs_bucket, obs_key)
+                log_source = "obs"
+            except Exception as e:
+                logger.warning("OBS log collection failed (%s), falling back to CLA/mock", e)
+
+        if not logs and settings.ncp_access_key and settings.ncp_secret_key:
             try:
                 logs = await ncp_collector.collect(alarm_data)
                 log_source = "ncp_api"

@@ -54,9 +54,11 @@ async def test_trigger(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     metric_type: str = "cpu",
-    resource_name: str = "server-prod-01",
+    resource_name: str = "team1-test-server",
     current_value: float = 95.3,
     threshold_value: float = 85.0,
+    obs_object_key: str = "",
+    obs_bucket: str = "",
 ):
     payload = {
         "alarmName": f"{metric_type.upper()}-High-Alert",
@@ -67,6 +69,9 @@ async def test_trigger(
         "currentValue": current_value,
         "alarmTime": datetime.now().isoformat(),
     }
+    if obs_object_key:
+        payload["obs_object_key"] = obs_object_key
+        payload["obs_bucket"] = obs_bucket or "team1-demo"
     incident = create_incident(db, payload)
     background_tasks.add_task(run_pipeline, incident.id, payload)
     return {"status": "accepted", "incident_id": incident.id}

@@ -15,10 +15,13 @@ class Settings(BaseSettings):
     # Webhook HMAC (optional)
     webhook_secret: str = ""
 
-    # NCP (future)
+    # NCP
     ncp_access_key: str = ""
     ncp_secret_key: str = ""
     ncp_region: str = "KR"
+
+    # NCP Object Storage
+    obs_bucket: str = "team1-demo"
 
 
 settings = Settings()
