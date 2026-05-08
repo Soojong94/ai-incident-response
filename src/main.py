@@ -46,7 +46,7 @@ async def webhook_alarm(request: Request, background_tasks: BackgroundTasks, db:
 
 @app.get("/test/demo", response_class=HTMLResponse)
 def demo_page(request: Request):
-    return templates.TemplateResponse("demo.html", {"request": request})
+    return templates.TemplateResponse(request, "demo.html")
 
 
 @app.post("/test/trigger", status_code=202)
@@ -77,7 +77,7 @@ async def test_trigger(
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
     incidents = get_incidents(db, limit=50)
-    return templates.TemplateResponse("index.html", {"request": request, "incidents": incidents})
+    return templates.TemplateResponse(request, "index.html", {"incidents": incidents})
 
 
 @app.get("/incidents/{incident_id}", response_class=HTMLResponse)
@@ -86,7 +86,7 @@ def incident_detail(incident_id: int, request: Request, db: Session = Depends(ge
     if not incident:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Incident not found")
-    return templates.TemplateResponse("detail.html", {"request": request, "incident": incident})
+    return templates.TemplateResponse(request, "detail.html", {"incident": incident})
 
 
 # ── API (JSON) ────────────────────────────────────────────────────────────────

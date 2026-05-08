@@ -12,3 +12,5 @@ dist/
 build/
 .mypy_cache/
 timely-chat/
+*.pptx
+.claude/
