@@ -77,6 +77,30 @@ async def test_trigger(
     return {"status": "accepted", "incident_id": incident.id}
 
 
+# ── OBS 원본 로그 다운로드 ───────────────────────────────────────────────────────
+
+@app.get("/api/incidents/{incident_id}/logs/raw")
+async def api_logs_raw(incident_id: int, db: Session = Depends(get_db)):
+    from fastapi.responses import StreamingResponse, JSONResponse
+    incident = get_incident(db, incident_id)
+    if not incident:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Incident not found")
+    if not incident.obs_object_key:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="No OBS file for this incident")
+    from src.collector.obs_collector import _s3_client
+    s3 = _s3_client()
+    resp = s3.get_object(Bucket=incident.obs_bucket, Key=incident.obs_object_key)
+    body = resp["Body"].read()
+    filename = incident.obs_object_key.split("/")[-1]
+    return StreamingResponse(
+        iter([body]),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 # ── Incident 삭제 ─────────────────────────────────────────────────────────────
 
 @app.delete("/api/incidents/{incident_id}", status_code=200)

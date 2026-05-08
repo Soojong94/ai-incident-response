@@ -28,8 +28,7 @@
     <div class="meta-item" style="grid-column:1/-1;">
       <label>원본 로그 파일</label>
       <span>
-        <a href="https://kr.object.ncloudstorage.com/{{ incident.obs_bucket }}/{{ incident.obs_object_key }}"
-           target="_blank"
+        <a href="/api/incidents/{{ incident.id }}/logs/raw"
            style="color:#63b3ed; text-decoration:underline;">
           {{ incident.obs_object_key }}
         </a>
