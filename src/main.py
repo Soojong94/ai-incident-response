@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from src.db.database import init_db, get_db
-from src.db.crud import create_incident, get_incident, get_incidents
+from src.db.crud import create_incident, get_incident, get_incidents, delete_incident, delete_all_incidents
 from src.webhook.handler import receive_alarm, run_pipeline
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -75,6 +75,22 @@ async def test_trigger(
     incident = create_incident(db, payload)
     background_tasks.add_task(run_pipeline, incident.id, payload)
     return {"status": "accepted", "incident_id": incident.id}
+
+
+# ── Incident 삭제 ─────────────────────────────────────────────────────────────
+
+@app.delete("/api/incidents/{incident_id}", status_code=200)
+def api_delete_incident(incident_id: int, db: Session = Depends(get_db)):
+    if not delete_incident(db, incident_id):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Incident not found")
+    return {"deleted": incident_id}
+
+
+@app.delete("/api/incidents", status_code=200)
+def api_delete_all_incidents(db: Session = Depends(get_db)):
+    count = delete_all_incidents(db)
+    return {"deleted": count}
 
 
 # ── Dashboard ────────────────────────────────────────────────────────────────

@@ -79,6 +79,22 @@ def create_analysis(db: Session, incident_id: int, data: dict) -> AnalysisResult
     return analysis
 
 
+def delete_incident(db: Session, incident_id: int) -> bool:
+    incident = db.query(Incident).filter(Incident.id == incident_id).first()
+    if not incident:
+        return False
+    db.delete(incident)
+    db.commit()
+    return True
+
+
+def delete_all_incidents(db: Session) -> int:
+    count = db.query(Incident).count()
+    db.query(Incident).delete()
+    db.commit()
+    return count
+
+
 def update_incident_status(db: Session, incident_id: int, status: str, severity: str | None = None) -> None:
     incident = db.query(Incident).filter(Incident.id == incident_id).first()
     if incident:

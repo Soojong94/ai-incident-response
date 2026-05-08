@@ -4,6 +4,7 @@
 <div style="display:flex; align-items:center; margin-bottom:20px;">
   <h2 style="font-size:20px;">장애 목록</h2>
   <button class="refresh-btn" onclick="location.reload()">새로고침</button>
+  <button class="refresh-btn" style="background:#e53e3e; margin-left:8px;" onclick="deleteAll()">전체 삭제</button>
 </div>
 
 {% if incidents %}
@@ -17,6 +18,7 @@
       <th>발생시간</th>
       <th>심각도</th>
       <th>상태</th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -35,6 +37,7 @@
         {% else %}-{% endif %}
       </td>
       <td><span class="badge badge-{{ inc.status }}">{{ inc.status }}</span></td>
+      <td><button onclick="deleteIncident({{ inc.id }})" style="background:#e53e3e; color:#fff; border:none; padding:3px 10px; border-radius:4px; cursor:pointer; font-size:12px;">삭제</button></td>
     </tr>
     {% endfor %}
   </tbody>
@@ -47,8 +50,19 @@
 {% endif %}
 
 <script>
-  // 처리 중인 인시던트가 있으면 10초마다 자동 새로고침
   const hasProcessing = document.querySelectorAll('.badge-processing').length > 0;
   if (hasProcessing) setTimeout(() => location.reload(), 10000);
+
+  async function deleteIncident(id) {
+    if (!confirm(`#${id} 장애를 삭제할까요?`)) return;
+    await fetch(`/api/incidents/${id}`, { method: 'DELETE' });
+    location.reload();
+  }
+
+  async function deleteAll() {
+    if (!confirm('모든 장애 이력을 삭제할까요?')) return;
+    await fetch('/api/incidents', { method: 'DELETE' });
+    location.reload();
+  }
 </script>
 {% endblock %}
