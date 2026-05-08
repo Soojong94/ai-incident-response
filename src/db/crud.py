@@ -27,6 +27,8 @@ def _parse_alarm(alarm_data: dict) -> dict:
         "threshold_value": str(get("threshold", "threshold_value") or ""),
         "current_value": str(get("currentValue", "current_value") or ""),
         "alarm_time": alarm_time,
+        "obs_bucket": get("obs_bucket", "obsBucket") or "",
+        "obs_object_key": get("obs_object_key", "obsObjectKey") or "",
     }
 
 

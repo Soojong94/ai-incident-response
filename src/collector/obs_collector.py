@@ -29,8 +29,7 @@ async def collect(bucket: str, object_key: str) -> list[str]:
     resp = _s3_client().get_object(Bucket=bucket, Key=object_key)
     body = resp["Body"].read().decode("utf-8", errors="replace")
 
-    priority = []
-    fallback = []
+    records = []
     for line in body.splitlines():
         if not line.strip():
             continue
@@ -39,14 +38,12 @@ async def collect(bucket: str, object_key: str) -> list[str]:
             ts = record.get("@timestamp", "")
             log_type = record.get("type", "")
             message = record.get("message", line)
-            entry = f"{ts} [{log_type}] {message}"
-            if log_type in ("nginx_error", "nginx_access"):
-                priority.append(entry)
-            else:
-                fallback.append(entry)
+            records.append((ts, f"{ts} [{log_type}] {message}"))
         except json.JSONDecodeError:
-            fallback.append(line)
+            records.append(("", line))
 
-    logs = (priority + fallback)[:100]
-    logger.info("OBS 로그 %d줄 수집 완료 (priority=%d)", len(logs), len(priority))
+    # 타임스탬프 기준 정렬 후 최근 100개
+    records.sort(key=lambda x: x[0])
+    logs = [entry for _, entry in records[-100:]]
+    logger.info("OBS 로그 %d줄 수집 완료 (전체 %d줄)", len(logs), len(records))
     return logs

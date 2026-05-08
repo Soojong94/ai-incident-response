@@ -17,6 +17,8 @@ class Incident(Base):
     alarm_time = Column(DateTime)
     status = Column(String(50), default="processing")  # processing | analyzed | ai_failed
     severity = Column(String(50))                       # Critical | High | Medium | Low
+    obs_bucket = Column(String(200))
+    obs_object_key = Column(String(500))
     raw_alarm = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)

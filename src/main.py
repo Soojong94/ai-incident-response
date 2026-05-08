@@ -132,6 +132,10 @@ def api_incident_detail(incident_id: int, db: Session = Depends(get_db)) -> Any:
         "alarm_time": incident.alarm_time.isoformat() if incident.alarm_time else None,
         "status": incident.status,
         "severity": incident.severity,
+        "obs_file_url": (
+            f"https://kr.object.ncloudstorage.com/{incident.obs_bucket}/{incident.obs_object_key}"
+            if incident.obs_object_key else None
+        ),
         "logs": [{"content": l.log_content, "source": l.source} for l in incident.logs],
         "analysis": {
             "cause_category": analysis.cause_category,
