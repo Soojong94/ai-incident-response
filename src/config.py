@@ -23,5 +23,12 @@ class Settings(BaseSettings):
     # NCP Object Storage
     obs_bucket: str = "team1-demo"
 
+    # SMTP
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    alert_email: str = ""
+
 
 settings = Settings()

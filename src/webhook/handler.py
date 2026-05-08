@@ -66,6 +66,8 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
             result = await ai_client.analyze(alarm_data, logs)
             create_analysis(db, incident_id, result)
             update_incident_status(db, incident_id, "analyzed", severity=result.get("severity"))
+            from src.notifier.email_notifier import send_analysis_complete
+            send_analysis_complete(incident_id, alarm_data.get("alarmName", "알람"), result)
         except Exception as e:
             logger.error("AI analysis failed for incident %d: %s", incident_id, e)
             update_incident_status(db, incident_id, "ai_failed")
