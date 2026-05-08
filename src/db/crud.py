@@ -62,6 +62,9 @@ def add_logs(db: Session, incident_id: int, logs: list[str], source: str = "mock
 
 
 def create_analysis(db: Session, incident_id: int, data: dict) -> AnalysisResult:
+    existing = db.query(AnalysisResult).filter(AnalysisResult.incident_id == incident_id).first()
+    if existing:
+        return existing
     analysis = AnalysisResult(
         incident_id=incident_id,
         cause_category=data.get("cause_category"),

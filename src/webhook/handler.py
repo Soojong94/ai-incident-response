@@ -70,6 +70,7 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
             send_analysis_complete(incident_id, alarm_data.get("alarmName", "알람"), result)
         except Exception as e:
             logger.error("AI analysis failed for incident %d: %s", incident_id, e)
+            db.rollback()
             update_incident_status(db, incident_id, "ai_failed")
     finally:
         db.close()
