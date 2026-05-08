@@ -14,7 +14,6 @@
       <th>알람명</th>
       <th>리소스</th>
       <th>메트릭</th>
-      <th>현재값</th>
       <th>발생시간</th>
       <th>심각도</th>
       <th>상태</th>
@@ -27,7 +26,6 @@
       <td><a href="/incidents/{{ inc.id }}">{{ inc.alarm_name or '-' }}</a></td>
       <td>{{ inc.resource_name or '-' }}</td>
       <td>{{ inc.metric_type or '-' }}</td>
-      <td>{{ inc.current_value or '-' }}</td>
       <td style="font-size:12px; color:#718096;">
         {{ inc.alarm_time.strftime('%Y-%m-%d %H:%M:%S') if inc.alarm_time else '-' }}
       </td>
