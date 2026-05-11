@@ -6,8 +6,8 @@ class Settings(BaseSettings):
 
     # AI API (Timely GPT or Claude)
     ai_api_key: str = ""
-    ai_base_url: str = "https://hello.timelygpt.co.kr/api/v2/chat/bridge/openai"
-    ai_model: str = "anthropic/claude-sonnet-4-6"
+    ai_base_url: str = "https://hello.timelygpt.co.kr/api/v2/chat"
+    ai_model: str = "gpt-5.1"
 
     # Database
     database_url: str = "sqlite:///./incidents.db"
@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     alert_email: str = ""
+
+    # Auth
+    session_secret: str = "dev-insecure-change-me"
+    session_cookie_secure: bool = False        # 운영(HTTPS)에선 True 권장
+    session_max_age_seconds: int = 60 * 60 * 8  # 8시간
+    min_password_length: int = 8
+    admin_email: str = "admin@example.com"
+    admin_password: str = "changeme"
 
 
 settings = Settings()
