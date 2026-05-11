@@ -3,7 +3,7 @@ import logging
 import uuid
 from datetime import datetime
 from sqlalchemy.orm import Session
-from src.db.models import Incident, IncidentLog, AnalysisResult, Recipient, Site, User, NotificationLog
+from src.db.models import Incident, IncidentLog, AnalysisResult, Recipient, Site, User, NotificationLog, PasswordResetToken
 
 logger = logging.getLogger(__name__)
 
@@ -378,6 +378,40 @@ def touch_user_login(db: Session, user_id: int) -> None:
     if user:
         user.last_login_at = datetime.utcnow()
         db.commit()
+
+
+# ── Password reset tokens ──────────────────────────────────────────────────
+
+def create_password_reset_token(db: Session, user_id: int, token: str, expires_at: datetime) -> PasswordResetToken:
+    rec = PasswordResetToken(token=token, user_id=user_id, expires_at=expires_at)
+    db.add(rec)
+    db.commit()
+    db.refresh(rec)
+    return rec
+
+
+def get_password_reset_token(db: Session, token: str) -> PasswordResetToken | None:
+    return db.query(PasswordResetToken).filter(PasswordResetToken.token == token).first()
+
+
+def consume_password_reset_token(db: Session, token: str) -> None:
+    rec = get_password_reset_token(db, token)
+    if rec:
+        rec.used_at = datetime.utcnow()
+        db.commit()
+
+
+def recent_reset_for_user(db: Session, user_id: int, within_seconds: int = 60) -> PasswordResetToken | None:
+    """rate limit 용 — within_seconds 안에 발급된 미사용 토큰이 있는지."""
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(seconds=within_seconds)
+    return (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.user_id == user_id)
+        .filter(PasswordResetToken.created_at >= cutoff)
+        .filter(PasswordResetToken.used_at.is_(None))
+        .first()
+    )
 
 
 # ── NotificationLog ────────────────────────────────────────────────────────

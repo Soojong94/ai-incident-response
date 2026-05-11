@@ -10,6 +10,52 @@ logger = logging.getLogger(__name__)
 DASHBOARD_URL = "https://tbit-msp.kro.kr"
 
 
+def send_password_reset(target_email: str, reset_url: str) -> tuple[bool, str | None]:
+    """비밀번호 재설정 링크 메일 발송. 반환: (성공, 실패 시 사유)."""
+    if not target_email or not settings.smtp_user:
+        return False, "SMTP/수신자 미설정"
+
+    html = f"""
+<html><body style="font-family:sans-serif; background:#f7fafc; padding:20px;">
+<div style="max-width:520px; margin:0 auto; background:#fff; border-radius:8px; padding:28px;">
+  <h2 style="color:#1a202c; margin:0 0 12px;">AI 장애 대응 — 비밀번호 재설정</h2>
+  <p style="color:#4a5568; font-size:14px; line-height:1.6;">
+    비밀번호 재설정 요청을 받았습니다. 아래 버튼을 클릭하면 새 비밀번호를 설정할 수 있습니다.
+    이 링크는 <b>1시간</b> 안에만 유효하며, 한 번만 사용할 수 있습니다.
+  </p>
+  <p style="text-align:center; margin:24px 0;">
+    <a href="{reset_url}" style="display:inline-block; background:#2b6cb0; color:#fff; padding:12px 24px; border-radius:6px; text-decoration:none; font-weight:600;">
+      비밀번호 재설정 →
+    </a>
+  </p>
+  <p style="color:#718096; font-size:12px; margin-top:16px;">
+    링크가 작동하지 않으면 다음 URL을 브라우저에 붙여넣으세요:<br>
+    <span style="word-break:break-all;">{reset_url}</span>
+  </p>
+  <hr style="border:none; border-top:1px solid #e2e8f0; margin:20px 0;">
+  <p style="color:#a0aec0; font-size:11px;">
+    본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다. 비밀번호는 변경되지 않습니다.
+  </p>
+</div></body></html>
+"""
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = "[AI장애대응] 비밀번호 재설정 안내"
+    msg["From"] = settings.smtp_user
+    msg["To"] = target_email
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+            server.starttls()
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.sendmail(settings.smtp_user, target_email, msg.as_string())
+        logger.info("비밀번호 재설정 메일 발송: %s", target_email)
+        return True, None
+    except Exception as e:
+        logger.error("비밀번호 재설정 메일 실패 (%s): %s", target_email, e)
+        return False, str(e)[:500]
+
+
 def send_analysis_complete(
     incident_id: int,
     alarm_name: str,

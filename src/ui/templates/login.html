@@ -82,6 +82,11 @@
     {% if error %}
     <div class="error">이메일 또는 비밀번호가 올바르지 않습니다.</div>
     {% endif %}
+    {% if request.query_params.get('reset') == 'ok' %}
+    <div style="background: rgba(72, 187, 120, 0.15); border: 1px solid #38a169; color: #38a169; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 16px;">
+      ✓ 비밀번호가 변경되었습니다. 새 비밀번호로 로그인하세요.
+    </div>
+    {% endif %}
 
     <form method="POST" action="/login">
       <label>
@@ -95,7 +100,11 @@
       <button type="submit">로그인</button>
     </form>
 
-    <p class="hint">관리자에게 계정 발급을 문의하세요.</p>
+    <p class="hint">
+      <a href="/forgot-password" style="color: var(--text-subtle);">비밀번호를 잊으셨나요?</a>
+      &nbsp;·&nbsp;
+      <span>관리자에게 계정 발급 문의</span>
+    </p>
   </div>
 </body>
 </html>

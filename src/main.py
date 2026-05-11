@@ -19,10 +19,12 @@ from src.db.crud import (
     list_sites, get_site, create_site, update_site, delete_site, list_recipients_for_site,
     get_user_by_email, get_user, list_users, create_user as crud_create_user,
     update_user as crud_update_user, delete_user as crud_delete_user,
+    create_password_reset_token, get_password_reset_token, consume_password_reset_token,
+    recent_reset_for_user,
 )
 from src.auth import (
     ensure_initial_admin, authenticate, login_user, logout_user,
-    current_user, require_user, require_admin, hash_password,
+    current_user, require_user, require_admin, hash_password, verify_password,
     check_security_config,
 )
 from src.webhook.handler import receive_alarm, run_pipeline
@@ -65,10 +67,11 @@ def _inject_user(request: Request, ctx: dict) -> dict:
 
 # ── Auth middleware ─────────────────────────────────────────────────────────
 
-AUTH_EXEMPT_PATHS = {"/login", "/logout", "/favicon.svg", "/favicon.ico"}
+AUTH_EXEMPT_PATHS = {"/login", "/logout", "/favicon.svg", "/favicon.ico", "/forgot-password"}
 # webhook은 외부 시스템(NCP CF)이 호출하므로 인증 면제.
 # /test/는 더 이상 면제하지 않음 — 인증된 사용자만 트리거 가능.
-AUTH_EXEMPT_PREFIXES = ("/webhook/",)
+# /reset/ 은 토큰이 자격증명 역할이라 인증 면제 prefix.
+AUTH_EXEMPT_PREFIXES = ("/webhook/", "/reset/")
 
 
 def _safe_next(next_url: str) -> str:
@@ -159,6 +162,92 @@ async def login_action(
 def logout(request: Request):
     logout_user(request)
     return RedirectResponse(url="/login", status_code=303)
+
+
+# ── 비밀번호 찾기 / 재설정 / 본인 변경 ────────────────────────────────────────
+
+import secrets as _secrets
+from datetime import timedelta
+
+
+@app.get("/forgot-password", response_class=HTMLResponse)
+def forgot_password_page(request: Request, sent: bool = False):
+    return templates.TemplateResponse(request, "forgot_password.html", {"sent": sent})
+
+
+@app.post("/forgot-password")
+async def forgot_password_action(
+    request: Request,
+    email: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """이메일 입력 받아 reset link 발송. 계정 존재 여부는 응답에 노출하지 않음."""
+    from src.notifier.email_notifier import send_password_reset
+
+    email = email.strip().lower()
+    user = get_user_by_email(db, email)
+    if user and user.enabled:
+        # rate limit — 1분 안에 발급된 미사용 토큰 있으면 재발급 안 함
+        existing = recent_reset_for_user(db, user.id, within_seconds=60)
+        if not existing:
+            token = _secrets.token_urlsafe(32)
+            expires_at = datetime.utcnow() + timedelta(hours=1)
+            create_password_reset_token(db, user.id, token, expires_at)
+            base = str(request.base_url).rstrip("/")
+            reset_url = f"{base}/reset/{token}"
+            send_password_reset(user.email, reset_url)
+        else:
+            logger.info("forgot-password rate-limited for user_id=%d", user.id)
+    else:
+        logger.info("forgot-password: unknown or disabled email '%s'", email)
+    # 보안: 항상 같은 응답
+    return RedirectResponse(url="/forgot-password?sent=1", status_code=303)
+
+
+@app.get("/reset/{token}", response_class=HTMLResponse)
+def reset_password_page(token: str, request: Request, db: Session = Depends(get_db)):
+    rec = get_password_reset_token(db, token)
+    valid = bool(rec and rec.used_at is None and rec.expires_at > datetime.utcnow())
+    return templates.TemplateResponse(request, "reset_password.html", {"token": token, "valid": valid})
+
+
+@app.post("/reset/{token}")
+async def reset_password_action(
+    token: str,
+    request: Request,
+    new_password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    rec = get_password_reset_token(db, token)
+    if not rec or rec.used_at is not None or rec.expires_at <= datetime.utcnow():
+        return RedirectResponse(url=f"/reset/{token}", status_code=303)
+    if len(new_password) < settings.min_password_length:
+        # 보안 — 사용자에게 사유 알려주려면 query 파라미터로
+        return RedirectResponse(url=f"/reset/{token}?error=too_short", status_code=303)
+    crud_update_user(db, rec.user_id, {"password_hash": hash_password(new_password)})
+    consume_password_reset_token(db, token)
+    return RedirectResponse(url="/login?reset=ok", status_code=303)
+
+
+@app.get("/me/password", response_class=HTMLResponse)
+def change_password_page(request: Request, user=Depends(require_user)):
+    return templates.TemplateResponse(request, "change_password.html", {"current_user": user})
+
+
+@app.post("/me/password")
+async def change_password_action(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    if not verify_password(current_password, user.password_hash):
+        return RedirectResponse(url="/me/password?error=wrong_current", status_code=303)
+    if len(new_password) < settings.min_password_length:
+        return RedirectResponse(url="/me/password?error=too_short", status_code=303)
+    crud_update_user(db, user.id, {"password_hash": hash_password(new_password)})
+    return RedirectResponse(url="/me/password?ok=1", status_code=303)
 
 
 # ── User management (admin) ─────────────────────────────────────────────────

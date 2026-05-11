@@ -60,6 +60,17 @@ class AnalysisResult(Base):
     incident = relationship("Incident", back_populates="analysis_result")
 
 
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String(64), unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    expires_at = Column(DateTime)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class NotificationLog(Base):
     __tablename__ = "notification_logs"
 
