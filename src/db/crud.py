@@ -134,8 +134,19 @@ def add_logs(db: Session, incident_id: int, logs: list[str], source: str = "mock
 
 
 def create_analysis(db: Session, incident_id: int, data: dict) -> AnalysisResult:
+    """Upsert — 같은 incident_id에 분석이 이미 있으면 새 데이터로 덮어쓴다 (재분석 지원)."""
     existing = db.query(AnalysisResult).filter(AnalysisResult.incident_id == incident_id).first()
     if existing:
+        existing.cause_category = data.get("cause_category")
+        existing.cause_detail = data.get("cause_detail")
+        existing.severity = data.get("severity")
+        existing.impact_scope = data.get("impact_scope")
+        existing.immediate_actions = data.get("immediate_actions", [])
+        existing.prevention = data.get("prevention")
+        existing.confidence = data.get("confidence")
+        existing.raw_response = data.get("raw_response")
+        db.commit()
+        db.refresh(existing)
         return existing
     analysis = AnalysisResult(
         incident_id=incident_id,
