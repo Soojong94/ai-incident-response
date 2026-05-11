@@ -39,17 +39,34 @@ OUTPUT_SCHEMA = {
 }
 
 
-def build_user_prompt(alarm_data: dict, logs: list[str]) -> str:
-    alarm_time = alarm_data.get("alarm_time", datetime.now().isoformat())
+def _get(d: dict, *keys):
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return "N/A"
+
+
+def build_user_prompt(alarm_data: dict, logs: list[str], site_architecture: str | None = None) -> str:
+    alarm_time = _get(alarm_data, "alarmTime", "alarm_time") or datetime.now().isoformat()
     log_section = "\n".join(logs) if logs else "(로그 수집 실패 — 알람 정보만으로 분석)"
 
+    arch_section = ""
+    if site_architecture and site_architecture.strip():
+        # 토큰 비용 절감 — 최대 2000자
+        arch_text = site_architecture.strip()[:2000]
+        arch_section = f"""## 사이트 인프라 아키텍처 (참고 컨텍스트)
+{arch_text}
+
+"""
+
     return f"""## 장애 알람 정보
-- 알람명: {alarm_data.get('alarm_name', 'N/A')}
-- 리소스: {alarm_data.get('resource_name', 'N/A')}
-- 메트릭: {alarm_data.get('metric_type', 'N/A')} = {alarm_data.get('current_value', 'N/A')} (임계값: {alarm_data.get('threshold_value', 'N/A')})
+- 알람명: {_get(alarm_data, 'alarmName', 'alarm_name')}
+- 리소스: {_get(alarm_data, 'resourceName', 'resource_name')}
+- 메트릭: {_get(alarm_data, 'metricType', 'metric_type')} = {_get(alarm_data, 'currentValue', 'current_value')} (임계값: {_get(alarm_data, 'threshold', 'threshold_value')})
 - 발생시간: {alarm_time}
 
-## 수집된 로그 (알람 시점 ±15분)
+{arch_section}## 수집된 로그 (알람 시점 ±15분)
 {log_section}
 
-위 정보를 바탕으로 장애를 분석해주세요."""
+위 정보를 바탕으로 장애를 분석해주세요. 인프라 아키텍처가 제공된 경우, 컴포넌트 간 의존성을 고려해서 원인 후보를 좁히세요."""

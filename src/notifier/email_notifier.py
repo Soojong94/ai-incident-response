@@ -10,10 +10,18 @@ logger = logging.getLogger(__name__)
 DASHBOARD_URL = "https://tbit-msp.kro.kr"
 
 
-def send_analysis_complete(incident_id: int, alarm_name: str, analysis: dict) -> None:
-    if not settings.alert_email or not settings.smtp_user:
-        logger.info("SMTP 미설정 — 이메일 발송 생략")
-        return
+def send_analysis_complete(
+    incident_id: int,
+    alarm_name: str,
+    analysis: dict,
+    recipient_email: str | None = None,
+) -> tuple[bool, str | None]:
+    """recipient_email이 None이면 settings.alert_email로 fallback.
+    반환: (성공 여부, 실패 시 사유)"""
+    target = recipient_email or settings.alert_email
+    if not target or not settings.smtp_user:
+        logger.info("SMTP 미설정 — 이메일 발송 생략 (target=%s)", target)
+        return False, "SMTP/수신자 미설정"
 
     severity = analysis.get("severity", "-")
     category = analysis.get("cause_category", "-")
@@ -67,14 +75,16 @@ def send_analysis_complete(incident_id: int, alarm_name: str, analysis: dict) ->
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"[AI장애대응] #{incident_id} {alarm_name} — {severity} 분석 완료"
     msg["From"] = settings.smtp_user
-    msg["To"] = settings.alert_email
+    msg["To"] = target
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     try:
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
             server.starttls()
             server.login(settings.smtp_user, settings.smtp_password)
-            server.sendmail(settings.smtp_user, settings.alert_email, msg.as_string())
-        logger.info("이메일 발송 완료: incident=%d → %s", incident_id, settings.alert_email)
+            server.sendmail(settings.smtp_user, target, msg.as_string())
+        logger.info("이메일 발송 완료: incident=%d → %s", incident_id, target)
+        return True, None
     except Exception as e:
-        logger.error("이메일 발송 실패: %s", e)
+        logger.error("이메일 발송 실패 (%s): %s", target, e)
+        return False, str(e)[:500]
