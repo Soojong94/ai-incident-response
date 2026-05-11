@@ -15,3 +15,9 @@ timely-chat/
 *.pptx
 .claude/
 data/
+
+# 런타임 로그 (uvicorn stdout/stderr 캡처)
+server.log
+server_err.log
+server_err_new.log
+server_out.log

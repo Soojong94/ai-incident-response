@@ -87,8 +87,8 @@ def generate_mock_logs(metric_type: str, alarm_time: datetime, count: int = 30) 
 
 
 async def collect(alarm_data: dict) -> list[str]:
-    metric_type = alarm_data.get("metric_type", "cpu")
-    alarm_time_raw = alarm_data.get("alarm_time")
+    metric_type = alarm_data.get("metricType") or alarm_data.get("metric_type", "cpu")
+    alarm_time_raw = alarm_data.get("alarmTime") or alarm_data.get("alarm_time")
     try:
         alarm_time = datetime.fromisoformat(str(alarm_time_raw)) if alarm_time_raw else datetime.now()
     except (ValueError, TypeError):
