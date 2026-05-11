@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>로그인 — AI 장애 대응</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <script>
+    (function() {
+      var saved = localStorage.getItem('theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    })();
+  </script>
+  <style>
+    :root, [data-theme="dark"] {
+      --bg: #0f1117; --card-bg: #1a1d2e; --border: #2d3748;
+      --text: #e2e8f0; --text-muted: #a0aec0; --text-subtle: #718096;
+      --input-bg: #0f1117; --primary: #2b6cb0; --danger: #e53e3e;
+    }
+    [data-theme="light"] {
+      --bg: #e2e5ea; --card-bg: #eaecf0; --border: #c4cad3;
+      --text: #2d3748; --text-muted: #4a5568; --text-subtle: #6b7280;
+      --input-bg: #f5f7fa; --primary: #2b6cb0; --danger: #c53030;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    }
+    .login-card {
+      background: var(--card-bg); border: 1px solid var(--border);
+      border-radius: 12px; padding: 36px 32px; width: 380px; max-width: 92vw;
+      box-shadow: 0 20px 50px -20px rgba(0,0,0,0.4);
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 24px;
+    }
+    .logo .icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, #d69e2e 0%, #c05621 100%);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .logo h1 {
+      font-size: 18px; font-weight: 700;
+      background: linear-gradient(135deg, #d69e2e 0%, #c05621 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    label { display: block; margin-bottom: 14px; }
+    label .lbl { font-size: 12px; color: var(--text-subtle); display: block; margin-bottom: 4px; }
+    input[type=email], input[type=password] {
+      width: 100%; padding: 10px 12px; background: var(--input-bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px; font-size: 14px;
+    }
+    input:focus { outline: none; border-color: var(--primary); }
+    button[type=submit] {
+      width: 100%; padding: 10px 16px; background: var(--primary); color: white;
+      border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
+      margin-top: 8px;
+    }
+    button[type=submit]:hover { background: #2c5282; }
+    .error {
+      background: rgba(229, 62, 62, 0.15); border: 1px solid var(--danger);
+      color: var(--danger); padding: 10px 12px; border-radius: 6px;
+      font-size: 13px; margin-bottom: 16px;
+    }
+    .hint { margin-top: 16px; font-size: 12px; color: var(--text-subtle); text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="logo">
+      <span class="icon">
+        <svg width="22" height="22" viewBox="0 0 32 32">
+          <path d="M16 4.2 L6.5 7.2 v8.3 c0 5.5 3.6 9.2 9.5 11.3 c5.9-2.1 9.5-5.8 9.5-11.3 V7.2 z" fill="#1a202c"/>
+          <text x="16" y="20.3" font-family="Arial Black, system-ui, sans-serif" font-size="10.5" font-weight="900" fill="#d69e2e" text-anchor="middle" letter-spacing="-0.5">AI</text>
+        </svg>
+      </span>
+      <h1>AI 장애 대응</h1>
+    </div>
+
+    {% if error %}
+    <div class="error">이메일 또는 비밀번호가 올바르지 않습니다.</div>
+    {% endif %}
+
+    <form method="POST" action="/login">
+      <label>
+        <span class="lbl">이메일</span>
+        <input type="email" name="email" required autofocus placeholder="admin@example.com">
+      </label>
+      <label>
+        <span class="lbl">비밀번호</span>
+        <input type="password" name="password" required>
+      </label>
+      <button type="submit">로그인</button>
+    </form>
+
+    <p class="hint">관리자에게 계정 발급을 문의하세요.</p>
+  </div>
+</body>
+</html>

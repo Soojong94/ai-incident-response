@@ -1,74 +1,111 @@
 {% extends "base.html" %}
 {% block title %}데모 알람 — AI 장애 대응{% endblock %}
 {% block content %}
+<style>
+  .scenario-card {
+    padding: 16px 18px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .scenario-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+  }
+  .scenario-card .trigger-btn {
+    width: 100%; padding: 8px 14px; color: white; border: none; border-radius: 4px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  .scenario-card .trigger-btn:disabled { opacity: 0.6; cursor: wait; }
+  .obs-row {
+    display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px;
+    margin-top: 10px;
+  }
+  .obs-row input { font-size: 12px; padding: 5px 8px; }
+</style>
+
 <div style="margin-bottom:20px;">
   <a href="/">&larr; 대시보드</a>
 </div>
 <h2 style="font-size:20px; margin-bottom:8px;">데모 알람 시나리오</h2>
-<p style="color:#718096; margin-bottom:24px; font-size:14px;">버튼을 클릭하면 테스트 알람이 발생하고 AI 분석이 시작됩니다.</p>
+<p style="color:var(--text-subtle); margin-bottom:24px; font-size:14px;">
+  버튼을 클릭하면 테스트 알람이 발생하고 AI 분석이 시작됩니다.
+  실제 OBS 파일을 분석하려면 카드 하단의 OBS Key 입력 후 트리거하세요.
+</p>
 
 <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:16px;">
 
   <div class="card scenario-card" data-metric="cpu" data-resource="web-prod-01" data-value="96.8" data-threshold="85">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
       <span style="font-size:24px;">🔥</span>
-      <div><h2 style="color:#fc8181;">CPU 과부하</h2><span style="font-size:12px; color:#718096;">Critical</span></div>
+      <div><h2 style="color:var(--danger); margin:0;">CPU 과부하</h2><span style="font-size:12px; color:var(--text-subtle);">Critical</span></div>
     </div>
-    <p style="font-size:13px; color:#a0aec0; margin-bottom:14px;">웹 서버 CPU 96.8% / 임계값 85% — soft lockup, task limit 초과</p>
-    <div style="font-size:12px; color:#718096; margin-bottom:12px;">서버: web-prod-01 | 메트릭: cpu | 값: 96.8%</div>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">웹 서버 CPU 96.8% / 임계값 85% — soft lockup, task limit 초과</p>
+    <div style="font-size:12px; color:var(--text-subtle); margin-bottom:12px;">서버: web-prod-01 | cpu | 96.8%</div>
     <button class="trigger-btn" style="background:#742a2a;">알람 발생</button>
   </div>
 
   <div class="card scenario-card" data-metric="memory" data-resource="app-server-02" data-value="98.2" data-threshold="90">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
       <span style="font-size:24px;">💾</span>
-      <div><h2 style="color:#fc8181;">메모리 OOM</h2><span style="font-size:12px; color:#718096;">Critical</span></div>
+      <div><h2 style="color:var(--danger); margin:0;">메모리 OOM</h2><span style="font-size:12px; color:var(--text-subtle);">Critical</span></div>
     </div>
-    <p style="font-size:13px; color:#a0aec0; margin-bottom:14px;">Java 힙 메모리 부족 — OOM Killer 동작, GC overhead 초과</p>
-    <div style="font-size:12px; color:#718096; margin-bottom:12px;">서버: app-server-02 | 메트릭: memory | 값: 98.2%</div>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">Java 힙 메모리 부족 — OOM Killer 동작, GC overhead 초과</p>
+    <div style="font-size:12px; color:var(--text-subtle); margin-bottom:12px;">서버: app-server-02 | memory | 98.2%</div>
     <button class="trigger-btn" style="background:#742a2a;">알람 발생</button>
   </div>
 
   <div class="card scenario-card" data-metric="disk" data-resource="db-server-01" data-value="97.5" data-threshold="90">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
       <span style="font-size:24px;">💿</span>
-      <div><h2 style="color:#f6ad55;">디스크 용량 부족</h2><span style="font-size:12px; color:#718096;">High</span></div>
+      <div><h2 style="color:var(--accent); margin:0;">디스크 용량 부족</h2><span style="font-size:12px; color:var(--text-subtle);">High</span></div>
     </div>
-    <p style="font-size:13px; color:#a0aec0; margin-bottom:14px;">DB 서버 디스크 97.5% — EXT4 에러, 로그 로테이션 실패</p>
-    <div style="font-size:12px; color:#718096; margin-bottom:12px;">서버: db-server-01 | 메트릭: disk | 값: 97.5%</div>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">DB 디스크 97.5% — EXT4 에러, 로그 로테이션 실패</p>
+    <div style="font-size:12px; color:var(--text-subtle); margin-bottom:12px;">서버: db-server-01 | disk | 97.5%</div>
     <button class="trigger-btn" style="background:#7b341e;">알람 발생</button>
   </div>
 
   <div class="card scenario-card" data-metric="network" data-resource="api-gateway-01" data-value="89.3" data-threshold="70">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
       <span style="font-size:24px;">🌐</span>
-      <div><h2 style="color:#f6ad55;">네트워크 지연</h2><span style="font-size:12px; color:#718096;">High</span></div>
+      <div><h2 style="color:var(--accent); margin:0;">네트워크 지연</h2><span style="font-size:12px; color:var(--text-subtle);">High</span></div>
     </div>
-    <p style="font-size:13px; color:#a0aec0; margin-bottom:14px;">API Gateway 네트워크 패킷 손실 — conntrack table full, TCP orphan</p>
-    <div style="font-size:12px; color:#718096; margin-bottom:12px;">서버: api-gateway-01 | 메트릭: network | 값: 89.3%</div>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">API Gateway 패킷 손실 — conntrack table full, TCP orphan</p>
+    <div style="font-size:12px; color:var(--text-subtle); margin-bottom:12px;">서버: api-gateway-01 | network | 89.3%</div>
     <button class="trigger-btn" style="background:#7b341e;">알람 발생</button>
   </div>
 
   <div class="card scenario-card" data-metric="http" data-resource="web-prod-02" data-value="35" data-threshold="5">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
       <span style="font-size:24px;">🔴</span>
-      <div><h2 style="color:#f6e05e;">HTTP 5xx 급증</h2><span style="font-size:12px; color:#718096;">Medium</span></div>
+      <div><h2 style="color:#d69e2e; margin:0;">HTTP 5xx 급증</h2><span style="font-size:12px; color:var(--text-subtle);">Medium</span></div>
     </div>
-    <p style="font-size:13px; color:#a0aec0; margin-bottom:14px;">502/500 에러율 35% — upstream 응답 없음, DB 커넥션 풀 고갈</p>
-    <div style="font-size:12px; color:#718096; margin-bottom:12px;">서버: web-prod-02 | 메트릭: http | 값: 35%</div>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">502/500 에러율 35% — upstream 응답 없음, DB 커넥션 풀 고갈</p>
+    <div style="font-size:12px; color:var(--text-subtle); margin-bottom:12px;">서버: web-prod-02 | http | 35%</div>
     <button class="trigger-btn" style="background:#5f370e;">알람 발생</button>
   </div>
 
   <div class="card scenario-card" data-metric="cpu" data-resource="batch-worker-03" data-value="78.4" data-threshold="75">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
       <span style="font-size:24px;">⚙️</span>
-      <div><h2 style="color:#68d391;">CPU 경고</h2><span style="font-size:12px; color:#718096;">Medium</span></div>
+      <div><h2 style="color:#68d391; margin:0;">CPU 경고</h2><span style="font-size:12px; color:var(--text-subtle);">Medium</span></div>
     </div>
-    <p style="font-size:13px; color:#a0aec0; margin-bottom:14px;">배치 워커 CPU 78.4% — 정기 배치 작업 중 부하 증가</p>
-    <div style="font-size:12px; color:#718096; margin-bottom:12px;">서버: batch-worker-03 | 메트릭: cpu | 값: 78.4%</div>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">배치 워커 CPU 78.4% — 정기 배치 작업 중 부하 증가</p>
+    <div style="font-size:12px; color:var(--text-subtle); margin-bottom:12px;">서버: batch-worker-03 | cpu | 78.4%</div>
     <button class="trigger-btn" style="background:#276749;">알람 발생</button>
   </div>
 
+</div>
+
+<!-- OBS 실 파일 직접 트리거 -->
+<div class="card" style="margin-top:24px;">
+  <h2>OBS 실 파일로 트리거</h2>
+  <p style="color:var(--text-subtle); font-size:13px; margin-bottom:12px;">
+    OBS의 실제 CLA export 파일을 지정해서 분석을 시키고 싶을 때. NCP 콘솔 OBS 콘솔에서 키를 복사해 입력하세요.
+  </p>
+  <div class="obs-row">
+    <input type="text" id="obs-key" placeholder="예: CLA-20260511133000/SearchResult1.json">
+    <input type="text" id="obs-bucket" placeholder="team1-demo" value="team1-demo">
+    <button class="nav-btn nav-btn-primary" onclick="triggerObs()">OBS 트리거</button>
+  </div>
 </div>
 
 <div id="toast" style="
@@ -83,21 +120,41 @@ document.querySelectorAll('.scenario-card').forEach(card => {
     const { metric, resource, value, threshold } = card.dataset;
     const btn = card.querySelector('.trigger-btn');
     btn.disabled = true;
+    const orig = btn.textContent;
     btn.textContent = '전송 중...';
-
     try {
-      const resp = await fetch(`/test/trigger?metric_type=${metric}&resource_name=${resource}&current_value=${value}&threshold_value=${threshold}`, {method:'POST'});
+      const resp = await fetch(
+        `/test/trigger?metric_type=${metric}&resource_name=${resource}&current_value=${value}&threshold_value=${threshold}`,
+        { method: 'POST' }
+      );
+      if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
-      showToast(`알람 발생! Incident #${data.incident_id} — AI 분석 시작`);
-      setTimeout(() => { window.location.href = `/incidents/${data.incident_id}`; }, 1500);
-    } catch(e) {
+      showToast(`알람 발생 — Incident #${data.incident_id}. 1~2분 후 분석 완료`);
+      setTimeout(() => { window.location.href = `/incidents/${data.incident_id}`; }, 1200);
+    } catch (e) {
       showToast('오류: ' + e.message, true);
     } finally {
       btn.disabled = false;
-      btn.textContent = '알람 발생';
+      btn.textContent = orig;
     }
   });
 });
+
+async function triggerObs() {
+  const key = document.getElementById('obs-key').value.trim();
+  const bucket = document.getElementById('obs-bucket').value.trim() || 'team1-demo';
+  if (!key) { showToast('OBS object key를 입력하세요', true); return; }
+  try {
+    const url = `/test/trigger?metric_type=url_error&resource_name=team1-test-server&obs_object_key=${encodeURIComponent(key)}&obs_bucket=${encodeURIComponent(bucket)}`;
+    const resp = await fetch(url, { method: 'POST' });
+    if (!resp.ok) throw new Error(await resp.text());
+    const data = await resp.json();
+    showToast(`OBS 트리거 — Incident #${data.incident_id}`);
+    setTimeout(() => { window.location.href = `/incidents/${data.incident_id}`; }, 1200);
+  } catch (e) {
+    showToast('오류: ' + e.message, true);
+  }
+}
 
 function showToast(msg, err=false) {
   const t = document.getElementById('toast');

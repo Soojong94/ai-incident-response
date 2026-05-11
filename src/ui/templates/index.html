@@ -1,10 +1,29 @@
 {% extends "base.html" %}
 {% block title %}장애 목록 — AI 장애 대응{% endblock %}
 {% block content %}
-<div style="display:flex; align-items:center; margin-bottom:20px;">
-  <h2 style="font-size:20px;">장애 목록</h2>
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+  <h2 style="font-size:20px;">장애 목록 <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">총 {{ total }}건{% if search_query %} (검색: "{{ search_query }}"){% endif %}</span></h2>
+
+  <form method="get" action="/" style="display:flex; gap:6px; margin-left:24px;" id="search-form">
+    <input type="search" name="q" value="{{ search_query }}" placeholder="알람명 / 리소스 / 메트릭 / 심각도 검색..." style="width:300px;">
+    <input type="hidden" name="size" value="{{ size }}">
+    <button type="submit" class="nav-btn nav-btn-primary">검색</button>
+    {% if search_query %}
+    <a href="/?size={{ size }}" class="icon-btn" style="display:inline-flex; align-items:center;">초기화</a>
+    {% endif %}
+  </form>
+
+  <label style="margin-left:auto; font-size:13px; color:var(--text-muted);">
+    페이지당
+    <select onchange="changeSize(this.value)" style="margin-left:6px; padding:4px 8px;">
+      {% for opt in allowed_sizes %}
+      <option value="{{ opt }}" {% if opt == size %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
   <button class="refresh-btn" onclick="location.reload()">새로고침</button>
-  <button class="refresh-btn" style="background:#e53e3e; margin-left:8px;" onclick="deleteAll()">전체 삭제</button>
+  <button class="refresh-btn" style="background:var(--danger); margin-left:8px;" onclick="deleteAll()">전체 삭제</button>
 </div>
 
 {% if incidents %}
@@ -42,6 +61,41 @@
     {% endfor %}
   </tbody>
 </table>
+
+{% if total_pages > 1 %}
+<nav style="display:flex; justify-content:center; align-items:center; gap:4px; margin-top:20px; flex-wrap:wrap;">
+  <a href="?page={{ page - 1 }}&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}"
+     style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px; {% if page <= 1 %}opacity:0.3; pointer-events:none;{% endif %}">
+    이전
+  </a>
+
+  {% set window = 2 %}
+  {% set start = [1, page - window] | max %}
+  {% set end = [total_pages, page + window] | min %}
+
+  {% if start > 1 %}
+    <a href="?page=1&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}" style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px;">1</a>
+    {% if start > 2 %}<span style="padding:6px 4px; color:#718096;">…</span>{% endif %}
+  {% endif %}
+
+  {% for p in range(start, end + 1) %}
+    <a href="?page={{ p }}&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}"
+       style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px; {% if p == page %}background:#2b6cb0; color:#fff;{% endif %}">
+      {{ p }}
+    </a>
+  {% endfor %}
+
+  {% if end < total_pages %}
+    {% if end < total_pages - 1 %}<span style="padding:6px 4px; color:#718096;">…</span>{% endif %}
+    <a href="?page={{ total_pages }}&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}" style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px;">{{ total_pages }}</a>
+  {% endif %}
+
+  <a href="?page={{ page + 1 }}&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}"
+     style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px; {% if page >= total_pages %}opacity:0.3; pointer-events:none;{% endif %}">
+    다음
+  </a>
+</nav>
+{% endif %}
 {% else %}
 <div class="empty">
   <p style="font-size:18px; margin-bottom:8px;">장애 이력이 없습니다</p>
@@ -52,6 +106,14 @@
 <script>
   const hasProcessing = document.querySelectorAll('.badge-processing').length > 0;
   if (hasProcessing) setTimeout(() => location.reload(), 10000);
+
+  function changeSize(newSize) {
+    const params = new URLSearchParams(window.location.search);
+    params.set('size', newSize);
+    params.set('page', '1');
+    // q는 그대로 유지됨 (URLSearchParams가 보존)
+    window.location.search = params.toString();
+  }
 
   async function deleteIncident(id) {
     if (!confirm(`#${id} 장애를 삭제할까요?`)) return;

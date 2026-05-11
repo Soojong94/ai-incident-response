@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}{{ site.name }} — 사이트 상세{% endblock %}
+{% block content %}
+<style>
+  .recipient-row { display:grid; grid-template-columns: 1.4fr 1.6fr 1.4fr 1.2fr 0.4fr 0.8fr; gap:8px; padding:8px 10px; border-top:1px solid var(--border); align-items:center; font-size:13px; }
+  .recipient-row.header { color:var(--text-subtle); font-size:11px; text-transform:uppercase; border-top:none; padding-bottom:4px; }
+  .recipient-row input { width:100%; }
+  .sev-toggle { display:inline-flex; gap:4px; }
+  .sev-toggle label { font-size:11px; padding:2px 6px; border:1px solid var(--border); border-radius:3px; cursor:pointer; user-select:none; }
+  .sev-toggle input { display:none; }
+  .sev-toggle input:checked + span.sev-Critical { background:#742a2a; color:#fed7d7; }
+  .sev-toggle input:checked + span.sev-High     { background:#7b341e; color:#fbd38d; }
+  .sev-toggle input:checked + span.sev-Medium   { background:#5f370e; color:#f6e05e; }
+  .sev-toggle input:checked + span.sev-Low      { background:#276749; color:#c6f6d5; }
+  [data-theme="light"] .sev-toggle input:checked + span.sev-Critical { background:#fed7d7; color:#742a2a; }
+  [data-theme="light"] .sev-toggle input:checked + span.sev-High     { background:#fbd38d; color:#7b341e; }
+  [data-theme="light"] .sev-toggle input:checked + span.sev-Medium   { background:#f6e05e; color:#5f370e; }
+  [data-theme="light"] .sev-toggle input:checked + span.sev-Low      { background:#c6f6d5; color:#276749; }
+  .add-row { padding:10px; background:var(--card-bg-alt); border-top:1px solid var(--border); border-radius:0 0 6px 6px; }
+  .empty-row { padding:14px 12px; color:var(--text-subtle); text-align:center; font-size:13px; border-top:1px solid var(--border); }
+</style>
+
+<div style="margin-bottom:20px;">
+  <a href="/sites">&larr; 사이트 목록</a>
+</div>
+
+<div class="card">
+  <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+    <h2 style="font-size:18px; color:var(--text); margin:0;">{{ site.name }}</h2>
+    {% if site.enabled %}
+      <span style="font-size:11px; padding:2px 8px; background:#276749; color:#c6f6d5; border-radius:3px;">활성</span>
+    {% else %}
+      <span style="font-size:11px; padding:2px 8px; background:#4a5568; color:#cbd5e0; border-radius:3px;">비활성</span>
+    {% endif %}
+    <div style="margin-left:auto; display:flex; gap:6px;">
+      <button class="icon-btn" onclick='editSite({{ {"id": site.id, "name": site.name, "description": site.description or "", "enabled": site.enabled} | tojson }})'>사이트 수정</button>
+      <button class="icon-btn danger" onclick="deleteSite({{ site.id }})">사이트 삭제</button>
+    </div>
+  </div>
+  {% if site.description %}
+  <p style="color:var(--text-muted); font-size:13px;">{{ site.description }}</p>
+  {% endif %}
+</div>
+
+<!-- 매칭 규칙 카드 -->
+<div class="card">
+  <h2>매칭 규칙</h2>
+  <p style="font-size:12px; color:var(--text-subtle); margin-bottom:10px;">
+    인시던트가 들어오면 OBS 버킷 → resource 패턴 순으로 매칭. 매칭된 인시던트의 알림이 이 사이트 수신자에게 발송됩니다.
+  </p>
+  <div class="meta-grid">
+    <div class="meta-item">
+      <label>resource_name 글로브 패턴</label>
+      <span style="font-family:monospace; font-size:13px;">{{ site.resource_pattern or '— 없음 —' }}</span>
+    </div>
+    <div class="meta-item">
+      <label>OBS 버킷</label>
+      <span style="font-family:monospace; font-size:13px;">{{ site.obs_bucket or '— 없음 —' }}</span>
+    </div>
+  </div>
+</div>
+
+<!-- 아키텍처 카드 -->
+<div class="card">
+  <h2>아키텍처
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">AI 분석 prompt에 포함됨</span>
+  </h2>
+  {% if site.architecture %}
+    <pre style="white-space:pre-wrap; font-size:12px;">{{ site.architecture }}</pre>
+  {% else %}
+    <p style="color:var(--text-subtle); font-size:13px;">— 등록된 아키텍처가 없습니다. "사이트 수정"으로 입력하세요. —</p>
+  {% endif %}
+</div>
+
+<!-- 사이트 수정 폼 -->
+<div id="site-form" class="card" style="display:none;">
+  <h2>사이트 수정</h2>
+  <input type="hidden" id="s-id" value="{{ site.id }}">
+  <div class="meta-grid" style="margin-bottom:12px;">
+    <div class="meta-item">
+      <label>사이트 이름 *</label>
+      <input id="s-name" type="text" style="width:100%;">
+    </div>
+    <div class="meta-item">
+      <label>활성화</label>
+      <label><input type="checkbox" id="s-enabled"> 알림 활성</label>
+    </div>
+    <div class="meta-item" style="grid-column:1/-1;">
+      <label>설명</label>
+      <input id="s-desc" type="text" style="width:100%;">
+    </div>
+    <div class="meta-item">
+      <label>resource_name 글로브 패턴</label>
+      <input id="s-pattern" type="text" placeholder="예: team1-*" style="width:100%;">
+    </div>
+    <div class="meta-item">
+      <label>OBS 버킷</label>
+      <input id="s-bucket" type="text" placeholder="예: team1-demo" style="width:100%;">
+    </div>
+    <div class="meta-item" style="grid-column:1/-1;">
+      <label>아키텍처 (Markdown — AI 분석 context)</label>
+      <textarea id="s-arch" rows="8" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
+    </div>
+  </div>
+  <button onclick="submitSite()" class="refresh-btn" style="margin-left:0;">저장</button>
+  <button onclick="closeSiteForm()" class="icon-btn" style="margin-left:8px;">취소</button>
+</div>
+
+<!-- 수신자 관리 -->
+<div class="card">
+  <h2>수신자 ({{ site.recipients | length }}명)</h2>
+
+  <div class="recipient-row header">
+    <span>이름</span>
+    <span>이메일</span>
+    <span>Slack Webhook</span>
+    <span>심각도</span>
+    <span>활성</span>
+    <span></span>
+  </div>
+
+  {% if site.recipients %}
+    {% for r in site.recipients %}
+    <div class="recipient-row">
+      <span>{{ r.name }}</span>
+      <span style="color:var(--text-muted);">{{ r.email or '-' }}</span>
+      <span style="color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{% if r.slack_webhook %}✓ 등록됨{% else %}-{% endif %}</span>
+      <span style="font-size:11px;">
+        {% if r.receive_critical %}<span class="sev-Critical">C</span>{% endif %}
+        {% if r.receive_high %}<span class="sev-High">H</span>{% endif %}
+        {% if r.receive_medium %}<span class="sev-Medium">M</span>{% endif %}
+        {% if r.receive_low %}<span class="sev-Low">L</span>{% endif %}
+      </span>
+      <span>{% if r.enabled %}<span style="color:#68d391;">●</span>{% else %}<span style="color:var(--text-subtle);">○</span>{% endif %}</span>
+      <span style="text-align:right; display:flex; gap:4px; justify-content:flex-end;">
+        <button class="icon-btn" onclick='editRecipient({{ {
+          "id": r.id, "name": r.name, "email": r.email or "", "slack_webhook": r.slack_webhook or "",
+          "receive_critical": r.receive_critical, "receive_high": r.receive_high,
+          "receive_medium": r.receive_medium, "receive_low": r.receive_low, "enabled": r.enabled
+        } | tojson }})'>수정</button>
+        <button class="icon-btn danger" onclick="deleteRecipient({{ r.id }})">×</button>
+      </span>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-row">등록된 수신자가 없습니다 — 아래에서 추가하세요.</div>
+  {% endif %}
+
+  <div class="add-row">
+    <div class="recipient-row" style="border:none; padding:0;">
+      <input type="text" placeholder="이름 *" data-field="name">
+      <input type="email" placeholder="user@example.com" data-field="email">
+      <input type="url" placeholder="https://hooks.slack.com/services/..." data-field="slack_webhook">
+      <span class="sev-toggle">
+        <label><input type="checkbox" data-field="receive_critical" checked><span class="sev-Critical">C</span></label>
+        <label><input type="checkbox" data-field="receive_high" checked><span class="sev-High">H</span></label>
+        <label><input type="checkbox" data-field="receive_medium"><span class="sev-Medium">M</span></label>
+        <label><input type="checkbox" data-field="receive_low"><span class="sev-Low">L</span></label>
+      </span>
+      <label><input type="checkbox" data-field="enabled" checked></label>
+      <button class="nav-btn nav-btn-primary" onclick="addRecipient({{ site.id }})">+ 추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- 수신자 수정 모달 -->
+<div id="recipient-edit-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:99; align-items:center; justify-content:center;">
+  <div class="card" style="width:560px; max-width:90vw;">
+    <h2 style="margin-bottom:14px;">수신자 수정</h2>
+    <input type="hidden" id="er-id">
+    <div class="meta-grid" style="margin-bottom:12px;">
+      <div class="meta-item"><label>이름 *</label><input id="er-name" type="text" style="width:100%;"></div>
+      <div class="meta-item"><label>이메일</label><input id="er-email" type="email" style="width:100%;"></div>
+      <div class="meta-item" style="grid-column:1/-1;"><label>Slack Webhook URL</label><input id="er-slack" type="url" style="width:100%;"></div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px; color:var(--text-subtle); display:block; margin-bottom:6px;">수신 심각도</label>
+      <label style="margin-right:14px;"><input type="checkbox" id="er-critical"> <span class="sev-Critical">Critical</span></label>
+      <label style="margin-right:14px;"><input type="checkbox" id="er-high"> <span class="sev-High">High</span></label>
+      <label style="margin-right:14px;"><input type="checkbox" id="er-medium"> <span class="sev-Medium">Medium</span></label>
+      <label style="margin-right:14px;"><input type="checkbox" id="er-low"> <span class="sev-Low">Low</span></label>
+    </div>
+    <div style="margin-bottom:14px;"><label><input type="checkbox" id="er-enabled"> 활성화</label></div>
+    <button onclick="submitRecipientEdit()" class="refresh-btn" style="margin-left:0;">저장</button>
+    <button onclick="closeRecipientEdit()" class="icon-btn" style="margin-left:8px;">취소</button>
+  </div>
+</div>
+
+<script>
+// ── Site CRUD ──────────────────────────────────────────────────────
+function editSite(s) {
+  document.getElementById('s-name').value = s.name;
+  document.getElementById('s-desc').value = s.description || '';
+  document.getElementById('s-pattern').value = s.resource_pattern || '';
+  document.getElementById('s-bucket').value = s.obs_bucket || '';
+  document.getElementById('s-arch').value = {{ (site.architecture or '') | tojson }};
+  document.getElementById('s-enabled').checked = !!s.enabled;
+  document.getElementById('site-form').style.display = 'block';
+  document.getElementById('s-name').focus();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function closeSiteForm() {
+  document.getElementById('site-form').style.display = 'none';
+}
+async function submitSite() {
+  const id = document.getElementById('s-id').value;
+  const name = document.getElementById('s-name').value.trim();
+  if (!name) { alert('사이트 이름은 필수입니다'); return; }
+  const payload = {
+    name,
+    description: document.getElementById('s-desc').value.trim(),
+    resource_pattern: document.getElementById('s-pattern').value.trim(),
+    obs_bucket: document.getElementById('s-bucket').value.trim(),
+    architecture: document.getElementById('s-arch').value,
+    enabled: document.getElementById('s-enabled').checked,
+  };
+  const resp = await fetch(`/api/sites/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  if (!resp.ok) { alert('저장 실패: ' + await resp.text()); return; }
+  location.reload();
+}
+async function deleteSite(id) {
+  if (!confirm(`이 사이트를 삭제할까요? (소속 수신자도 함께 삭제됨)`)) return;
+  await fetch(`/api/sites/${id}`, { method: 'DELETE' });
+  window.location.href = '/sites';
+}
+
+// ── Recipient CRUD ─────────────────────────────────────────────────
+async function addRecipient(siteId) {
+  const row = document.querySelector('.add-row');
+  const get = (f) => row.querySelector(`[data-field="${f}"]`);
+  const name = get('name').value.trim();
+  if (!name) { alert('이름은 필수입니다'); return; }
+  const payload = {
+    name,
+    email: get('email').value.trim(),
+    slack_webhook: get('slack_webhook').value.trim(),
+    receive_critical: get('receive_critical').checked,
+    receive_high: get('receive_high').checked,
+    receive_medium: get('receive_medium').checked,
+    receive_low: get('receive_low').checked,
+    enabled: get('enabled').checked,
+  };
+  const resp = await fetch(`/api/sites/${siteId}/recipients`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  });
+  if (!resp.ok) { alert('추가 실패: ' + await resp.text()); return; }
+  location.reload();
+}
+
+function editRecipient(r) {
+  document.getElementById('er-id').value = r.id;
+  document.getElementById('er-name').value = r.name || '';
+  document.getElementById('er-email').value = r.email || '';
+  document.getElementById('er-slack').value = r.slack_webhook || '';
+  document.getElementById('er-critical').checked = !!r.receive_critical;
+  document.getElementById('er-high').checked = !!r.receive_high;
+  document.getElementById('er-medium').checked = !!r.receive_medium;
+  document.getElementById('er-low').checked = !!r.receive_low;
+  document.getElementById('er-enabled').checked = !!r.enabled;
+  document.getElementById('recipient-edit-modal').style.display = 'flex';
+}
+function closeRecipientEdit() {
+  document.getElementById('recipient-edit-modal').style.display = 'none';
+}
+async function submitRecipientEdit() {
+  const id = document.getElementById('er-id').value;
+  const payload = {
+    name: document.getElementById('er-name').value.trim(),
+    email: document.getElementById('er-email').value.trim(),
+    slack_webhook: document.getElementById('er-slack').value.trim(),
+    receive_critical: document.getElementById('er-critical').checked,
+    receive_high: document.getElementById('er-high').checked,
+    receive_medium: document.getElementById('er-medium').checked,
+    receive_low: document.getElementById('er-low').checked,
+    enabled: document.getElementById('er-enabled').checked,
+  };
+  const resp = await fetch(`/api/recipients/${id}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  });
+  if (!resp.ok) { alert('저장 실패: ' + await resp.text()); return; }
+  location.reload();
+}
+async function deleteRecipient(id) {
+  if (!confirm(`수신자 #${id}를 삭제할까요?`)) return;
+  await fetch(`/api/recipients/${id}`, { method:'DELETE' });
+  location.reload();
+}
+</script>
+{% endblock %}

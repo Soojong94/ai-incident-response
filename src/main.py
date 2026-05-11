@@ -4,13 +4,27 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Any
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
 
-from src.db.database import init_db, get_db
-from src.db.crud import create_incident, get_incident, get_incidents, delete_incident, delete_all_incidents
+from src.config import settings
+from src.db.database import init_db, get_db, SessionLocal
+from src.db.crud import (
+    create_incident, get_incident, get_incidents, count_incidents,
+    delete_incident, delete_all_incidents,
+    list_recipients, get_recipient, create_recipient, update_recipient, delete_recipient,
+    list_sites, get_site, create_site, update_site, delete_site, list_recipients_for_site,
+    get_user_by_email, get_user, list_users, create_user as crud_create_user,
+    update_user as crud_update_user, delete_user as crud_delete_user,
+)
+from src.auth import (
+    ensure_initial_admin, authenticate, login_user, logout_user,
+    current_user, require_user, require_admin, hash_password,
+    check_security_config,
+)
 from src.webhook.handler import receive_alarm, run_pipeline
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
@@ -21,6 +35,13 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     init_db()
     logger.info("DB initialized")
+    check_security_config()
+    # 초기 admin 계정 보장
+    db = SessionLocal()
+    try:
+        ensure_initial_admin(db)
+    finally:
+        db.close()
     from src.collector.ncp_poller import poller
     await poller.start()
     yield
@@ -29,6 +50,216 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AI Incident Response", lifespan=lifespan)
 templates = Jinja2Templates(directory="src/ui/templates")
+
+
+# ── 모든 템플릿에 current_user 주입 (네비바 등 사용) ──────────────────────────
+
+def _inject_user(request: Request, ctx: dict) -> dict:
+    db = SessionLocal()
+    try:
+        ctx.setdefault("current_user", current_user(request, db))
+    finally:
+        db.close()
+    return ctx
+
+
+# ── Auth middleware ─────────────────────────────────────────────────────────
+
+AUTH_EXEMPT_PATHS = {"/login", "/logout", "/favicon.svg", "/favicon.ico"}
+# webhook은 외부 시스템(NCP CF)이 호출하므로 인증 면제.
+# /test/는 더 이상 면제하지 않음 — 인증된 사용자만 트리거 가능.
+AUTH_EXEMPT_PREFIXES = ("/webhook/",)
+
+
+def _safe_next(next_url: str) -> str:
+    """open redirect 방어 — 외부 URL이나 비정상 경로면 / 로 fallback."""
+    if not next_url:
+        return "/"
+    # 절대 URL, scheme-relative URL, backslash 우회 차단
+    if next_url.startswith(("http://", "https://", "//", "\\")):
+        return "/"
+    if not next_url.startswith("/"):
+        return "/"
+    return next_url
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    from fastapi.responses import JSONResponse
+    path = request.url.path
+    if path in AUTH_EXEMPT_PATHS or any(path.startswith(p) for p in AUTH_EXEMPT_PREFIXES):
+        return await call_next(request)
+    user_id = request.session.get("user_id") if hasattr(request, "session") else None
+    authed = False
+    if user_id:
+        db = SessionLocal()
+        try:
+            u = get_user(db, user_id)
+            if u and u.enabled:
+                authed = True
+        finally:
+            db.close()
+    if not authed:
+        if path.startswith("/api/"):
+            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+        # 로그인 후엔 무조건 장애 목록(/)로 진입 — next 추적 안 함
+        return RedirectResponse(url="/login", status_code=303)
+    return await call_next(request)
+
+
+# ── 보안 응답 헤더 ──────────────────────────────────────────────────────────
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    # 운영 HTTPS 환경에서만 의미가 있는 헤더 — 쿠키 secure 모드일 때만 부여
+    if settings.session_cookie_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
+
+
+# SessionMiddleware는 auth_middleware/security_headers 뒤에 등록 — outer가 되어 먼저 실행되어야
+# request.session이 채워진 상태로 auth_middleware로 진입.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    session_cookie="ai_incident_session",
+    https_only=settings.session_cookie_secure,
+    same_site="lax",
+    max_age=settings.session_max_age_seconds,
+)
+
+
+# ── Login / Logout ──────────────────────────────────────────────────────────
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, error: str = ""):
+    return templates.TemplateResponse(request, "login.html", {"error": error})
+
+
+@app.post("/login")
+async def login_action(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = authenticate(db, email, password)
+    if not user:
+        return RedirectResponse(url="/login?error=invalid", status_code=303)
+    login_user(request, user)
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.get("/logout")
+def logout(request: Request):
+    logout_user(request)
+    return RedirectResponse(url="/login", status_code=303)
+
+
+# ── User management (admin) ─────────────────────────────────────────────────
+
+def _user_to_dict(u) -> dict:
+    return {
+        "id": u.id,
+        "email": u.email,
+        "name": u.name,
+        "role": u.role,
+        "enabled": u.enabled,
+        "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+        "created_at": u.created_at.isoformat() if u.created_at else None,
+    }
+
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def users_page(request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    users = list_users(db)
+    return templates.TemplateResponse(request, "users.html", {"users": users, "current_user": admin})
+
+
+@app.get("/api/users")
+def api_list_users(db: Session = Depends(get_db), _admin=Depends(require_admin)) -> list[dict]:
+    return [_user_to_dict(u) for u in list_users(db)]
+
+
+def _validate_password(password: str) -> None:
+    if len(password) < settings.min_password_length:
+        raise HTTPException(
+            status_code=400,
+            detail=f"비밀번호는 최소 {settings.min_password_length}자 이상이어야 합니다",
+        )
+
+
+@app.post("/api/users", status_code=201)
+async def api_create_user(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    data = await request.json()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not email:
+        raise HTTPException(status_code=400, detail="이메일은 필수입니다")
+    _validate_password(password)
+    if get_user_by_email(db, email):
+        raise HTTPException(status_code=409, detail="이미 사용 중인 이메일입니다")
+    user = crud_create_user(
+        db,
+        email=email,
+        password_hash=hash_password(password),
+        role=data.get("role", "viewer"),
+        name=data.get("name") or None,
+    )
+    return _user_to_dict(user)
+
+
+@app.put("/api/users/{user_id}")
+async def api_update_user(user_id: int, request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    data = await request.json()
+    update = {
+        k: v for k, v in data.items()
+        if k in ("name", "role", "enabled")
+    }
+    if data.get("password"):
+        _validate_password(data["password"])
+        update["password_hash"] = hash_password(data["password"])
+    user = crud_update_user(db, user_id, update)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return _user_to_dict(user)
+
+
+@app.delete("/api/users/{user_id}")
+def api_delete_user(user_id: int, db: Session = Depends(get_db), admin=Depends(require_admin)) -> dict:
+    if user_id == admin.id:
+        raise HTTPException(status_code=400, detail="자기 계정은 삭제할 수 없습니다")
+    if not crud_delete_user(db, user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"deleted": user_id}
+
+
+# ── Favicon ─────────────────────────────────────────────────────────────────
+
+FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#d69e2e"/><stop offset="1" stop-color="#c05621"/>
+</linearGradient></defs>
+<rect width="32" height="32" rx="7" fill="url(#g)"/>
+<path d="M16 4.2 L6.5 7.2 v8.3 c0 5.5 3.6 9.2 9.5 11.3 c5.9-2.1 9.5-5.8 9.5-11.3 V7.2 z" fill="#1a202c"/>
+<text x="16" y="20.3" font-family="Arial Black, system-ui, sans-serif" font-size="10.5" font-weight="900" fill="#d69e2e" text-anchor="middle" letter-spacing="-0.5">AI</text>
+</svg>"""
+
+
+@app.get("/favicon.svg", include_in_schema=False)
+def favicon_svg():
+    return Response(content=FAVICON_SVG, media_type="image/svg+xml")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon_ico():
+    # SVG로 동일하게 응답 — 일부 브라우저가 .ico 경로로 자동 요청함
+    return Response(content=FAVICON_SVG, media_type="image/svg+xml")
 
 
 # ── Webhook ──────────────────────────────────────────────────────────────────
@@ -42,17 +273,18 @@ async def webhook_alarm(request: Request, background_tasks: BackgroundTasks, db:
     return {"status": "accepted", "incident_id": incident_id}
 
 
-# ── Dev test trigger ─────────────────────────────────────────────────────────
+# ── Dev test trigger (admin 전용) ────────────────────────────────────────────
 
 @app.get("/test/demo", response_class=HTMLResponse)
-def demo_page(request: Request):
-    return templates.TemplateResponse(request, "demo.html")
+def demo_page(request: Request, user=Depends(require_admin)):
+    return templates.TemplateResponse(request, "demo.html", {"current_user": user})
 
 
 @app.post("/test/trigger", status_code=202)
 async def test_trigger(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
     metric_type: str = "cpu",
     resource_name: str = "team1-test-server",
     current_value: float = 95.3,
@@ -75,6 +307,27 @@ async def test_trigger(
     incident = create_incident(db, payload)
     background_tasks.add_task(run_pipeline, incident.id, payload)
     return {"status": "accepted", "incident_id": incident.id}
+
+
+# ── 수동 재분석 (admin) ─────────────────────────────────────────────────────
+
+@app.post("/api/incidents/{incident_id}/reanalyze", status_code=202)
+async def api_reanalyze_incident(
+    incident_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    _admin=Depends(require_admin),
+) -> dict:
+    incident = get_incident(db, incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    # 기존 logs/analysis는 그대로 두고, raw_alarm으로 파이프라인 재실행
+    payload = incident.raw_alarm or {}
+    # 상태 reset
+    from src.db.crud import update_incident_status
+    update_incident_status(db, incident_id, "processing")
+    background_tasks.add_task(run_pipeline, incident_id, payload)
+    return {"status": "reanalyze_started", "incident_id": incident_id}
 
 
 # ── OBS 원본 로그 다운로드 ───────────────────────────────────────────────────────
@@ -104,44 +357,200 @@ async def api_logs_raw(incident_id: int, db: Session = Depends(get_db)):
 # ── Incident 삭제 ─────────────────────────────────────────────────────────────
 
 @app.delete("/api/incidents/{incident_id}", status_code=200)
-def api_delete_incident(incident_id: int, db: Session = Depends(get_db)):
+def api_delete_incident(incident_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)):
     if not delete_incident(db, incident_id):
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Incident not found")
     return {"deleted": incident_id}
 
 
 @app.delete("/api/incidents", status_code=200)
-def api_delete_all_incidents(db: Session = Depends(get_db)):
+def api_delete_all_incidents(db: Session = Depends(get_db), _admin=Depends(require_admin)):
     count = delete_all_incidents(db)
     return {"deleted": count}
 
 
 # ── Dashboard ────────────────────────────────────────────────────────────────
 
+ALLOWED_PAGE_SIZES = [20, 50, 100]
+
+
+def _normalize_pagination(page: int, size: int) -> tuple[int, int]:
+    if size not in ALLOWED_PAGE_SIZES:
+        size = 20
+    page = max(1, page)
+    return page, size
+
+
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request, db: Session = Depends(get_db)):
-    incidents = get_incidents(db, limit=50)
-    return templates.TemplateResponse(request, "index.html", {"incidents": incidents})
+def dashboard(
+    request: Request,
+    page: int = 1,
+    size: int = 20,
+    q: str = "",
+    db: Session = Depends(get_db),
+    user=Depends(require_user),
+):
+    page, size = _normalize_pagination(page, size)
+    search = q.strip() or None
+    total = count_incidents(db, search=search)
+    total_pages = max(1, (total + size - 1) // size)
+    if page > total_pages:
+        page = total_pages
+    incidents = get_incidents(db, skip=(page - 1) * size, limit=size, search=search)
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "incidents": incidents,
+            "page": page,
+            "size": size,
+            "total": total,
+            "total_pages": total_pages,
+            "allowed_sizes": ALLOWED_PAGE_SIZES,
+            "search_query": q,
+            "current_user": user,
+        },
+    )
 
 
 @app.get("/incidents/{incident_id}", response_class=HTMLResponse)
-def incident_detail(incident_id: int, request: Request, db: Session = Depends(get_db)):
+def incident_detail(incident_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
     incident = get_incident(db, incident_id)
     if not incident:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Incident not found")
-    return templates.TemplateResponse(request, "detail.html", {"incident": incident})
+    return templates.TemplateResponse(request, "detail.html", {"incident": incident, "current_user": user})
+
+
+# ── Sites + Recipients UI + API ──────────────────────────────────────────────
+
+def _recipient_to_dict(r) -> dict:
+    return {
+        "id": r.id,
+        "site_id": r.site_id,
+        "name": r.name,
+        "email": r.email,
+        "slack_webhook": r.slack_webhook,
+        "receive_critical": r.receive_critical,
+        "receive_high": r.receive_high,
+        "receive_medium": r.receive_medium,
+        "receive_low": r.receive_low,
+        "enabled": r.enabled,
+    }
+
+
+def _site_to_dict(s, include_recipients: bool = False) -> dict:
+    out = {
+        "id": s.id,
+        "name": s.name,
+        "description": s.description,
+        "resource_pattern": s.resource_pattern,
+        "obs_bucket": s.obs_bucket,
+        "architecture": s.architecture,
+        "has_architecture": bool(s.architecture),
+        "auto_created": s.auto_created,
+        "enabled": s.enabled,
+        "recipient_count": len(s.recipients) if s.recipients is not None else 0,
+    }
+    if include_recipients:
+        out["recipients"] = [_recipient_to_dict(r) for r in (s.recipients or [])]
+    return out
+
+
+@app.get("/sites", response_class=HTMLResponse)
+def sites_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+    sites = list_sites(db)
+    return templates.TemplateResponse(request, "sites.html", {"sites": sites, "current_user": user})
+
+
+@app.get("/sites/{site_id}", response_class=HTMLResponse)
+def site_detail_page(site_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+    site = get_site(db, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+    return templates.TemplateResponse(request, "site_detail.html", {"site": site, "current_user": user})
+
+
+# ── Sites API ────────────────────────────────────────────────────────────────
+
+@app.get("/api/sites")
+def api_list_sites(db: Session = Depends(get_db)) -> list[dict]:
+    return [_site_to_dict(s, include_recipients=True) for s in list_sites(db)]
+
+
+@app.post("/api/sites", status_code=201)
+async def api_create_site(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    data = await request.json()
+    site = create_site(db, data)
+    return _site_to_dict(site)
+
+
+@app.put("/api/sites/{site_id}")
+async def api_update_site(site_id: int, request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    data = await request.json()
+    site = update_site(db, site_id, data)
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+    return _site_to_dict(site)
+
+
+@app.delete("/api/sites/{site_id}")
+def api_delete_site(site_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    if not delete_site(db, site_id):
+        raise HTTPException(status_code=404, detail="Site not found")
+    return {"deleted": site_id}
+
+
+# ── Recipients API (사이트 종속) ─────────────────────────────────────────────
+
+@app.get("/api/sites/{site_id}/recipients")
+def api_list_recipients_for_site(site_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    return [_recipient_to_dict(r) for r in list_recipients_for_site(db, site_id)]
+
+
+@app.post("/api/sites/{site_id}/recipients", status_code=201)
+async def api_create_recipient_in_site(site_id: int, request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    if not get_site(db, site_id):
+        raise HTTPException(status_code=404, detail="Site not found")
+    data = await request.json()
+    data["site_id"] = site_id
+    recipient = create_recipient(db, data)
+    return _recipient_to_dict(recipient)
+
+
+@app.put("/api/recipients/{recipient_id}")
+async def api_update_recipient(recipient_id: int, request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    data = await request.json()
+    recipient = update_recipient(db, recipient_id, data)
+    if not recipient:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    return _recipient_to_dict(recipient)
+
+
+@app.delete("/api/recipients/{recipient_id}")
+def api_delete_recipient(recipient_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    if not delete_recipient(db, recipient_id):
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    return {"deleted": recipient_id}
 
 
 # ── API (JSON) ────────────────────────────────────────────────────────────────
 
 @app.get("/api/incidents")
-def api_incidents(db: Session = Depends(get_db)) -> list[Any]:
-    incidents = get_incidents(db, limit=50)
-    result = []
-    for inc in incidents:
-        result.append({
+def api_incidents(
+    page: int = 1,
+    size: int = 20,
+    q: str = "",
+    db: Session = Depends(get_db),
+) -> dict:
+    page, size = _normalize_pagination(page, size)
+    search = q.strip() or None
+    total = count_incidents(db, search=search)
+    total_pages = max(1, (total + size - 1) // size)
+    if page > total_pages:
+        page = total_pages
+    incidents = get_incidents(db, skip=(page - 1) * size, limit=size, search=search)
+    items = [
+        {
             "id": inc.id,
             "alarm_name": inc.alarm_name,
             "resource_name": inc.resource_name,
@@ -151,8 +560,16 @@ def api_incidents(db: Session = Depends(get_db)) -> list[Any]:
             "status": inc.status,
             "severity": inc.severity,
             "created_at": inc.created_at.isoformat() if inc.created_at else None,
-        })
-    return result
+        }
+        for inc in incidents
+    ]
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "size": size,
+        "total_pages": total_pages,
+    }
 
 
 @app.get("/api/incidents/{incident_id}")

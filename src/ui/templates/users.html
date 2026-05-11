@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}계정 관리 — AI 장애 대응{% endblock %}
+{% block content %}
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+  <h2 style="font-size:20px;">계정 관리
+    <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">총 {{ users | length }}명</span>
+  </h2>
+  <button class="refresh-btn" onclick="openAddUser()">+ 계정 추가</button>
+</div>
+
+<div id="user-form" class="card" style="display:none; margin-bottom:20px;">
+  <h2 id="user-form-title">계정 추가</h2>
+  <input type="hidden" id="u-id">
+  <div class="meta-grid" style="margin-bottom:12px;">
+    <div class="meta-item">
+      <label>이메일 *</label>
+      <input id="u-email" type="email" placeholder="user@example.com" style="width:100%;">
+    </div>
+    <div class="meta-item">
+      <label>이름</label>
+      <input id="u-name" type="text" style="width:100%;">
+    </div>
+    <div class="meta-item">
+      <label>비밀번호 <span id="pw-hint" style="color:var(--text-subtle); font-weight:normal;">*</span></label>
+      <input id="u-password" type="password" autocomplete="new-password" style="width:100%;">
+    </div>
+    <div class="meta-item">
+      <label>역할</label>
+      <select id="u-role" style="width:100%; padding:6px 10px;">
+        <option value="viewer">viewer (조회만)</option>
+        <option value="admin">admin (수정 가능)</option>
+      </select>
+    </div>
+    <div class="meta-item">
+      <label>활성화</label>
+      <label><input type="checkbox" id="u-enabled" checked> 활성</label>
+    </div>
+  </div>
+  <button onclick="submitUser()" class="refresh-btn" style="margin-left:0;">저장</button>
+  <button onclick="closeUserForm()" class="icon-btn" style="margin-left:8px;">취소</button>
+</div>
+
+{% if users %}
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>이메일</th>
+      <th>이름</th>
+      <th>역할</th>
+      <th>마지막 로그인</th>
+      <th>활성</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td>{{ u.email }}{% if current_user and u.id == current_user.id %} <span style="font-size:11px; color:var(--text-subtle);">(나)</span>{% endif %}</td>
+      <td>{{ u.name or '-' }}</td>
+      <td>
+        {% if u.role == 'admin' %}
+          <span style="font-size:11px; padding:2px 8px; background:#742a2a; color:#fed7d7; border-radius:3px;">admin</span>
+        {% else %}
+          <span style="font-size:11px; padding:2px 8px; background:#2d3748; color:#cbd5e0; border-radius:3px;">viewer</span>
+        {% endif %}
+      </td>
+      <td style="font-size:12px; color:var(--text-subtle);">
+        {{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}
+      </td>
+      <td>{% if u.enabled %}<span style="color:#68d391;">●</span>{% else %}<span style="color:var(--text-subtle);">○</span>{% endif %}</td>
+      <td>
+        <button class="icon-btn" onclick='editUser({{ {
+          "id": u.id, "email": u.email, "name": u.name or "", "role": u.role, "enabled": u.enabled
+        } | tojson }})'>수정</button>
+        {% if not current_user or u.id != current_user.id %}
+        <button class="icon-btn danger" onclick="deleteUser({{ u.id }})">삭제</button>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty"><p>등록된 계정이 없습니다.</p></div>
+{% endif %}
+
+<script>
+function openAddUser() {
+  document.getElementById('user-form-title').textContent = '계정 추가';
+  document.getElementById('u-id').value = '';
+  document.getElementById('u-email').value = '';
+  document.getElementById('u-email').disabled = false;
+  document.getElementById('u-name').value = '';
+  document.getElementById('u-password').value = '';
+  document.getElementById('u-role').value = 'viewer';
+  document.getElementById('u-enabled').checked = true;
+  document.getElementById('pw-hint').textContent = '*';
+  document.getElementById('user-form').style.display = 'block';
+  document.getElementById('u-email').focus();
+}
+function editUser(u) {
+  document.getElementById('user-form-title').textContent = `계정 수정 #${u.id}`;
+  document.getElementById('u-id').value = u.id;
+  document.getElementById('u-email').value = u.email;
+  document.getElementById('u-email').disabled = true;
+  document.getElementById('u-name').value = u.name || '';
+  document.getElementById('u-password').value = '';
+  document.getElementById('u-role').value = u.role;
+  document.getElementById('u-enabled').checked = !!u.enabled;
+  document.getElementById('pw-hint').textContent = '(비워두면 변경 안 함)';
+  document.getElementById('user-form').style.display = 'block';
+  document.getElementById('u-name').focus();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function closeUserForm() {
+  document.getElementById('user-form').style.display = 'none';
+}
+async function submitUser() {
+  const id = document.getElementById('u-id').value;
+  const email = document.getElementById('u-email').value.trim();
+  const password = document.getElementById('u-password').value;
+  const payload = {
+    email,
+    name: document.getElementById('u-name').value.trim(),
+    role: document.getElementById('u-role').value,
+    enabled: document.getElementById('u-enabled').checked,
+  };
+  if (password) payload.password = password;
+  if (!id && !password) { alert('비밀번호는 필수입니다'); return; }
+  if (!email) { alert('이메일은 필수입니다'); return; }
+  const url = id ? `/api/users/${id}` : '/api/users';
+  const method = id ? 'PUT' : 'POST';
+  const resp = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  if (!resp.ok) { alert('저장 실패: ' + await resp.text()); return; }
+  location.reload();
+}
+async function deleteUser(id) {
+  if (!confirm(`계정 #${id}를 삭제할까요?`)) return;
+  const resp = await fetch(`/api/users/${id}`, { method:'DELETE' });
+  if (!resp.ok) { alert('삭제 실패: ' + await resp.text()); return; }
+  location.reload();
+}
+</script>
+{% endblock %}

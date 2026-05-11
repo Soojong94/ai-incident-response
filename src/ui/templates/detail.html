@@ -12,13 +12,37 @@
   {% if incident.severity %}
     <span class="sev-{{ incident.severity }}" style="font-size:18px;">{{ incident.severity }}</span>
   {% endif %}
+  {% if current_user and current_user.role == 'admin' %}
+  <button class="icon-btn" onclick="reanalyze({{ incident.id }})" style="margin-left:auto;">
+    🔄 다시 분석
+  </button>
+  {% endif %}
 </div>
+
+<script>
+async function reanalyze(id) {
+  if (!confirm('이 incident를 다시 분석할까요? 기존 분석 결과는 덮어쓰여집니다.')) return;
+  const resp = await fetch(`/api/incidents/${id}/reanalyze`, { method: 'POST' });
+  if (!resp.ok) { alert('재분석 시작 실패: ' + await resp.text()); return; }
+  // processing 상태로 바뀌고 잠시 후 새로고침
+  setTimeout(() => location.reload(), 1500);
+}
+</script>
 
 <!-- 알람 기본 정보 -->
 <div class="card">
   <h2>알람 정보</h2>
   <div class="meta-grid">
     <div class="meta-item"><label>리소스</label><span>{{ incident.resource_name or '-' }}</span></div>
+    <div class="meta-item">
+      <label>사이트</label>
+      <span>
+        {% if incident.site %}
+          <a href="/sites/{{ incident.site.id }}">{{ incident.site.name }}</a>
+          {% if incident.site.auto_created %}<span style="font-size:10px; padding:1px 6px; background:#5f370e; color:#fbd38d; border-radius:3px; margin-left:4px;">auto</span>{% endif %}
+        {% else %}-{% endif %}
+      </span>
+    </div>
     <div class="meta-item"><label>메트릭</label><span>{{ incident.metric_type or '-' }}</span></div>
     <div class="meta-item"><label>현재값</label><span>{{ incident.current_value or '-' }}</span></div>
     <div class="meta-item"><label>임계값</label><span>{{ incident.threshold_value or '-' }}</span></div>
@@ -95,6 +119,49 @@
 <div class="card" style="border-color:#742a2a;">
   <h2 style="color:#fc8181;">AI 분석 실패</h2>
   <p style="color:#718096;">자동 분석에 실패했습니다. 수동으로 로그를 확인해 주세요.</p>
+</div>
+{% endif %}
+
+<!-- 발송 이력 -->
+{% if incident.notifications %}
+<div class="card">
+  <h2>발송 이력
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">{{ incident.notifications | length }}건</span>
+  </h2>
+  <table style="margin-top:0;">
+    <thead>
+      <tr>
+        <th>채널</th>
+        <th>수신자</th>
+        <th>상태</th>
+        <th>시각</th>
+        <th>비고</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for n in incident.notifications %}
+      <tr>
+        <td>
+          {% if n.channel == 'slack' %}
+            <span style="font-size:11px; padding:2px 6px; background:#4a154b; color:#fff; border-radius:3px;">Slack</span>
+          {% else %}
+            <span style="font-size:11px; padding:2px 6px; background:#2b6cb0; color:#fff; border-radius:3px;">Email</span>
+          {% endif %}
+        </td>
+        <td style="font-size:13px;">{{ n.recipient_label }}</td>
+        <td>
+          {% if n.status == 'sent' %}
+            <span style="color:#68d391; font-size:12px;">● sent</span>
+          {% else %}
+            <span style="color:#fc8181; font-size:12px;">● failed</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px; color:var(--text-subtle);">{{ n.sent_at.strftime('%Y-%m-%d %H:%M:%S') if n.sent_at else '-' }}</td>
+        <td style="font-size:12px; color:var(--text-subtle); max-width:300px; word-break:break-word;">{{ n.error_message or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endif %}
 

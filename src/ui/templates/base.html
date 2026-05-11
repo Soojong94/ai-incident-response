@@ -4,18 +4,72 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}AI 장애 대응{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" href="/favicon.ico">
+  <meta name="theme-color" content="#d69e2e">
+  <script>
+    // 페이지 깜빡임 방지 — body 렌더 전에 테마 적용
+    (function() {
+      var saved = localStorage.getItem('theme');
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    })();
+  </script>
   <style>
+    /* ── Theme variables ────────────────────────────────────────────── */
+    :root, [data-theme="dark"] {
+      --bg:           #0f1117;
+      --nav-bg:       #1a1d2e;
+      --card-bg:      #1a1d2e;
+      --card-bg-alt:  #0f1117;
+      --border:       #2d3748;
+      --border-soft:  #1a1d2e;
+      --text:         #e2e8f0;
+      --text-muted:   #a0aec0;
+      --text-subtle:  #718096;
+      --text-faint:   #4a5568;
+      --link:         #63b3ed;
+      --input-bg:     #0f1117;
+      --code-bg:      #2d3748;
+      --row-hover:    #1a1d2e;
+      --primary:      #2b6cb0;
+      --primary-hover:#2c5282;
+      --danger:       #e53e3e;
+      --accent:       #f6ad55;
+    }
+    [data-theme="light"] {
+      --bg:           #e2e5ea;
+      --nav-bg:       #eef0f4;
+      --card-bg:      #eaecf0;
+      --card-bg-alt:  #dde1e6;
+      --border:       #c4cad3;
+      --border-soft:  #d6dae0;
+      --text:         #2d3748;
+      --text-muted:   #4a5568;
+      --text-subtle:  #6b7280;
+      --text-faint:   #9ca3af;
+      --link:         #2c5282;
+      --input-bg:     #f5f7fa;
+      --code-bg:      #d6dae0;
+      --row-hover:    #dde1e6;
+      --primary:      #2b6cb0;
+      --primary-hover:#2c5282;
+      --danger:       #c53030;
+      --accent:       #b7791f;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
-    a { color: #63b3ed; text-decoration: none; }
+    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    a { color: var(--link); text-decoration: none; }
     a:hover { text-decoration: underline; }
 
     .navbar {
-      background: #1a1d2e; border-bottom: 1px solid #2d3748; padding: 12px 24px;
+      background: var(--nav-bg); border-bottom: 1px solid var(--border); padding: 12px 24px;
       display: flex; align-items: center; gap: 16px;
     }
-    .navbar h1 { font-size: 18px; font-weight: 700; color: #e2e8f0; }
-    .navbar span { font-size: 12px; color: #718096; }
+    .navbar h1 { font-size: 18px; font-weight: 700; color: var(--text); }
+    .navbar span { font-size: 12px; color: var(--text-subtle); }
 
     .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
@@ -27,65 +81,224 @@
     .badge-analyzed    { background: #276749; color: #c6f6d5; }
     .badge-ai_failed   { background: #742a2a; color: #fed7d7; }
 
-    .sev-Critical { color: #fc8181; font-weight: 700; }
-    .sev-High     { color: #f6ad55; font-weight: 700; }
-    .sev-Medium   { color: #f6e05e; }
-    .sev-Low      { color: #68d391; }
+    .sev-Critical { color: #e53e3e; font-weight: 700; }
+    .sev-High     { color: #dd6b20; font-weight: 700; }
+    .sev-Medium   { color: #d69e2e; }
+    .sev-Low      { color: #38a169; }
+    [data-theme="dark"] .sev-Critical { color: #fc8181; }
+    [data-theme="dark"] .sev-High     { color: #f6ad55; }
+    [data-theme="dark"] .sev-Medium   { color: #f6e05e; }
+    [data-theme="dark"] .sev-Low      { color: #68d391; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    th { background: #1a1d2e; color: #a0aec0; font-size: 12px; text-align: left; padding: 10px 12px; border-bottom: 1px solid #2d3748; }
-    td { padding: 10px 12px; border-bottom: 1px solid #1a1d2e; font-size: 14px; }
-    tr:hover td { background: #1a1d2e; }
+    th { background: var(--card-bg); color: var(--text-muted); font-size: 12px; text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); font-size: 14px; }
+    tr:hover td { background: var(--row-hover); }
 
-    .card { background: #1a1d2e; border: 1px solid #2d3748; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
-    .card h2 { font-size: 16px; color: #a0aec0; margin-bottom: 12px; }
-    .card h3 { font-size: 14px; color: #718096; margin-bottom: 8px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .card h2 { font-size: 16px; color: var(--text-muted); margin-bottom: 12px; }
+    .card h3 { font-size: 14px; color: var(--text-subtle); margin-bottom: 8px; }
 
-    pre { background: #0f1117; border: 1px solid #2d3748; border-radius: 4px; padding: 12px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; color: #a0aec0; }
+    pre { background: var(--card-bg-alt); border: 1px solid var(--border); border-radius: 4px; padding: 12px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; color: var(--text-muted); }
 
     .actions-list { list-style: none; }
-    .actions-list li { padding: 6px 0; border-bottom: 1px solid #2d3748; font-size: 14px; }
-    .actions-list li:before { content: "▸ "; color: #63b3ed; }
+    .actions-list li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .actions-list li:before { content: "▸ "; color: var(--link); }
 
     .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .meta-item label { font-size: 11px; color: #718096; display: block; margin-bottom: 2px; }
+    .meta-item label { font-size: 11px; color: var(--text-subtle); display: block; margin-bottom: 2px; }
     .meta-item span  { font-size: 14px; }
 
+    input[type=text], input[type=email], input[type=url], input[type=search], select, textarea {
+      background: var(--input-bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 4px; padding: 6px 10px; font-size: 14px; font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+
     .refresh-btn {
-      background: #2b6cb0; color: white; border: none; padding: 8px 16px;
+      background: var(--primary); color: white; border: none; padding: 8px 16px;
       border-radius: 4px; cursor: pointer; font-size: 14px; margin-left: auto;
     }
-    .refresh-btn:hover { background: #2c5282; }
+    .refresh-btn:hover { background: var(--primary-hover); }
 
-    .empty { text-align: center; padding: 60px; color: #4a5568; }
+    .nav-btn {
+      padding: 6px 14px; border-radius: 4px; font-size: 13px;
+      text-decoration: none; border: 1px solid transparent; transition: all 0.15s;
+      cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .nav-btn-primary  { background: var(--primary); color: white; border-color: var(--primary); }
+    .nav-btn-primary:hover  { background: var(--primary-hover); border-color: var(--primary-hover); text-decoration: none; }
+    .nav-btn-accent   { background: #d69e2e; color: #1a202c; border-color: #d69e2e; font-weight: 600; }
+    .nav-btn-accent:hover { background: #b7791f; border-color: #b7791f; text-decoration: none; color: #fff; }
+    .nav-btn-outline  { background: transparent; color: var(--text); border-color: var(--border); }
+    .nav-btn-outline:hover { background: var(--row-hover); border-color: var(--text-subtle); text-decoration: none; }
+    .nav-btn-danger   { background: #c53030; color: white; border-color: #c53030; font-weight: 600; }
+    .nav-btn-danger:hover { background: #9b2c2c; border-color: #9b2c2c; color: white; text-decoration: none; }
+    [data-theme="dark"] .nav-btn-danger { background: #e53e3e; border-color: #e53e3e; }
+    [data-theme="dark"] .nav-btn-danger:hover { background: #c53030; border-color: #c53030; }
+
+    .brand {
+      display: inline-flex; align-items: center; gap: 10px;
+      color: var(--text); text-decoration: none;
+    }
+    .brand:hover { text-decoration: none; }
+    .brand .logo {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, #d69e2e 0%, #c05621 100%);
+      color: #1a202c;
+    }
+    [data-theme="dark"] .brand .logo { color: #1a1d2e; }
+    .brand .title {
+      font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
+      background: linear-gradient(135deg, #d69e2e 0%, #c05621 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+
+    .icon-btn {
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: inherit;
+    }
+    .icon-btn:hover { background: var(--row-hover); color: var(--text); }
+    .icon-btn.danger:hover { background: #742a2a; color: #fed7d7; border-color: #742a2a; }
+    [data-theme="light"] .icon-btn.danger:hover { background: #fed7d7; color: #742a2a; border-color: #fc8181; }
+
+    .empty { text-align: center; padding: 60px; color: var(--text-faint); }
 
     /* Markdown rendered content */
     .md-render p  { margin: 4px 0 8px; }
     .md-render ul, .md-render ol { padding-left: 20px; margin: 6px 0; }
     .md-render li { margin: 3px 0; line-height: 1.6; }
     .md-render pre { margin: 8px 0; }
-    .md-render code { background: #2d3748; border-radius: 3px; padding: 1px 5px; font-size: 12px; color: #e2e8f0; }
+    .md-render code { background: var(--code-bg); border-radius: 3px; padding: 1px 5px; font-size: 12px; color: var(--text); }
     .md-render pre code { padding: 0; background: none; }
-    .md-render h1, .md-render h2, .md-render h3 { color: #a0aec0; margin: 10px 0 4px; }
+    .md-render h1, .md-render h2, .md-render h3 { color: var(--text-muted); margin: 10px 0 4px; }
 
     .action-item {
-      border: 1px solid #2d3748; border-radius: 6px;
-      padding: 12px 16px; margin-bottom: 10px;
-      font-size: 14px; line-height: 1.6; color: #cbd5e0;
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px 14px; margin-bottom: 8px;
+      font-size: 13px; line-height: 1.55; color: var(--text);
     }
     .action-item:before { content: none; }
+    /* action-item 안 마크다운 — 일반 텍스트 톤으로 축소 */
+    .action-item.md-render h1,
+    .action-item.md-render h2,
+    .action-item.md-render h3,
+    .action-item.md-render h4 {
+      font-size: 13px; font-weight: 600; margin: 2px 0;
+      color: var(--text); display: inline;
+    }
+    .action-item.md-render p { margin: 2px 0; }
+    .action-item.md-render ul, .action-item.md-render ol { padding-left: 18px; margin: 4px 0; }
+    .action-item.md-render li { margin: 2px 0; line-height: 1.5; }
+    .action-item.md-render pre { font-size: 11px; padding: 6px 8px; margin: 4px 0; }
+    .action-item.md-render code { font-size: 11px; padding: 1px 4px; }
+    .action-item.md-render pre code { font-size: 11px; }
+
+    .theme-toggle {
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      width: 32px; height: 32px; border-radius: 4px; cursor: pointer; font-size: 14px; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .theme-toggle:hover { background: var(--row-hover); color: var(--text); }
   </style>
 </head>
 <body>
   <nav class="navbar">
-    <h1><a href="/" style="color:inherit;text-decoration:none;">AI 장애 대응 시스템</a></h1>
-    <span>NCP Cloud Insight + Timely GPT</span>
-    <a href="/test/demo" style="margin-left:auto; background:#2b6cb0; color:white; padding:6px 14px; border-radius:4px; font-size:13px; text-decoration:none;">데모 알람 발생</a>
+    <a href="/" class="brand">
+      <span class="logo">
+        <svg width="22" height="22" viewBox="0 0 32 32">
+          <path d="M16 4.2 L6.5 7.2 v8.3 c0 5.5 3.6 9.2 9.5 11.3 c5.9-2.1 9.5-5.8 9.5-11.3 V7.2 z" fill="currentColor"/>
+          <text x="16" y="20.3" font-family="Arial Black, system-ui, sans-serif" font-size="10.5" font-weight="900" fill="#d69e2e" text-anchor="middle" letter-spacing="-0.5">AI</text>
+        </svg>
+      </span>
+      <span class="title">AI 장애 대응</span>
+    </a>
+    <span style="font-size:12px; color:var(--text-subtle);">NCP Cloud Insight + Timely GPT</span>
+
+    <a href="/" class="nav-btn nav-btn-danger" style="margin-left:auto;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      장애 목록
+    </a>
+    <a href="/sites" class="nav-btn nav-btn-accent">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      사이트 관리
+    </a>
+    {% if current_user and current_user.role == 'admin' %}
+    <a href="/test/demo" class="nav-btn nav-btn-outline" title="데모 알람 발생 (admin)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/>
+      </svg>
+      데모
+    </a>
+    <a href="/admin/users" class="nav-btn nav-btn-primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      계정 관리
+    </a>
+    {% endif %}
+    <button class="theme-toggle" onclick="toggleTheme()" title="테마 전환" id="theme-toggle-btn"></button>
+
+    {% if current_user %}
+    <div style="position:relative;">
+      <button class="nav-btn nav-btn-outline" onclick="toggleUserMenu()" id="user-menu-btn" style="gap:8px;">
+        <span style="display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--primary); color:#fff; align-items:center; justify-content:center; font-size:11px; font-weight:700;">{{ (current_user.name or current_user.email)[0] | upper }}</span>
+        <span>{{ current_user.name or current_user.email }}</span>
+        {% if current_user.role == 'admin' %}<span style="font-size:10px; padding:1px 5px; background:#742a2a; color:#fed7d7; border-radius:2px;">admin</span>{% endif %}
+      </button>
+      <div id="user-menu" style="display:none; position:absolute; right:0; top:100%; margin-top:6px; background:var(--card-bg); border:1px solid var(--border); border-radius:6px; min-width:180px; box-shadow:0 6px 20px -8px rgba(0,0,0,0.4); z-index:50;">
+        <div style="padding:10px 14px; border-bottom:1px solid var(--border-soft); font-size:12px; color:var(--text-subtle);">
+          {{ current_user.email }}
+        </div>
+        <a href="/logout" style="display:block; padding:8px 14px; font-size:13px; color:var(--danger); text-decoration:none;" onmouseover="this.style.background='var(--row-hover)'" onmouseout="this.style.background=''">로그아웃</a>
+      </div>
+    </div>
+    {% endif %}
   </nav>
   <div class="container">
     {% block content %}{% endblock %}
   </div>
 <script>
+  // 테마 토글 ─────────────────────────────────────────────────────────
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') || 'dark';
+  }
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+    var btn = document.getElementById('theme-toggle-btn');
+    if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+  }
+  function toggleTheme() {
+    applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+  }
+  applyTheme(currentTheme());
+
+  // 사용자 메뉴 드롭다운
+  function toggleUserMenu() {
+    var m = document.getElementById('user-menu');
+    if (m) m.style.display = (m.style.display === 'block') ? 'none' : 'block';
+  }
+  document.addEventListener('click', function(e) {
+    var btn = document.getElementById('user-menu-btn');
+    var menu = document.getElementById('user-menu');
+    if (!menu || !btn) return;
+    if (!btn.contains(e.target) && !menu.contains(e.target)) menu.style.display = 'none';
+  });
+
   if (typeof marked !== 'undefined') {
     marked.setOptions({ breaks: true, gfm: true });
     document.querySelectorAll('.md-render').forEach(el => {
