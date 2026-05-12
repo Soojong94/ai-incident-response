@@ -65,6 +65,9 @@ def _migrate():
                 ("ncp_secret_key_enc", "ALTER TABLE sites ADD COLUMN ncp_secret_key_enc TEXT"),
                 ("wms_scenario_id", "ALTER TABLE sites ADD COLUMN wms_scenario_id VARCHAR(50)"),
                 ("cf_package_name", "ALTER TABLE sites ADD COLUMN cf_package_name VARCHAR(100)"),
+                ("rate_limit_window_seconds", "ALTER TABLE sites ADD COLUMN rate_limit_window_seconds INTEGER DEFAULT 300"),
+                ("rate_limit_count", "ALTER TABLE sites ADD COLUMN rate_limit_count INTEGER DEFAULT 3"),
+                ("rate_limit_disabled", "ALTER TABLE sites ADD COLUMN rate_limit_disabled BOOLEAN DEFAULT 0"),
             ]:
                 if col not in site_cols:
                     conn.execute(text(ddl))

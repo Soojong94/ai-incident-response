@@ -136,6 +136,7 @@ size={{ size }}
           <option value="processing" {% if status_filter == 'processing' %}selected{% endif %}>processing</option>
           <option value="analyzed" {% if status_filter == 'analyzed' %}selected{% endif %}>analyzed</option>
           <option value="ai_failed" {% if status_filter == 'ai_failed' %}selected{% endif %}>ai_failed</option>
+          <option value="suppressed" {% if status_filter == 'suppressed' %}selected{% endif %}>suppressed (rate-limit)</option>
         </select>
       </div>
       <div>

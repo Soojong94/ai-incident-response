@@ -11,8 +11,8 @@ from src.db.crud import (
     create_incident, create_analysis, update_incident_status, add_logs,
     get_recipients_for_severity, record_notification, get_incident,
     find_similar_ai_note, add_site_note, increment_note_occurrence,
-    get_site_notes_for_prompt, cluster_has_sent_notification, list_cluster_incidents,
-    get_site_ncp_keys,
+    get_site_notes_for_prompt, list_cluster_incidents,
+    get_site_ncp_keys, count_recent_incidents_for_site,
 )
 from src.db.database import get_db as _get_db
 
@@ -36,11 +36,36 @@ async def receive_alarm(request: Request, payload: dict, db) -> dict:
 
 
 async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
-    """Background task: collect logs → analyze → store result."""
+    """Background task: collect logs → analyze → store result.
+    sites의 rate-limit을 먼저 검사해서 임계값 초과 시 분석 자체를 차단(suppressed).
+    비상 모드(rate_limit_disabled=True)일 땐 무시하고 모두 분석."""
     from src.collector import mock_collector, ncp_collector, obs_collector
 
     db = next(_get_db())
     try:
+        # ── Rate limit check ──────────────────────────────────────────────
+        inc_for_rl = get_incident(db, incident_id)
+        if inc_for_rl and inc_for_rl.site_id and inc_for_rl.site and not inc_for_rl.site.rate_limit_disabled:
+            window = inc_for_rl.site.rate_limit_window_seconds or 300
+            limit = inc_for_rl.site.rate_limit_count or 3
+            recent = count_recent_incidents_for_site(db, inc_for_rl.site_id, window, exclude_id=incident_id)
+            # recent에는 자기 자신 제외한 같은 site의 최근 incident 수
+            if recent >= limit:
+                logger.info(
+                    "incident %d — rate-limited (site=%d, recent=%d >= limit=%d, window=%ds) — 분석 skip",
+                    incident_id, inc_for_rl.site_id, recent, limit, window,
+                )
+                update_incident_status(db, incident_id, "suppressed")
+                record_notification(
+                    db, incident_id,
+                    recipient_id=None,
+                    recipient_label=f"rate-limited (window={window}s, count>{limit})",
+                    channel="rate_limit",
+                    status="skipped",
+                    error_message=None,
+                )
+                return
+
         logs: list[str] = []
         log_source = "mock"
 
@@ -168,31 +193,9 @@ def _accumulate_site_note(db, site_id: int, incident_id: int, result: dict) -> N
 
 def _dispatch_notifications(db, incident_id: int, alarm_name: str, analysis: dict, severity: str, site_id: int | None = None) -> None:
     """수신자 테이블 기반으로 이메일/슬랙 발송 + NotificationLog 기록.
-    클러스터 첫 incident만 실제 발송 — 후속은 'clustered'로 기록 (노이즈 폭주 방지)."""
+    rate-limit은 run_pipeline 시작 시점에 처리되므로, 여기까지 오면 발송 대상."""
     from src.notifier.email_notifier import send_analysis_complete
     from src.notifier.slack_notifier import send_slack
-
-    # 클러스터의 다른 incident가 이미 발송됐는지 확인
-    inc = get_incident(db, incident_id)
-    cluster_id = inc.cluster_id if inc else None
-    if cluster_id and cluster_has_sent_notification(db, cluster_id):
-        # 같은 클러스터 첫 알림이 이미 갔음 — 발송 skip + 클러스터 묶음 표기로만 기록
-        # 같은 클러스터의 첫 incident 찾기 (참조 용)
-        siblings = list_cluster_incidents(db, cluster_id, exclude_id=incident_id)
-        first_id = siblings[0].id if siblings else None
-        logger.info(
-            "incident %d — 같은 클러스터의 첫 알림(첫 incident=%s) 이미 발송됨, 메일/슬랙 skip",
-            incident_id, first_id,
-        )
-        record_notification(
-            db, incident_id,
-            recipient_id=None,
-            recipient_label=f"clustered with #{first_id}" if first_id else "clustered (sibling)",
-            channel="cluster",
-            status="skipped",
-            error_message=None,
-        )
-        return
 
     recipients = get_recipients_for_severity(db, severity, site_id=site_id)
     if not recipients:

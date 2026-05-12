@@ -129,6 +129,20 @@ def list_cluster_incidents(db: Session, cluster_id: str, exclude_id: int | None 
     return q.order_by(Incident.created_at.asc()).all()
 
 
+def count_recent_incidents_for_site(db: Session, site_id: int, window_seconds: int, exclude_id: int | None = None) -> int:
+    """site의 최근 window_seconds 안에 만들어진 incident 수."""
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(seconds=window_seconds)
+    q = (
+        db.query(Incident)
+        .filter(Incident.site_id == site_id)
+        .filter(Incident.created_at >= cutoff)
+    )
+    if exclude_id is not None:
+        q = q.filter(Incident.id != exclude_id)
+    return q.count()
+
+
 def cluster_has_sent_notification(db: Session, cluster_id: str) -> bool:
     """이 클러스터의 incident 중 이미 알림(NotificationLog)이 발송된 게 있는가?"""
     from sqlalchemy import exists, and_
@@ -527,6 +541,20 @@ def update_site(db: Session, site_id: int, data: dict) -> Site | None:
     if "cf_package_name" in data:
         site.cf_package_name = (data["cf_package_name"] or "").strip() or None
     # API 키 — 별도 endpoint로 처리 (update_site_keys). 여기서는 안 받음.
+    if "rate_limit_window_seconds" in data:
+        try:
+            v = int(data["rate_limit_window_seconds"])
+            site.rate_limit_window_seconds = max(10, v)
+        except (TypeError, ValueError):
+            pass
+    if "rate_limit_count" in data:
+        try:
+            v = int(data["rate_limit_count"])
+            site.rate_limit_count = max(1, v)
+        except (TypeError, ValueError):
+            pass
+    if "rate_limit_disabled" in data:
+        site.rate_limit_disabled = bool(data["rate_limit_disabled"])
     if "enabled" in data:
         site.enabled = bool(data["enabled"])
     site.updated_at = datetime.utcnow()

@@ -121,6 +121,40 @@
   </div>
 </div>
 
+<!-- Rate-limit (분석 호출 차단 정책) -->
+<div class="card" {% if site.rate_limit_disabled %}style="border-color:var(--danger);"{% endif %}>
+  <h2>분석 Rate Limit
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
+      윈도우 안 incident가 임계값 초과면 분석/알림 모두 차단 (status=suppressed)
+    </span>
+  </h2>
+  <div class="meta-grid" style="margin-bottom:12px;">
+    <div class="meta-item">
+      <label>윈도우 (초)</label>
+      <input id="rl-window" type="number" min="10" value="{{ site.rate_limit_window_seconds or 300 }}" style="width:100%;">
+    </div>
+    <div class="meta-item">
+      <label>임계값 (건)</label>
+      <input id="rl-count" type="number" min="1" value="{{ site.rate_limit_count or 3 }}" style="width:100%;">
+    </div>
+    <div class="meta-item" style="grid-column:1/-1; display:flex; align-items:center; gap:14px; padding:10px; background:{% if site.rate_limit_disabled %}rgba(229,62,62,0.12){% else %}var(--card-bg-alt){% endif %}; border-radius:6px; border:1px solid {% if site.rate_limit_disabled %}var(--danger){% else %}var(--border){% endif %};">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+        <input id="rl-disabled" type="checkbox" {% if site.rate_limit_disabled %}checked{% endif %} style="width:auto;">
+        <strong style="color:{% if site.rate_limit_disabled %}var(--danger){% else %}var(--text){% endif %};">
+          🚨 비상 모드 (rate limit 무시)
+        </strong>
+      </label>
+      <span style="font-size:12px; color:var(--text-subtle);">
+        장애 대응 중 임시로 켜면 임계값 초과해도 모든 incident가 분석됩니다. 끝나면 반드시 다시 꺼주세요.
+      </span>
+    </div>
+  </div>
+  <button class="refresh-btn" style="margin-left:0;" onclick="saveRateLimit()">저장</button>
+  <p style="font-size:11px; color:var(--text-subtle); margin-top:8px;">
+    예: 300초 / 3건 → 5분 안에 4번째 알람부터 분석 차단. 1분 단위로 받고 싶으면 60 / 1
+  </p>
+</div>
+
 <!-- API 키 (NCP / WMS / CF) — 사이트별 격리 -->
 <div class="card">
   <h2>API 키 / 식별자
@@ -402,6 +436,23 @@ async function submitRecipientEdit() {
 async function deleteRecipient(id) {
   if (!confirm(`수신자 #${id}를 삭제할까요?`)) return;
   await fetch(`/api/recipients/${id}`, { method:'DELETE' });
+  location.reload();
+}
+
+// ── Rate limit ─────────────────────────────────────────────────────
+async function saveRateLimit() {
+  const payload = {
+    name: {{ site.name | tojson }},
+    rate_limit_window_seconds: parseInt(document.getElementById('rl-window').value, 10),
+    rate_limit_count: parseInt(document.getElementById('rl-count').value, 10),
+    rate_limit_disabled: document.getElementById('rl-disabled').checked,
+  };
+  const resp = await fetch(`/api/sites/${SITE_ID}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) { alert('저장 실패: ' + await resp.text()); return; }
   location.reload();
 }
 
