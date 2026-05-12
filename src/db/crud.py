@@ -84,18 +84,59 @@ def _match_or_create_site(db: Session, resource_name: str, obs_bucket: str | Non
     return site
 
 
+CLUSTER_WINDOW_SECONDS = 300  # 5분
+
+
+def _find_or_create_cluster_id(db: Session, site_id: int | None) -> str:
+    """같은 site에 최근 5분 안에 만들어진 incident가 있으면 그 cluster_id 재사용, 없으면 새로."""
+    if site_id is None:
+        return uuid.uuid4().hex
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(seconds=CLUSTER_WINDOW_SECONDS)
+    recent = (
+        db.query(Incident)
+        .filter(Incident.site_id == site_id)
+        .filter(Incident.created_at >= cutoff)
+        .filter(Incident.cluster_id.isnot(None))
+        .order_by(Incident.created_at.desc())
+        .first()
+    )
+    return recent.cluster_id if recent else uuid.uuid4().hex
+
+
 def create_incident(db: Session, alarm_data: dict) -> Incident:
     parsed = _parse_alarm(alarm_data)
     site = _match_or_create_site(db, parsed["resource_name"], parsed.get("obs_bucket"))
+    site_id = site.id if site else None
+    cluster_id = _find_or_create_cluster_id(db, site_id)
     incident = Incident(
         **parsed,
-        site_id=site.id if site else None,
+        site_id=site_id,
+        cluster_id=cluster_id,
         raw_alarm=alarm_data,
     )
     db.add(incident)
     db.commit()
     db.refresh(incident)
     return incident
+
+
+def list_cluster_incidents(db: Session, cluster_id: str, exclude_id: int | None = None) -> list[Incident]:
+    """같은 클러스터의 incident 목록 (created_at 오래된 순)."""
+    q = db.query(Incident).filter(Incident.cluster_id == cluster_id)
+    if exclude_id is not None:
+        q = q.filter(Incident.id != exclude_id)
+    return q.order_by(Incident.created_at.asc()).all()
+
+
+def cluster_has_sent_notification(db: Session, cluster_id: str) -> bool:
+    """이 클러스터의 incident 중 이미 알림(NotificationLog)이 발송된 게 있는가?"""
+    from sqlalchemy import exists, and_
+    q = db.query(NotificationLog).join(Incident, NotificationLog.incident_id == Incident.id).filter(
+        Incident.cluster_id == cluster_id,
+        NotificationLog.status == "sent",
+    )
+    return db.query(q.exists()).scalar()
 
 
 def get_incident(db: Session, incident_id: int) -> Incident | None:

@@ -195,7 +195,10 @@ size={{ size }}
     {% for inc in incidents %}
     <tr>
       <td><input type="checkbox" class="row-check" value="{{ inc.id }}" onchange="updateSelection()"></td>
-      <td><a href="/incidents/{{ inc.id }}">{{ inc.id }}</a></td>
+      <td>
+        <a href="/incidents/{{ inc.id }}">{{ inc.id }}</a>
+        {% if inc.cluster_id %}<span title="Cluster {{ inc.cluster_id[:8] }}" style="font-size:10px; padding:1px 4px; background:var(--card-bg-alt); color:var(--text-subtle); border-radius:3px; margin-left:2px;">C·{{ inc.cluster_id[:6] }}</span>{% endif %}
+      </td>
       <td><a href="/incidents/{{ inc.id }}">{{ inc.alarm_name or '-' }}</a></td>
       <td>{{ inc.resource_name or '-' }}</td>
       <td>{{ inc.metric_type or '-' }}</td>

@@ -20,6 +20,7 @@ class Incident(Base):
     obs_bucket = Column(String(200))
     obs_object_key = Column(String(500))
     site_id = Column(Integer, ForeignKey("sites.id"), nullable=True, index=True)
+    cluster_id = Column(String(36), nullable=True, index=True)  # 같은 site + 5분 윈도우 내 incident 묶음
     raw_alarm = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)

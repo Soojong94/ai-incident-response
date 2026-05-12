@@ -169,6 +169,33 @@ async function saveFeedbackComment() {
 </div>
 {% endif %}
 
+<!-- 관련 incident (같은 클러스터) -->
+{% if siblings %}
+<div class="card">
+  <h2>관련 인시던트
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
+      같은 클러스터 (5분 윈도우) — 총 {{ siblings | length + 1 }}건. 클러스터 첫 incident만 메일/Slack 발송됨
+    </span>
+  </h2>
+  <table style="margin-top:0;">
+    <thead>
+      <tr><th>#</th><th>알람명</th><th>심각도</th><th>발생시간</th><th>상태</th></tr>
+    </thead>
+    <tbody>
+      {% for s in siblings %}
+      <tr>
+        <td><a href="/incidents/{{ s.id }}">{{ s.id }}</a></td>
+        <td><a href="/incidents/{{ s.id }}">{{ s.alarm_name or '-' }}</a></td>
+        <td>{% if s.severity %}<span class="sev-{{ s.severity }}">{{ s.severity }}</span>{% else %}-{% endif %}</td>
+        <td style="font-size:12px; color:var(--text-subtle);">{{ s.alarm_time.strftime('%H:%M:%S') if s.alarm_time else '-' }}</td>
+        <td><span class="badge badge-{{ s.status }}">{{ s.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 <!-- 발송 이력 -->
 {% if incident.notifications %}
 <div class="card">

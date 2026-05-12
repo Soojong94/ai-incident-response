@@ -565,9 +565,14 @@ def incident_detail(incident_id: int, request: Request, db: Session = Depends(ge
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
     feedback = get_feedback_for_incident(db, incident_id)
+    # 같은 클러스터의 다른 incident
+    from src.db.crud import list_cluster_incidents
+    siblings = []
+    if incident.cluster_id:
+        siblings = list_cluster_incidents(db, incident.cluster_id, exclude_id=incident_id)
     return templates.TemplateResponse(
         request, "detail.html",
-        {"incident": incident, "feedback": feedback, "current_user": user},
+        {"incident": incident, "feedback": feedback, "siblings": siblings, "current_user": user},
     )
 
 
@@ -843,6 +848,8 @@ def api_incidents(
             "alarm_time": inc.alarm_time.isoformat() if inc.alarm_time else None,
             "status": inc.status,
             "severity": inc.severity,
+            "site_id": inc.site_id,
+            "cluster_id": inc.cluster_id,
             "created_at": inc.created_at.isoformat() if inc.created_at else None,
         }
         for inc in incidents

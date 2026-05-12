@@ -40,6 +40,7 @@ def _migrate():
             ("obs_bucket", "ALTER TABLE incidents ADD COLUMN obs_bucket VARCHAR(200)"),
             ("obs_object_key", "ALTER TABLE incidents ADD COLUMN obs_object_key VARCHAR(500)"),
             ("site_id", "ALTER TABLE incidents ADD COLUMN site_id INTEGER REFERENCES sites(id)"),
+            ("cluster_id", "ALTER TABLE incidents ADD COLUMN cluster_id VARCHAR(36)"),
         ]:
             if col not in inc_cols:
                 conn.execute(text(ddl))

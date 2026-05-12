@@ -11,7 +11,7 @@ from src.db.crud import (
     create_incident, create_analysis, update_incident_status, add_logs,
     get_recipients_for_severity, record_notification, get_incident,
     find_similar_ai_note, add_site_note, increment_note_occurrence,
-    get_site_notes_for_prompt,
+    get_site_notes_for_prompt, cluster_has_sent_notification, list_cluster_incidents,
 )
 from src.db.database import get_db as _get_db
 
@@ -159,9 +159,31 @@ def _accumulate_site_note(db, site_id: int, incident_id: int, result: dict) -> N
 
 def _dispatch_notifications(db, incident_id: int, alarm_name: str, analysis: dict, severity: str, site_id: int | None = None) -> None:
     """수신자 테이블 기반으로 이메일/슬랙 발송 + NotificationLog 기록.
-    site_id가 있으면 해당 사이트 수신자만, 없거나 비어있으면 .env fallback."""
+    클러스터 첫 incident만 실제 발송 — 후속은 'clustered'로 기록 (노이즈 폭주 방지)."""
     from src.notifier.email_notifier import send_analysis_complete
     from src.notifier.slack_notifier import send_slack
+
+    # 클러스터의 다른 incident가 이미 발송됐는지 확인
+    inc = get_incident(db, incident_id)
+    cluster_id = inc.cluster_id if inc else None
+    if cluster_id and cluster_has_sent_notification(db, cluster_id):
+        # 같은 클러스터 첫 알림이 이미 갔음 — 발송 skip + 클러스터 묶음 표기로만 기록
+        # 같은 클러스터의 첫 incident 찾기 (참조 용)
+        siblings = list_cluster_incidents(db, cluster_id, exclude_id=incident_id)
+        first_id = siblings[0].id if siblings else None
+        logger.info(
+            "incident %d — 같은 클러스터의 첫 알림(첫 incident=%s) 이미 발송됨, 메일/슬랙 skip",
+            incident_id, first_id,
+        )
+        record_notification(
+            db, incident_id,
+            recipient_id=None,
+            recipient_label=f"clustered with #{first_id}" if first_id else "clustered (sibling)",
+            channel="cluster",
+            status="skipped",
+            error_message=None,
+        )
+        return
 
     recipients = get_recipients_for_severity(db, severity, site_id=site_id)
     if not recipients:
