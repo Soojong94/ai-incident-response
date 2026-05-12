@@ -31,9 +31,12 @@ size={{ size }}
   }
   .filter-chip a { color: var(--text-subtle); text-decoration: none; line-height: 1; font-size: 14px; }
   .filter-chip a:hover { color: var(--danger); }
-  .adv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .adv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
   .adv-grid label { font-size: 11px; color: var(--text-subtle); display: block; margin-bottom: 3px; }
   .adv-grid select, .adv-grid input { width: 100%; padding: 6px 10px; }
+  /* 발송일자(2개 input + ~) 는 2칸 차지해서 짤림 방지 */
+  .adv-grid .col-span-2 { grid-column: span 2; }
+  .adv-grid .col-span-2 input[type="date"] { min-width: 0; }
   .pager { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 20px; }
   .pager a, .pager span {
     padding: 6px 12px; border-radius: 4px; font-size: 13px;
@@ -79,12 +82,12 @@ size={{ size }}
           <option value="skipped" {% if status_filter == 'skipped' %}selected{% endif %}>skipped</option>
         </select>
       </div>
-      <div>
+      <div class="col-span-2">
         <label>발송일자</label>
         <div style="display:flex; gap:6px; align-items:center;">
-          <input type="date" name="date_from" value="{{ date_from_filter or '' }}" style="flex:1;">
-          <span style="color:var(--text-subtle);">~</span>
-          <input type="date" name="date_to" value="{{ date_to_filter or '' }}" style="flex:1;">
+          <input type="date" name="date_from" value="{{ date_from_filter or '' }}" style="flex:1; min-width:0;">
+          <span style="color:var(--text-subtle); flex-shrink:0;">~</span>
+          <input type="date" name="date_to" value="{{ date_to_filter or '' }}" style="flex:1; min-width:0;">
         </div>
       </div>
       <div>
