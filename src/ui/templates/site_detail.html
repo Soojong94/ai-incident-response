@@ -121,6 +121,71 @@
   </div>
 </div>
 
+<!-- API 키 (NCP / WMS / CF) — 사이트별 격리 -->
+<div class="card">
+  <h2>API 키 / 식별자
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
+      Fernet 암호화 저장 — 평문은 DB/응답에 노출되지 않음. 빈 값이면 .env fallback
+    </span>
+  </h2>
+
+  <div class="meta-grid" style="margin-bottom:12px;">
+    <div class="meta-item">
+      <label>NCP Access Key</label>
+      {% if site.ncp_access_key_enc %}
+      <span style="font-family:monospace; font-size:13px; color:var(--text);">{{ '••••••••' + (site.ncp_access_key_enc | string)[-0:0] }}<span id="acc-mask">{{ '' }}</span></span>
+      <span style="color:#68d391; font-size:11px;"> ● 등록됨</span>
+      {% else %}
+      <span style="color:var(--text-subtle); font-size:13px;">— 미등록 (.env 키 사용) —</span>
+      {% endif %}
+    </div>
+    <div class="meta-item">
+      <label>NCP Secret Key</label>
+      {% if site.ncp_secret_key_enc %}
+      <span style="color:#68d391; font-size:13px;">●●●●●●●● 등록됨</span>
+      {% else %}
+      <span style="color:var(--text-subtle); font-size:13px;">— 미등록 —</span>
+      {% endif %}
+    </div>
+    <div class="meta-item">
+      <label>WMS scenario ID</label>
+      <span style="font-family:monospace; font-size:13px;">{{ site.wms_scenario_id or '— 없음 —' }}</span>
+    </div>
+    <div class="meta-item">
+      <label>CF Package Name</label>
+      <span style="font-family:monospace; font-size:13px;">{{ site.cf_package_name or '— 없음 —' }}</span>
+    </div>
+  </div>
+
+  <button class="icon-btn" onclick="toggleKeyForm()">🔑 키 / 식별자 수정</button>
+  {% if site.ncp_access_key_enc or site.ncp_secret_key_enc %}
+  <button class="icon-btn danger" onclick="clearSiteKeys()">NCP 키 삭제 (.env fallback으로)</button>
+  {% endif %}
+
+  <div id="key-form" style="display:none; margin-top:14px; padding:14px; background:var(--card-bg-alt); border:1px solid var(--border); border-radius:6px;">
+    <div class="meta-grid" style="margin-bottom:12px;">
+      <div class="meta-item">
+        <label>NCP Access Key (새 값만 입력, 빈 칸은 미변경)</label>
+        <input id="k-ncp-access" type="password" placeholder="입력 시 암호화 저장" autocomplete="off" style="width:100%; font-family:monospace;">
+      </div>
+      <div class="meta-item">
+        <label>NCP Secret Key</label>
+        <input id="k-ncp-secret" type="password" placeholder="입력 시 암호화 저장" autocomplete="off" style="width:100%; font-family:monospace;">
+      </div>
+      <div class="meta-item">
+        <label>WMS scenario ID (평문)</label>
+        <input id="k-wms" type="text" value="{{ site.wms_scenario_id or '' }}" placeholder="예: 9799" style="width:100%;">
+      </div>
+      <div class="meta-item">
+        <label>CF Package Name (평문)</label>
+        <input id="k-cf" type="text" value="{{ site.cf_package_name or '' }}" placeholder="예: team1-demo-pkg" style="width:100%;">
+      </div>
+    </div>
+    <button class="refresh-btn" style="margin-left:0;" onclick="saveSiteKeys()">저장</button>
+    <button class="icon-btn" style="margin-left:8px;" onclick="toggleKeyForm()">취소</button>
+  </div>
+</div>
+
 <!-- AI 메모 (누적 학습 컨텍스트) -->
 <div class="card">
   <h2>AI 메모
@@ -337,6 +402,45 @@ async function submitRecipientEdit() {
 async function deleteRecipient(id) {
   if (!confirm(`수신자 #${id}를 삭제할까요?`)) return;
   await fetch(`/api/recipients/${id}`, { method:'DELETE' });
+  location.reload();
+}
+
+// ── Site API keys ──────────────────────────────────────────────────
+function toggleKeyForm() {
+  const f = document.getElementById('key-form');
+  f.style.display = (f.style.display === 'none' || !f.style.display) ? 'block' : 'none';
+}
+async function saveSiteKeys() {
+  const access = document.getElementById('k-ncp-access').value;
+  const secret = document.getElementById('k-ncp-secret').value;
+  const wms = document.getElementById('k-wms').value.trim();
+  const cf = document.getElementById('k-cf').value.trim();
+
+  // 1) 식별자 (평문) — site update
+  const payload = {
+    name: {{ site.name | tojson }},  // 변경 없음 안전을 위해
+    wms_scenario_id: wms,
+    cf_package_name: cf,
+  };
+  const r1 = await fetch(`/api/sites/${SITE_ID}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
+  });
+  if (!r1.ok) { alert('식별자 저장 실패: ' + await r1.text()); return; }
+
+  // 2) NCP 키 — 입력된 값만 변경 (둘 다 빈 칸이면 호출 안 함)
+  if (access || secret) {
+    const r2 = await fetch(`/api/sites/${SITE_ID}/keys`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ ncp_access_key: access, ncp_secret_key: secret }),
+    });
+    if (!r2.ok) { alert('키 저장 실패: ' + await r2.text()); return; }
+  }
+  location.reload();
+}
+async function clearSiteKeys() {
+  if (!confirm('이 사이트의 NCP 키를 삭제하시겠습니까? (이후 .env fallback으로 동작)')) return;
+  const resp = await fetch(`/api/sites/${SITE_ID}/keys`, { method: 'DELETE' });
+  if (!resp.ok) { alert('삭제 실패: ' + await resp.text()); return; }
   location.reload();
 }
 

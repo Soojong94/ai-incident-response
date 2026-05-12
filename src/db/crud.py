@@ -522,12 +522,60 @@ def update_site(db: Session, site_id: int, data: dict) -> Site | None:
         site.obs_bucket = data["obs_bucket"] or None
     if "architecture" in data:
         site.architecture = data["architecture"] or None
+    if "wms_scenario_id" in data:
+        site.wms_scenario_id = (data["wms_scenario_id"] or "").strip() or None
+    if "cf_package_name" in data:
+        site.cf_package_name = (data["cf_package_name"] or "").strip() or None
+    # API 키 — 별도 endpoint로 처리 (update_site_keys). 여기서는 안 받음.
     if "enabled" in data:
         site.enabled = bool(data["enabled"])
     site.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(site)
     return site
+
+
+def update_site_keys(db: Session, site_id: int, ncp_access: str | None, ncp_secret: str | None) -> Site | None:
+    """site의 NCP 키만 별도로 갱신 (암호화 후 저장). None 또는 빈 문자열은 변경하지 않음."""
+    from src.crypto import encrypt
+    site = get_site(db, site_id)
+    if not site:
+        return None
+    if ncp_access is not None and ncp_access.strip():
+        site.ncp_access_key_enc = encrypt(ncp_access.strip())
+    if ncp_secret is not None and ncp_secret.strip():
+        site.ncp_secret_key_enc = encrypt(ncp_secret.strip())
+    site.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(site)
+    return site
+
+
+def clear_site_keys(db: Session, site_id: int) -> Site | None:
+    """site의 NCP 키 삭제 (clear). .env fallback으로 동작."""
+    site = get_site(db, site_id)
+    if not site:
+        return None
+    site.ncp_access_key_enc = None
+    site.ncp_secret_key_enc = None
+    site.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(site)
+    return site
+
+
+def get_site_ncp_keys(db: Session, site_id: int) -> tuple[str, str]:
+    """site에 키가 등록돼 있으면 복호화해 반환, 없으면 .env fallback.
+    OBS/CLA 호출 직전에 사용."""
+    from src.crypto import decrypt
+    from src.config import settings as _s
+    site = get_site(db, site_id)
+    if site and site.ncp_access_key_enc and site.ncp_secret_key_enc:
+        access = decrypt(site.ncp_access_key_enc)
+        secret = decrypt(site.ncp_secret_key_enc)
+        if access and secret:
+            return access, secret
+    return _s.ncp_access_key, _s.ncp_secret_key
 
 
 def delete_site(db: Session, site_id: int) -> bool:

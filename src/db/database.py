@@ -61,6 +61,10 @@ def _migrate():
                 ("obs_bucket", "ALTER TABLE sites ADD COLUMN obs_bucket VARCHAR(200)"),
                 ("architecture", "ALTER TABLE sites ADD COLUMN architecture TEXT"),
                 ("auto_created", "ALTER TABLE sites ADD COLUMN auto_created BOOLEAN DEFAULT 0"),
+                ("ncp_access_key_enc", "ALTER TABLE sites ADD COLUMN ncp_access_key_enc TEXT"),
+                ("ncp_secret_key_enc", "ALTER TABLE sites ADD COLUMN ncp_secret_key_enc TEXT"),
+                ("wms_scenario_id", "ALTER TABLE sites ADD COLUMN wms_scenario_id VARCHAR(50)"),
+                ("cf_package_name", "ALTER TABLE sites ADD COLUMN cf_package_name VARCHAR(100)"),
             ]:
                 if col not in site_cols:
                     conn.execute(text(ddl))

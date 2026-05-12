@@ -135,6 +135,11 @@ class Site(Base):
     resource_pattern = Column(String(200), nullable=True)  # 글로브: team1-*, web-prod-*
     obs_bucket = Column(String(200), nullable=True)         # 정확 매치
     architecture = Column(Text, nullable=True)              # 인프라 구조 (Markdown) — AI prompt에 주입
+    # API keys — 모두 Fernet 암호화 저장. 빈 값이면 .env fallback.
+    ncp_access_key_enc = Column(Text, nullable=True)
+    ncp_secret_key_enc = Column(Text, nullable=True)
+    wms_scenario_id = Column(String(50), nullable=True)     # 평문 — 식별자만, 민감 X
+    cf_package_name = Column(String(100), nullable=True)    # 평문 — CF 배포 자동화용
     auto_created = Column(Boolean, default=False)           # alarm 페이로드로 자동 생성됐는지
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

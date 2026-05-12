@@ -12,6 +12,7 @@ from src.db.crud import (
     get_recipients_for_severity, record_notification, get_incident,
     find_similar_ai_note, add_site_note, increment_note_occurrence,
     get_site_notes_for_prompt, cluster_has_sent_notification, list_cluster_incidents,
+    get_site_ncp_keys,
 )
 from src.db.database import get_db as _get_db
 
@@ -46,14 +47,22 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
         obs_key = alarm_data.get("obs_object_key") or alarm_data.get("obsObjectKey")
         obs_bucket = alarm_data.get("obs_bucket") or alarm_data.get("obsBucket") or settings.obs_bucket
 
-        if obs_key and settings.ncp_access_key and settings.ncp_secret_key:
+        # 해당 incident의 site에 NCP 키가 있으면 그걸 사용, 없으면 .env fallback
+        _tmp_inc = get_incident(db, incident_id)
+        site_id_for_keys = _tmp_inc.site_id if _tmp_inc else None
+        ncp_access, ncp_secret = (
+            get_site_ncp_keys(db, site_id_for_keys) if site_id_for_keys else
+            (settings.ncp_access_key, settings.ncp_secret_key)
+        )
+
+        if obs_key and ncp_access and ncp_secret:
             try:
-                logs = await obs_collector.collect(obs_bucket, obs_key)
+                logs = await obs_collector.collect(obs_bucket, obs_key, access_key=ncp_access, secret_key=ncp_secret)
                 log_source = "obs"
             except Exception as e:
                 logger.warning("OBS log collection failed (%s), falling back to CLA/mock", e)
 
-        if not logs and settings.ncp_access_key and settings.ncp_secret_key:
+        if not logs and ncp_access and ncp_secret:
             try:
                 logs = await ncp_collector.collect(alarm_data)
                 log_source = "ncp_api"

@@ -14,19 +14,25 @@ logger = logging.getLogger(__name__)
 OBS_ENDPOINT = "https://kr.object.ncloudstorage.com"
 
 
-def _s3_client():
+def _s3_client(access_key: str | None = None, secret_key: str | None = None):
     return boto3.client(
         "s3",
         endpoint_url=OBS_ENDPOINT,
-        aws_access_key_id=settings.ncp_access_key,
-        aws_secret_access_key=settings.ncp_secret_key,
+        aws_access_key_id=access_key or settings.ncp_access_key,
+        aws_secret_access_key=secret_key or settings.ncp_secret_key,
     )
 
 
-async def collect(bucket: str, object_key: str) -> list[str]:
-    """OBS에서 JSONL 로그 파일을 다운로드하고 줄 단위로 반환."""
+async def collect(
+    bucket: str,
+    object_key: str,
+    access_key: str | None = None,
+    secret_key: str | None = None,
+) -> list[str]:
+    """OBS에서 JSONL 로그 파일을 다운로드하고 줄 단위로 반환.
+    access_key/secret_key가 명시되면 그걸 사용 (site별 키), 없으면 .env fallback."""
     logger.info("OBS 로그 수집 시작: bucket=%s, key=%s", bucket, object_key)
-    resp = _s3_client().get_object(Bucket=bucket, Key=object_key)
+    resp = _s3_client(access_key, secret_key).get_object(Bucket=bucket, Key=object_key)
     body = resp["Body"].read().decode("utf-8", errors="replace")
 
     records = []
