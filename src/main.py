@@ -200,7 +200,7 @@ async def forgot_password_action(
         existing = recent_reset_for_user(db, user.id, within_seconds=60)
         if not existing:
             token = _secrets.token_urlsafe(32)
-            expires_at = datetime.utcnow() + timedelta(hours=1)
+            expires_at = datetime.now() + timedelta(hours=1)
             create_password_reset_token(db, user.id, token, expires_at)
             base = str(request.base_url).rstrip("/")
             reset_url = f"{base}/reset/{token}"
@@ -216,7 +216,7 @@ async def forgot_password_action(
 @app.get("/reset/{token}", response_class=HTMLResponse)
 def reset_password_page(token: str, request: Request, db: Session = Depends(get_db)):
     rec = get_password_reset_token(db, token)
-    valid = bool(rec and rec.used_at is None and rec.expires_at > datetime.utcnow())
+    valid = bool(rec and rec.used_at is None and rec.expires_at > datetime.now())
     return templates.TemplateResponse(request, "reset_password.html", {"token": token, "valid": valid})
 
 
@@ -228,7 +228,7 @@ async def reset_password_action(
     db: Session = Depends(get_db),
 ):
     rec = get_password_reset_token(db, token)
-    if not rec or rec.used_at is not None or rec.expires_at <= datetime.utcnow():
+    if not rec or rec.used_at is not None or rec.expires_at <= datetime.now():
         return RedirectResponse(url=f"/reset/{token}", status_code=303)
     if len(new_password) < settings.min_password_length:
         # 보안 — 사용자에게 사유 알려주려면 query 파라미터로

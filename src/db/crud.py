@@ -33,7 +33,7 @@ def _parse_alarm(alarm_data: dict) -> dict:
     try:
         alarm_time = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
     except Exception:
-        alarm_time = datetime.utcnow()
+        alarm_time = datetime.now()
 
     return {
         "alarm_id": get("alarmId", "alarm_id") or str(uuid.uuid4()),
@@ -93,7 +93,7 @@ def _find_or_create_cluster_id(db: Session, site_id: int | None) -> str:
     if site_id is None:
         return uuid.uuid4().hex
     from datetime import timedelta
-    cutoff = datetime.utcnow() - timedelta(seconds=CLUSTER_WINDOW_SECONDS)
+    cutoff = datetime.now() - timedelta(seconds=CLUSTER_WINDOW_SECONDS)
     recent = (
         db.query(Incident)
         .filter(Incident.site_id == site_id)
@@ -133,7 +133,7 @@ def list_cluster_incidents(db: Session, cluster_id: str, exclude_id: int | None 
 def count_recent_incidents_for_site(db: Session, site_id: int, window_seconds: int, exclude_id: int | None = None) -> int:
     """site의 최근 window_seconds 안에 만들어진 incident 수."""
     from datetime import timedelta
-    cutoff = datetime.utcnow() - timedelta(seconds=window_seconds)
+    cutoff = datetime.now() - timedelta(seconds=window_seconds)
     q = (
         db.query(Incident)
         .filter(Incident.site_id == site_id)
@@ -280,7 +280,7 @@ def increment_note_occurrence(db: Session, note_id: int, threshold: int = 3) -> 
     if not note:
         return None
     note.occurrences = (note.occurrences or 1) + 1
-    note.updated_at = datetime.utcnow()
+    note.updated_at = datetime.now()
     if note.occurrences >= threshold:
         note.pinned = True
     db.commit()
@@ -296,7 +296,7 @@ def update_site_note(db: Session, note_id: int, data: dict) -> SiteNote | None:
         note.content = data["content"]
     if "pinned" in data:
         note.pinned = bool(data["pinned"])
-    note.updated_at = datetime.utcnow()
+    note.updated_at = datetime.now()
     db.commit()
     db.refresh(note)
     return note
@@ -379,7 +379,7 @@ def upsert_feedback(db: Session, incident_id: int, user_id: int, rating: str, co
         existing.rating = rating
         existing.comment = comment
         existing.user_id = user_id
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = datetime.now()
         db.commit()
         db.refresh(existing)
         return existing
@@ -402,7 +402,7 @@ def daily_incident_counts(db: Session, days: int = 14) -> list[dict]:
     """지난 N일 간 일별 incident 수 (오래된 → 최신)."""
     from datetime import timedelta
     from sqlalchemy import func
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now() - timedelta(days=days)
     rows = (
         db.query(
             func.date(Incident.created_at).label("d"),
@@ -419,7 +419,7 @@ def daily_incident_counts(db: Session, days: int = 14) -> list[dict]:
 def severity_distribution(db: Session, days: int = 30) -> list[dict]:
     from datetime import timedelta
     from sqlalchemy import func
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now() - timedelta(days=days)
     rows = (
         db.query(Incident.severity, func.count(Incident.id).label("c"))
         .filter(Incident.created_at >= cutoff)
@@ -433,7 +433,7 @@ def severity_distribution(db: Session, days: int = 30) -> list[dict]:
 def status_distribution(db: Session, days: int = 30) -> list[dict]:
     from datetime import timedelta
     from sqlalchemy import func
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now() - timedelta(days=days)
     rows = (
         db.query(Incident.status, func.count(Incident.id).label("c"))
         .filter(Incident.created_at >= cutoff)
@@ -446,7 +446,7 @@ def status_distribution(db: Session, days: int = 30) -> list[dict]:
 def top_sites_by_incident(db: Session, days: int = 30, limit: int = 5) -> list[dict]:
     from datetime import timedelta
     from sqlalchemy import func
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now() - timedelta(days=days)
     rows = (
         db.query(Site.name, func.count(Incident.id).label("c"))
         .join(Incident, Incident.site_id == Site.id)
@@ -462,7 +462,7 @@ def top_sites_by_incident(db: Session, days: int = 30, limit: int = 5) -> list[d
 def notification_success_rate(db: Session, days: int = 30) -> dict:
     from datetime import timedelta
     from sqlalchemy import func
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now() - timedelta(days=days)
     rows = (
         db.query(NotificationLog.status, func.count(NotificationLog.id).label("c"))
         .filter(NotificationLog.sent_at >= cutoff)
@@ -482,7 +482,7 @@ def avg_analysis_duration_seconds(db: Session, days: int = 30) -> dict:
     """incident.created_at → incident.updated_at 차이의 평균 (analyzed 인 것만).
     근사치 — incident가 analyzed 되는 시점에 updated_at이 업데이트되기 때문."""
     from datetime import timedelta
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now() - timedelta(days=days)
     rows = (
         db.query(Incident.created_at, Incident.updated_at)
         .filter(Incident.created_at >= cutoff)
@@ -564,7 +564,7 @@ def update_incident_status(db: Session, incident_id: int, status: str, severity:
         incident.status = status
         if severity:
             incident.severity = severity
-        incident.updated_at = datetime.utcnow()
+        incident.updated_at = datetime.now()
         db.commit()
 
 
@@ -608,7 +608,7 @@ def update_recipient(db: Session, recipient_id: int, data: dict) -> Recipient | 
     for field in ("receive_critical", "receive_high", "receive_medium", "receive_low", "enabled"):
         if field in data:
             setattr(recipient, field, bool(data[field]))
-    recipient.updated_at = datetime.utcnow()
+    recipient.updated_at = datetime.now()
     db.commit()
     db.refresh(recipient)
     return recipient
@@ -701,7 +701,7 @@ def update_site(db: Session, site_id: int, data: dict) -> Site | None:
         site.rate_limit_disabled = bool(data["rate_limit_disabled"])
     if "enabled" in data:
         site.enabled = bool(data["enabled"])
-    site.updated_at = datetime.utcnow()
+    site.updated_at = datetime.now()
     db.commit()
     db.refresh(site)
     return site
@@ -717,7 +717,7 @@ def update_site_keys(db: Session, site_id: int, ncp_access: str | None, ncp_secr
         site.ncp_access_key_enc = encrypt(ncp_access.strip())
     if ncp_secret is not None and ncp_secret.strip():
         site.ncp_secret_key_enc = encrypt(ncp_secret.strip())
-    site.updated_at = datetime.utcnow()
+    site.updated_at = datetime.now()
     db.commit()
     db.refresh(site)
     return site
@@ -730,7 +730,7 @@ def clear_site_keys(db: Session, site_id: int) -> Site | None:
         return None
     site.ncp_access_key_enc = None
     site.ncp_secret_key_enc = None
-    site.updated_at = datetime.utcnow()
+    site.updated_at = datetime.now()
     db.commit()
     db.refresh(site)
     return site
@@ -808,7 +808,7 @@ def update_user(db: Session, user_id: int, data: dict) -> User | None:
         user.enabled = bool(data["enabled"])
     if "password_hash" in data and data["password_hash"]:
         user.password_hash = data["password_hash"]
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now()
     db.commit()
     db.refresh(user)
     return user
@@ -826,7 +826,7 @@ def delete_user(db: Session, user_id: int) -> bool:
 def touch_user_login(db: Session, user_id: int) -> None:
     user = get_user(db, user_id)
     if user:
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now()
         db.commit()
 
 
@@ -847,14 +847,14 @@ def get_password_reset_token(db: Session, token: str) -> PasswordResetToken | No
 def consume_password_reset_token(db: Session, token: str) -> None:
     rec = get_password_reset_token(db, token)
     if rec:
-        rec.used_at = datetime.utcnow()
+        rec.used_at = datetime.now()
         db.commit()
 
 
 def recent_reset_for_user(db: Session, user_id: int, within_seconds: int = 60) -> PasswordResetToken | None:
     """rate limit 용 — within_seconds 안에 발급된 미사용 토큰이 있는지."""
     from datetime import timedelta
-    cutoff = datetime.utcnow() - timedelta(seconds=within_seconds)
+    cutoff = datetime.now() - timedelta(seconds=within_seconds)
     return (
         db.query(PasswordResetToken)
         .filter(PasswordResetToken.user_id == user_id)

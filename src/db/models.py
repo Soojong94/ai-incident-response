@@ -22,8 +22,8 @@ class Incident(Base):
     site_id = Column(Integer, ForeignKey("sites.id"), nullable=True, index=True)
     cluster_id = Column(String(36), nullable=True, index=True)  # 같은 site + 5분 윈도우 내 incident 묶음
     raw_alarm = Column(JSON)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now)
 
     logs = relationship("IncidentLog", back_populates="incident", cascade="all, delete-orphan")
     analysis_result = relationship("AnalysisResult", back_populates="incident", uselist=False, cascade="all, delete-orphan")
@@ -38,7 +38,7 @@ class IncidentLog(Base):
     incident_id = Column(Integer, ForeignKey("incidents.id"))
     source = Column(String(100))   # mock | ncp_api | ssh
     log_content = Column(Text)
-    log_timestamp = Column(DateTime, default=datetime.utcnow)
+    log_timestamp = Column(DateTime, default=datetime.now)
 
     incident = relationship("Incident", back_populates="logs")
 
@@ -56,7 +56,7 @@ class AnalysisResult(Base):
     prevention = Column(Text)
     confidence = Column(String(50))    # 높음 | 보통 | 낮음
     raw_response = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
 
     incident = relationship("Incident", back_populates="analysis_result")
 
@@ -72,8 +72,8 @@ class SiteNote(Base):
     pinned = Column(Boolean, default=False)  # True면 항상 AI prompt에 포함
     related_incident_id = Column(Integer, ForeignKey("incidents.id"), nullable=True)
     occurrences = Column(Integer, default=1)  # 비슷한 내용 누적 시 증가
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now)
 
 
 class AnalysisFeedback(Base):
@@ -84,8 +84,8 @@ class AnalysisFeedback(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     rating = Column(String(10))  # 'up' | 'down'
     comment = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now)
 
 
 class PasswordResetToken(Base):
@@ -96,7 +96,7 @@ class PasswordResetToken(Base):
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
     expires_at = Column(DateTime)
     used_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
 
 
 class NotificationLog(Base):
@@ -109,7 +109,7 @@ class NotificationLog(Base):
     channel = Column(String(20))            # email | slack
     status = Column(String(20))             # sent | failed
     error_message = Column(Text, nullable=True)
-    sent_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime, default=datetime.now)
 
 
 class User(Base):
@@ -121,8 +121,8 @@ class User(Base):
     name = Column(String(100), nullable=True)
     role = Column(String(20), default="viewer")  # admin | viewer
     enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now)
     last_login_at = Column(DateTime, nullable=True)
 
 
@@ -146,8 +146,8 @@ class Site(Base):
     rate_limit_disabled = Column(Boolean, default=False)     # 비상 모드 ON: limit 무시
     auto_created = Column(Boolean, default=False)           # alarm 페이로드로 자동 생성됐는지
     enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now)
 
     recipients = relationship("Recipient", back_populates="site", cascade="all, delete-orphan")
 
@@ -165,7 +165,7 @@ class Recipient(Base):
     receive_medium = Column(Boolean, default=False)
     receive_low = Column(Boolean, default=False)
     enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now)
 
     site = relationship("Site", back_populates="recipients")

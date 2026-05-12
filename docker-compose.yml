@@ -9,6 +9,7 @@ services:
       - .env
     environment:
       - DATABASE_URL=sqlite:///./data/incidents.db
+      - TZ=Asia/Seoul
     restart: unless-stopped
 
   nginx:
@@ -16,6 +17,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      - TZ=Asia/Seoul
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
