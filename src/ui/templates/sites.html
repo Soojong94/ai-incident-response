@@ -109,17 +109,21 @@
       {{ site.name }}
       {% if site.auto_created %}<span style="font-size:10px; padding:1px 6px; background:#5f370e; color:#fbd38d; border-radius:3px; font-weight:normal;">auto</span>{% endif %}
       {% if not site.enabled %}<span style="font-size:11px; color:var(--text-subtle); font-weight:normal;">비활성</span>{% endif %}
+      {% if site.rate_limit_disabled %}<span style="font-size:10px; padding:1px 6px; background:#742a2a; color:#fed7d7; border-radius:3px; font-weight:normal;">🚨 비상</span>{% endif %}
     </h3>
     <div class="desc">{{ site.description or '— 설명 없음 —' }}</div>
-    <div style="font-size:11px; color:var(--text-subtle); display:flex; gap:10px; flex-wrap:wrap;">
-      {% if site.resource_pattern %}<span>📌 {{ site.resource_pattern }}</span>{% endif %}
-      {% if site.obs_bucket %}<span>🪣 {{ site.obs_bucket }}</span>{% endif %}
-      {% if site.architecture %}<span title="AI 분석에 활용됨">📐 아키텍처</span>{% endif %}
+    <div style="font-size:11px; color:var(--text-subtle); display:flex; gap:8px; flex-wrap:wrap; row-gap:4px;">
+      {% if site.resource_pattern %}<span title="매칭 패턴">📌 <span style="font-family:monospace;">{{ site.resource_pattern }}</span></span>{% endif %}
+      {% if site.obs_bucket %}<span title="OBS 버킷">🪣 <span style="font-family:monospace;">{{ site.obs_bucket }}</span></span>{% endif %}
       {% if not site.resource_pattern and not site.obs_bucket %}<span style="color:var(--text-faint);">매칭 규칙 없음</span>{% endif %}
+      {% if site.architecture %}<span title="AI 분석에 활용됨">📐 아키텍처</span>{% endif %}
+      {% if site.ncp_access_key_enc %}<span title="이 사이트 전용 NCP 키 등록됨">🔑 키</span>{% endif %}
+      <span title="분석 rate-limit (윈도우 / 임계값)">⏱ {{ site.rate_limit_window_seconds or 300 }}s / {{ site.rate_limit_count or 3 }}건</span>
     </div>
     <div class="meta">
       <span>수신자 <span class="count">{{ site.recipients | length }}</span>명</span>
       <span>슬랙 <span class="count">{{ site.recipients | selectattr('slack_webhook') | list | length }}</span></span>
+      {% if site.wms_scenario_id %}<span title="WMS scenario">WMS <span class="count">{{ site.wms_scenario_id }}</span></span>{% endif %}
     </div>
     <div class="actions">
       <button class="icon-btn" onclick='event.stopPropagation(); editSite({{ {"id": site.id, "name": site.name, "description": site.description or "", "enabled": site.enabled} | tojson }})'>수정</button>
