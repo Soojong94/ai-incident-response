@@ -169,12 +169,12 @@ async function saveFeedbackComment() {
 </div>
 {% endif %}
 
-<!-- 관련 incident (같은 클러스터) -->
+<!-- 같은 리소스의 최근 incident -->
 {% if siblings %}
 <div class="card">
-  <h2>관련 인시던트
+  <h2>같은 리소스의 최근 incident
     <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
-      같은 클러스터 (5분 윈도우) — 총 {{ siblings | length + 1 }}건. 클러스터 첫 incident만 메일/Slack 발송됨
+      <code>{{ incident.resource_name }}</code> — 최근 10건 (현재 제외)
     </span>
   </h2>
   <table style="margin-top:0;">

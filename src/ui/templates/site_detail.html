@@ -29,7 +29,7 @@
   <a href="/sites">&larr; 사이트 목록</a>
 </div>
 
-<!-- 헤더 카드 (이름 + 활성 + 설명 + 액션) -->
+<!-- 헤더 카드 (이름 + 활성 + 설명 + 액션 + 요약) -->
 <div class="card">
   <!-- VIEW 모드 -->
   <div class="view-only">
@@ -40,6 +40,8 @@
       {% else %}
         <span style="font-size:11px; padding:2px 8px; background:#4a5568; color:#cbd5e0; border-radius:3px;">비활성</span>
       {% endif %}
+      {% if site.auto_created %}<span style="font-size:11px; padding:2px 8px; background:#5f370e; color:#fbd38d; border-radius:3px;">auto</span>{% endif %}
+      {% if site.rate_limit_disabled %}<span style="font-size:11px; padding:2px 8px; background:#742a2a; color:#fed7d7; border-radius:3px;">🚨 비상모드</span>{% endif %}
       <div style="margin-left:auto; display:flex; gap:6px;">
         <a href="/?site_id={{ site.id }}" class="nav-btn nav-btn-danger" style="font-size:12px; padding:5px 12px;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -54,8 +56,16 @@
       </div>
     </div>
     {% if site.description %}
-    <p style="color:var(--text-muted); font-size:13px;">{{ site.description }}</p>
+    <p style="color:var(--text-muted); font-size:13px; margin-bottom:10px;">{{ site.description }}</p>
     {% endif %}
+    <div style="display:flex; flex-wrap:wrap; gap:14px; font-size:12px; color:var(--text-subtle); padding-top:10px; border-top:1px solid var(--border-soft);">
+      <span>📌 패턴: <strong style="color:var(--text); font-family:monospace;">{{ site.resource_pattern or '—' }}</strong></span>
+      <span>🪣 OBS: <strong style="color:var(--text); font-family:monospace;">{{ site.obs_bucket or '—' }}</strong></span>
+      <span>👥 수신자: <strong style="color:var(--text);">{{ site.recipients | length }}명</strong></span>
+      <span>📐 아키텍처: <strong style="color:var(--text);">{% if site.architecture %}등록됨{% else %}없음{% endif %}</strong></span>
+      <span>🔑 NCP 키: <strong style="color:var(--text);">{% if site.ncp_access_key_enc %}site별{% else %}.env fallback{% endif %}</strong></span>
+      <span>⏱ Rate limit: <strong style="color:var(--text);">{{ site.rate_limit_window_seconds or 300 }}s / {{ site.rate_limit_count or 3 }}건</strong></span>
+    </div>
   </div>
 
   <!-- EDIT 모드 -->
@@ -128,7 +138,32 @@
       윈도우 안 incident가 임계값 초과면 분석/알림 모두 차단 (status=suppressed)
     </span>
   </h2>
-  <div class="meta-grid" style="margin-bottom:12px;">
+
+  <!-- VIEW -->
+  <div class="view-only meta-grid">
+    <div class="meta-item">
+      <label>윈도우</label>
+      <span style="font-size:14px;">{{ site.rate_limit_window_seconds or 300 }}초 ({{ ((site.rate_limit_window_seconds or 300) / 60) | round(1) }}분)</span>
+    </div>
+    <div class="meta-item">
+      <label>임계값</label>
+      <span style="font-size:14px;">{{ site.rate_limit_count or 3 }}건</span>
+    </div>
+    <div class="meta-item" style="grid-column:1/-1;">
+      <label>비상 모드</label>
+      {% if site.rate_limit_disabled %}
+        <span style="color:var(--danger); font-weight:600;">🚨 ON — rate-limit 무시, 모든 incident 분석</span>
+      {% else %}
+        <span style="color:var(--text-subtle);">OFF — 정상 차단 동작</span>
+      {% endif %}
+    </div>
+    <div class="meta-item" style="grid-column:1/-1; font-size:11px; color:var(--text-subtle);">
+      현재 설정: 최근 <strong>{{ site.rate_limit_window_seconds or 300 }}초</strong> 안에 incident가 <strong>{{ site.rate_limit_count or 3 }}건 이상</strong>이면 {{ ((site.rate_limit_count or 3) + 1) }}번째부터 분석 차단
+    </div>
+  </div>
+
+  <!-- EDIT -->
+  <div class="edit-only meta-grid">
     <div class="meta-item">
       <label>윈도우 (초)</label>
       <input id="rl-window" type="number" min="10" value="{{ site.rate_limit_window_seconds or 300 }}" style="width:100%;">
@@ -137,25 +172,22 @@
       <label>임계값 (건)</label>
       <input id="rl-count" type="number" min="1" value="{{ site.rate_limit_count or 3 }}" style="width:100%;">
     </div>
-    <div class="meta-item" style="grid-column:1/-1; display:flex; align-items:center; gap:14px; padding:10px; background:{% if site.rate_limit_disabled %}rgba(229,62,62,0.12){% else %}var(--card-bg-alt){% endif %}; border-radius:6px; border:1px solid {% if site.rate_limit_disabled %}var(--danger){% else %}var(--border){% endif %};">
+    <div class="meta-item" style="grid-column:1/-1; padding:10px; background:var(--card-bg-alt); border-radius:6px;">
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
         <input id="rl-disabled" type="checkbox" {% if site.rate_limit_disabled %}checked{% endif %} style="width:auto;">
-        <strong style="color:{% if site.rate_limit_disabled %}var(--danger){% else %}var(--text){% endif %};">
-          🚨 비상 모드 (rate limit 무시)
-        </strong>
+        <strong>🚨 비상 모드 (rate limit 무시)</strong>
       </label>
-      <span style="font-size:12px; color:var(--text-subtle);">
+      <p style="font-size:11px; color:var(--text-subtle); margin-top:6px;">
         장애 대응 중 임시로 켜면 임계값 초과해도 모든 incident가 분석됩니다. 끝나면 반드시 다시 꺼주세요.
-      </span>
+      </p>
+    </div>
+    <div class="meta-item" style="grid-column:1/-1; font-size:11px; color:var(--text-subtle);">
+      예: 300초 / 3건 → 5분 안에 4번째 알람부터 분석 차단. 1분 단위로 받고 싶으면 60 / 1
     </div>
   </div>
-  <button class="refresh-btn" style="margin-left:0;" onclick="saveRateLimit()">저장</button>
-  <p style="font-size:11px; color:var(--text-subtle); margin-top:8px;">
-    예: 300초 / 3건 → 5분 안에 4번째 알람부터 분석 차단. 1분 단위로 받고 싶으면 60 / 1
-  </p>
 </div>
 
-<!-- API 키 (NCP / WMS / CF) — 사이트별 격리 -->
+<!-- API 키 / 식별자 (NCP / WMS / CF) — 사이트별 격리 -->
 <div class="card">
   <h2>API 키 / 식별자
     <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
@@ -163,22 +195,24 @@
     </span>
   </h2>
 
-  <div class="meta-grid" style="margin-bottom:12px;">
+  <!-- VIEW -->
+  <div class="view-only meta-grid">
     <div class="meta-item">
       <label>NCP Access Key</label>
       {% if site.ncp_access_key_enc %}
-      <span style="font-family:monospace; font-size:13px; color:var(--text);">{{ '••••••••' + (site.ncp_access_key_enc | string)[-0:0] }}<span id="acc-mask">{{ '' }}</span></span>
-      <span style="color:#68d391; font-size:11px;"> ● 등록됨</span>
+      <span style="font-family:monospace; font-size:13px;">●●●●●●●● 등록됨</span>
+      <span style="color:#68d391; font-size:11px; margin-left:4px;">●</span>
       {% else %}
-      <span style="color:var(--text-subtle); font-size:13px;">— 미등록 (.env 키 사용) —</span>
+      <span style="color:var(--text-subtle); font-size:13px;">미등록 (.env 키 사용)</span>
       {% endif %}
     </div>
     <div class="meta-item">
       <label>NCP Secret Key</label>
       {% if site.ncp_secret_key_enc %}
-      <span style="color:#68d391; font-size:13px;">●●●●●●●● 등록됨</span>
+      <span style="font-family:monospace; font-size:13px;">●●●●●●●● 등록됨</span>
+      <span style="color:#68d391; font-size:11px; margin-left:4px;">●</span>
       {% else %}
-      <span style="color:var(--text-subtle); font-size:13px;">— 미등록 —</span>
+      <span style="color:var(--text-subtle); font-size:13px;">미등록</span>
       {% endif %}
     </div>
     <div class="meta-item">
@@ -191,32 +225,29 @@
     </div>
   </div>
 
-  <button class="icon-btn" onclick="toggleKeyForm()">🔑 키 / 식별자 수정</button>
-  {% if site.ncp_access_key_enc or site.ncp_secret_key_enc %}
-  <button class="icon-btn danger" onclick="clearSiteKeys()">NCP 키 삭제 (.env fallback으로)</button>
-  {% endif %}
-
-  <div id="key-form" style="display:none; margin-top:14px; padding:14px; background:var(--card-bg-alt); border:1px solid var(--border); border-radius:6px;">
-    <div class="meta-grid" style="margin-bottom:12px;">
-      <div class="meta-item">
-        <label>NCP Access Key (새 값만 입력, 빈 칸은 미변경)</label>
-        <input id="k-ncp-access" type="password" placeholder="입력 시 암호화 저장" autocomplete="off" style="width:100%; font-family:monospace;">
-      </div>
-      <div class="meta-item">
-        <label>NCP Secret Key</label>
-        <input id="k-ncp-secret" type="password" placeholder="입력 시 암호화 저장" autocomplete="off" style="width:100%; font-family:monospace;">
-      </div>
-      <div class="meta-item">
-        <label>WMS scenario ID (평문)</label>
-        <input id="k-wms" type="text" value="{{ site.wms_scenario_id or '' }}" placeholder="예: 9799" style="width:100%;">
-      </div>
-      <div class="meta-item">
-        <label>CF Package Name (평문)</label>
-        <input id="k-cf" type="text" value="{{ site.cf_package_name or '' }}" placeholder="예: team1-demo-pkg" style="width:100%;">
-      </div>
+  <!-- EDIT -->
+  <div class="edit-only meta-grid">
+    <div class="meta-item">
+      <label>NCP Access Key <span style="color:var(--text-subtle); font-weight:normal;">— 새 값 입력 시 갱신, 빈 칸은 미변경</span></label>
+      <input id="k-ncp-access" type="password" placeholder="입력 시 암호화 저장" autocomplete="new-password" style="width:100%; font-family:monospace;">
     </div>
-    <button class="refresh-btn" style="margin-left:0;" onclick="saveSiteKeys()">저장</button>
-    <button class="icon-btn" style="margin-left:8px;" onclick="toggleKeyForm()">취소</button>
+    <div class="meta-item">
+      <label>NCP Secret Key</label>
+      <input id="k-ncp-secret" type="password" placeholder="입력 시 암호화 저장" autocomplete="new-password" style="width:100%; font-family:monospace;">
+    </div>
+    <div class="meta-item">
+      <label>WMS scenario ID</label>
+      <input id="k-wms" type="text" value="{{ site.wms_scenario_id or '' }}" placeholder="예: 9799" style="width:100%;">
+    </div>
+    <div class="meta-item">
+      <label>CF Package Name</label>
+      <input id="k-cf" type="text" value="{{ site.cf_package_name or '' }}" placeholder="예: team1-demo-pkg" style="width:100%;">
+    </div>
+    {% if site.ncp_access_key_enc or site.ncp_secret_key_enc %}
+    <div class="meta-item" style="grid-column:1/-1;">
+      <button type="button" class="icon-btn danger" onclick="clearSiteKeys()">NCP 키 전체 삭제 (.env fallback으로 복귀)</button>
+    </div>
+    {% endif %}
   </div>
 </div>
 
@@ -355,6 +386,14 @@ function exitEditMode() {
 async function saveSite() {
   const name = document.getElementById('s-name').value.trim();
   if (!name) { alert('사이트 이름은 필수입니다'); return; }
+
+  // 1) site 기본 + 매칭 규칙 + 아키텍처 + rate-limit + 평문 식별자 (WMS/CF) 한 번에
+  const wmsEl = document.getElementById('k-wms');
+  const cfEl = document.getElementById('k-cf');
+  const rlWin = document.getElementById('rl-window');
+  const rlCnt = document.getElementById('rl-count');
+  const rlDis = document.getElementById('rl-disabled');
+
   const payload = {
     name,
     description: document.getElementById('s-desc').value.trim(),
@@ -362,13 +401,32 @@ async function saveSite() {
     obs_bucket: document.getElementById('s-bucket').value.trim(),
     architecture: document.getElementById('s-arch').value,
     enabled: document.getElementById('s-enabled').checked,
+    wms_scenario_id: wmsEl ? wmsEl.value.trim() : '',
+    cf_package_name: cfEl ? cfEl.value.trim() : '',
+    rate_limit_window_seconds: rlWin ? parseInt(rlWin.value, 10) : undefined,
+    rate_limit_count: rlCnt ? parseInt(rlCnt.value, 10) : undefined,
+    rate_limit_disabled: rlDis ? rlDis.checked : undefined,
   };
-  const resp = await fetch(`/api/sites/${SITE_ID}`, {
+  const r1 = await fetch(`/api/sites/${SITE_ID}`, {
     method:'PUT',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(payload),
   });
-  if (!resp.ok) { alert('저장 실패: ' + await resp.text()); return; }
+  if (!r1.ok) { alert('저장 실패: ' + await r1.text()); return; }
+
+  // 2) NCP 키 — 입력된 값만 PUT (빈 칸은 변경 없음). 둘 다 빈 칸이면 호출 skip.
+  const accEl = document.getElementById('k-ncp-access');
+  const secEl = document.getElementById('k-ncp-secret');
+  const access = accEl ? accEl.value : '';
+  const secret = secEl ? secEl.value : '';
+  if (access || secret) {
+    const r2 = await fetch(`/api/sites/${SITE_ID}/keys`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ncp_access_key: access, ncp_secret_key: secret }),
+    });
+    if (!r2.ok) { alert('키 저장 실패: ' + await r2.text()); return; }
+  }
   location.reload();
 }
 async function deleteSite(id) {
@@ -439,55 +497,6 @@ async function deleteRecipient(id) {
   location.reload();
 }
 
-// ── Rate limit ─────────────────────────────────────────────────────
-async function saveRateLimit() {
-  const payload = {
-    name: {{ site.name | tojson }},
-    rate_limit_window_seconds: parseInt(document.getElementById('rl-window').value, 10),
-    rate_limit_count: parseInt(document.getElementById('rl-count').value, 10),
-    rate_limit_disabled: document.getElementById('rl-disabled').checked,
-  };
-  const resp = await fetch(`/api/sites/${SITE_ID}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!resp.ok) { alert('저장 실패: ' + await resp.text()); return; }
-  location.reload();
-}
-
-// ── Site API keys ──────────────────────────────────────────────────
-function toggleKeyForm() {
-  const f = document.getElementById('key-form');
-  f.style.display = (f.style.display === 'none' || !f.style.display) ? 'block' : 'none';
-}
-async function saveSiteKeys() {
-  const access = document.getElementById('k-ncp-access').value;
-  const secret = document.getElementById('k-ncp-secret').value;
-  const wms = document.getElementById('k-wms').value.trim();
-  const cf = document.getElementById('k-cf').value.trim();
-
-  // 1) 식별자 (평문) — site update
-  const payload = {
-    name: {{ site.name | tojson }},  // 변경 없음 안전을 위해
-    wms_scenario_id: wms,
-    cf_package_name: cf,
-  };
-  const r1 = await fetch(`/api/sites/${SITE_ID}`, {
-    method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
-  });
-  if (!r1.ok) { alert('식별자 저장 실패: ' + await r1.text()); return; }
-
-  // 2) NCP 키 — 입력된 값만 변경 (둘 다 빈 칸이면 호출 안 함)
-  if (access || secret) {
-    const r2 = await fetch(`/api/sites/${SITE_ID}/keys`, {
-      method: 'PUT', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ ncp_access_key: access, ncp_secret_key: secret }),
-    });
-    if (!r2.ok) { alert('키 저장 실패: ' + await r2.text()); return; }
-  }
-  location.reload();
-}
 async function clearSiteKeys() {
   if (!confirm('이 사이트의 NCP 키를 삭제하시겠습니까? (이후 .env fallback으로 동작)')) return;
   const resp = await fetch(`/api/sites/${SITE_ID}/keys`, { method: 'DELETE' });
