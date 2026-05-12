@@ -24,6 +24,8 @@ from src.db.crud import (
     list_site_notes, add_site_note, update_site_note, delete_site_note,
     get_feedback_for_incident, upsert_feedback,
     update_site_keys, clear_site_keys,
+    daily_incident_counts, severity_distribution, status_distribution,
+    top_sites_by_incident, notification_success_rate, avg_analysis_duration_seconds,
 )
 from src.crypto import decrypt as decrypt_secret, mask as mask_secret
 from src.auth import (
@@ -582,6 +584,32 @@ def incident_detail(incident_id: int, request: Request, db: Session = Depends(ge
     return templates.TemplateResponse(
         request, "detail.html",
         {"incident": incident, "feedback": feedback, "siblings": siblings, "current_user": user},
+    )
+
+
+# ── 운영 통계 (admin 전용) ───────────────────────────────────────────────────
+
+@app.get("/stats", response_class=HTMLResponse)
+def stats_page(
+    request: Request,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    days = max(1, min(days, 90))
+    return templates.TemplateResponse(
+        request,
+        "stats.html",
+        {
+            "days": days,
+            "daily": daily_incident_counts(db, min(days, 30)),
+            "severity": severity_distribution(db, days),
+            "status": status_distribution(db, days),
+            "top_sites": top_sites_by_incident(db, days, 8),
+            "notif": notification_success_rate(db, days),
+            "analysis_dur": avg_analysis_duration_seconds(db, days),
+            "current_user": admin,
+        },
     )
 
 

@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  .stats-toolbar {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .stats-toolbar h2 { font-size: 20px; }
+  .range-btn {
+    padding: 6px 12px; border-radius: 4px; font-size: 13px;
+    border: 1px solid var(--border); background: transparent; color: var(--text-muted);
+    cursor: pointer; text-decoration: none;
+  }
+  .range-btn:hover { background: var(--row-hover); color: var(--text); text-decoration: none; }
+  .range-btn.active {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+  }
+
+  .kpi-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+  }
+  .kpi {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px 18px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .kpi-label { font-size: 12px; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.05em; }
+  .kpi-value { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .kpi-sub { font-size: 12px; color: var(--text-muted); }
+  .kpi-good { color: #38a169; }
+  .kpi-warn { color: #dd6b20; }
+  .kpi-bad  { color: #e53e3e; }
+  [data-theme="dark"] .kpi-good { color: #68d391; }
+  [data-theme="dark"] .kpi-warn { color: #f6ad55; }
+  [data-theme="dark"] .kpi-bad  { color: #fc8181; }
+
+  .charts-grid {
+    display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;
+  }
+  @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+  .chart-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
+  .chart-card h3 { font-size: 14px; color: var(--text-muted); margin-bottom: 12px; }
+  .chart-wrap { position: relative; height: 240px; }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; }
+  .bar-row .label { width: 140px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row .bar { flex: 1; height: 18px; background: var(--card-bg-alt); border-radius: 3px; overflow: hidden; }
+  .bar-row .bar-fill { height: 100%; background: linear-gradient(90deg, #d69e2e 0%, #c05621 100%); }
+  .bar-row .count { width: 50px; text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="stats-toolbar">
+  <h2>운영 통계
+    <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">최근 {{ days }}일</span>
+  </h2>
+  <div style="margin-left:24px; display:flex; gap:6px;">
+    <a href="/stats?days=7"  class="range-btn {% if days == 7 %}active{% endif %}">7일</a>
+    <a href="/stats?days=14" class="range-btn {% if days == 14 %}active{% endif %}">14일</a>
+    <a href="/stats?days=30" class="range-btn {% if days == 30 %}active{% endif %}">30일</a>
+    <a href="/stats?days=90" class="range-btn {% if days == 90 %}active{% endif %}">90일</a>
+  </div>
+</div>
+
+<!-- KPI 카드 -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-label">분석 완료</div>
+    <div class="kpi-value">{{ analysis_dur.count }}<span style="font-size:14px; color:var(--text-subtle); font-weight:400;"> 건</span></div>
+    <div class="kpi-sub">최근 {{ days }}일 / status=analyzed</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">평균 분석 시간</div>
+    <div class="kpi-value">
+      {% if analysis_dur.avg_seconds < 60 %}
+        {{ analysis_dur.avg_seconds | round(1) }}<span style="font-size:14px; color:var(--text-subtle); font-weight:400;"> 초</span>
+      {% else %}
+        {{ (analysis_dur.avg_seconds / 60) | round(1) }}<span style="font-size:14px; color:var(--text-subtle); font-weight:400;"> 분</span>
+      {% endif %}
+    </div>
+    <div class="kpi-sub">webhook 수신 → analyzed 까지</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">SLO (≤5분)</div>
+    <div class="kpi-value
+      {% if analysis_dur.under_5min_rate >= 95 %}kpi-good
+      {% elif analysis_dur.under_5min_rate >= 80 %}kpi-warn
+      {% else %}kpi-bad{% endif %}">
+      {{ analysis_dur.under_5min_rate }}<span style="font-size:14px; color:var(--text-subtle); font-weight:400;"> %</span>
+    </div>
+    <div class="kpi-sub">5분 내 분석 완료율</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">알림 발송 성공률</div>
+    <div class="kpi-value
+      {% if notif.success_rate >= 95 %}kpi-good
+      {% elif notif.success_rate >= 80 %}kpi-warn
+      {% else %}kpi-bad{% endif %}">
+      {{ notif.success_rate }}<span style="font-size:14px; color:var(--text-subtle); font-weight:400;"> %</span>
+    </div>
+    <div class="kpi-sub">sent {{ notif.sent }} / failed {{ notif.failed }} / skipped {{ notif.skipped }}</div>
+  </div>
+</div>
+
+<!-- 일별 추세 + 심각도 분포 -->
+<div class="charts-grid">
+  <div class="chart-card">
+    <h3>일별 인시던트 추세</h3>
+    <div class="chart-wrap"><canvas id="dailyChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>심각도 분포</h3>
+    <div class="chart-wrap"><canvas id="sevChart"></canvas></div>
+  </div>
+</div>
+
+<!-- 상태 분포 + Top 사이트 -->
+<div class="charts-grid">
+  <div class="chart-card">
+    <h3>상태 분포</h3>
+    <div class="chart-wrap"><canvas id="statusChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h3>Top 사이트 (인시던트 수)</h3>
+    {% if top_sites %}
+      {% set top_max = top_sites[0].count %}
+      {% for s in top_sites %}
+      <div class="bar-row">
+        <div class="label" title="{{ s.site }}">{{ s.site }}</div>
+        <div class="bar"><div class="bar-fill" style="width: {{ (s.count / top_max * 100) | round(1) }}%;"></div></div>
+        <div class="count">{{ s.count }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p style="color:var(--text-faint); font-size:13px; padding:20px 0; text-align:center;">데이터 없음</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const gridColor = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+  const tickColor = isLight ? '#4a5568' : '#a0aec0';
+
+  Chart.defaults.color = tickColor;
+  Chart.defaults.font.family = "'Segoe UI', sans-serif";
+
+  // 일별 추세
+  const daily = {{ daily | tojson }};
+  new Chart(document.getElementById('dailyChart'), {
+    type: 'line',
+    data: {
+      labels: daily.map(d => d.date.slice(5)),
+      datasets: [{
+        label: '인시던트',
+        data: daily.map(d => d.count),
+        borderColor: '#d69e2e',
+        backgroundColor: 'rgba(214, 158, 46, 0.15)',
+        fill: true, tension: 0.3, pointRadius: 3, borderWidth: 2,
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor }, ticks: { color: tickColor } },
+        y: { grid: { color: gridColor }, ticks: { color: tickColor, precision: 0 }, beginAtZero: true },
+      },
+    },
+  });
+
+  // 심각도 분포
+  const sevData = {{ severity | tojson }};
+  const sevColors = {
+    Critical: '#e53e3e', High: '#dd6b20', Medium: '#d69e2e', Low: '#38a169', Unknown: '#718096',
+  };
+  new Chart(document.getElementById('sevChart'), {
+    type: 'doughnut',
+    data: {
+      labels: sevData.map(d => d.severity),
+      datasets: [{
+        data: sevData.map(d => d.count),
+        backgroundColor: sevData.map(d => sevColors[d.severity] || '#a0aec0'),
+        borderColor: isLight ? '#eaecf0' : '#1a1d2e',
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: tickColor, font: { size: 11 } } } },
+      cutout: '60%',
+    },
+  });
+
+  // 상태 분포
+  const statusData = {{ status | tojson }};
+  const statusColors = {
+    analyzed: '#38a169', processing: '#3182ce', ai_failed: '#e53e3e',
+    suppressed: '#718096', received: '#d69e2e',
+  };
+  new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: statusData.map(d => d.status),
+      datasets: [{
+        data: statusData.map(d => d.count),
+        backgroundColor: statusData.map(d => statusColors[d.status] || '#a0aec0'),
+        borderColor: isLight ? '#eaecf0' : '#1a1d2e',
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: tickColor, font: { size: 11 } } } },
+      cutout: '60%',
+    },
+  });
+</script>
+{% endblock %}

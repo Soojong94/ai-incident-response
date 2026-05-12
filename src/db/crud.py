@@ -360,6 +360,114 @@ def distinct_metric_types(db: Session) -> list[str]:
     return sorted({r[0] for r in rows if r[0]})
 
 
+# ── Statistics (admin 운영 통계용) ─────────────────────────────────────────
+
+def daily_incident_counts(db: Session, days: int = 14) -> list[dict]:
+    """지난 N일 간 일별 incident 수 (오래된 → 최신)."""
+    from datetime import timedelta
+    from sqlalchemy import func
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    rows = (
+        db.query(
+            func.date(Incident.created_at).label("d"),
+            func.count(Incident.id).label("c"),
+        )
+        .filter(Incident.created_at >= cutoff)
+        .group_by(func.date(Incident.created_at))
+        .order_by(func.date(Incident.created_at).asc())
+        .all()
+    )
+    return [{"date": str(r.d), "count": r.c} for r in rows]
+
+
+def severity_distribution(db: Session, days: int = 30) -> list[dict]:
+    from datetime import timedelta
+    from sqlalchemy import func
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    rows = (
+        db.query(Incident.severity, func.count(Incident.id).label("c"))
+        .filter(Incident.created_at >= cutoff)
+        .filter(Incident.severity.isnot(None))
+        .group_by(Incident.severity)
+        .all()
+    )
+    return [{"severity": r[0] or "Unknown", "count": r[1]} for r in rows]
+
+
+def status_distribution(db: Session, days: int = 30) -> list[dict]:
+    from datetime import timedelta
+    from sqlalchemy import func
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    rows = (
+        db.query(Incident.status, func.count(Incident.id).label("c"))
+        .filter(Incident.created_at >= cutoff)
+        .group_by(Incident.status)
+        .all()
+    )
+    return [{"status": r[0] or "unknown", "count": r[1]} for r in rows]
+
+
+def top_sites_by_incident(db: Session, days: int = 30, limit: int = 5) -> list[dict]:
+    from datetime import timedelta
+    from sqlalchemy import func
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    rows = (
+        db.query(Site.name, func.count(Incident.id).label("c"))
+        .join(Incident, Incident.site_id == Site.id)
+        .filter(Incident.created_at >= cutoff)
+        .group_by(Site.name)
+        .order_by(func.count(Incident.id).desc())
+        .limit(limit)
+        .all()
+    )
+    return [{"site": r[0], "count": r[1]} for r in rows]
+
+
+def notification_success_rate(db: Session, days: int = 30) -> dict:
+    from datetime import timedelta
+    from sqlalchemy import func
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    rows = (
+        db.query(NotificationLog.status, func.count(NotificationLog.id).label("c"))
+        .filter(NotificationLog.sent_at >= cutoff)
+        .group_by(NotificationLog.status)
+        .all()
+    )
+    by = {r[0]: r[1] for r in rows}
+    sent = by.get("sent", 0)
+    failed = by.get("failed", 0)
+    skipped = by.get("skipped", 0)
+    total = sent + failed + skipped
+    rate = (sent / total * 100) if total else 0.0
+    return {"sent": sent, "failed": failed, "skipped": skipped, "total": total, "success_rate": round(rate, 1)}
+
+
+def avg_analysis_duration_seconds(db: Session, days: int = 30) -> dict:
+    """incident.created_at → incident.updated_at 차이의 평균 (analyzed 인 것만).
+    근사치 — incident가 analyzed 되는 시점에 updated_at이 업데이트되기 때문."""
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    rows = (
+        db.query(Incident.created_at, Incident.updated_at)
+        .filter(Incident.created_at >= cutoff)
+        .filter(Incident.status == "analyzed")
+        .all()
+    )
+    if not rows:
+        return {"avg_seconds": 0, "count": 0, "under_5min_rate": 0.0}
+    deltas = [(u - c).total_seconds() for c, u in rows if c and u]
+    if not deltas:
+        return {"avg_seconds": 0, "count": 0, "under_5min_rate": 0.0}
+    avg = sum(deltas) / len(deltas)
+    under = sum(1 for d in deltas if d <= 300)
+    rate = under / len(deltas) * 100
+    return {
+        "avg_seconds": round(avg, 1),
+        "count": len(deltas),
+        "under_5min_rate": round(rate, 1),
+    }
+
+
 def add_logs(db: Session, incident_id: int, logs: list[str], source: str = "mock") -> None:
     for line in logs:
         db.add(IncidentLog(incident_id=incident_id, source=source, log_content=line))
