@@ -697,6 +697,136 @@ def api_clear_site_keys(site_id: int, db: Session = Depends(get_db), _admin=Depe
     return _site_to_dict(site)
 
 
+# ── Cloud Function bundle 다운로드 ────────────────────────────────────────────
+
+CF_BUNDLE_README_TEMPLATE = """# NCP Cloud Function 배포 가이드 — 사이트 "{site_name}"
+
+이 ZIP은 본 사이트 전용으로 자동 생성된 Cloud Function 코드입니다.
+NCP Cloud Function 콘솔에서 액션 2개 + 트리거 2개를 등록하면 됩니다.
+
+## 사이트 식별자 (코드에 이미 채워져 있음)
+- WMS scenario ID: {wms_scenario_id}
+- OBS 버킷: {obs_bucket}
+- AI 서버 webhook: {webhook_url}
+- 기본 resource_name: {resource_name}
+
+## 1. 액션 등록
+
+### 액션 1 — cf_wms_poll
+- 런타임: python:3.13
+- 진입점: `main`
+- 코드: `cf_wms_poll/main.py` 내용 전체 붙여넣기
+- **디폴트 파라미터** (반드시 입력):
+```json
+{{
+  "access_key": "<NCP IAM Access Key>",
+  "secret_key": "<NCP IAM Secret Key>"
+}}
+```
+> ⚠️ 보안: 본 시스템은 사이트에 저장된 NCP 키를 ZIP에 포함하지 않습니다.
+> NCP CF 콘솔의 "디폴트 파라미터"에 직접 입력하세요.
+
+### 액션 2 — cf_obs_to_webhook
+- 런타임: python:3.13
+- 진입점: `main`
+- 코드: `cf_obs_to_webhook/main.py` 내용 전체 붙여넣기
+- 디폴트 파라미터: 비움 (OBS 이벤트가 자동 전달)
+
+## 2. 트리거 등록
+
+### 트리거 1 — Cron (5분 주기)
+- 타입: Cron
+- 표현식: `*/5 * * * *`
+- 타임존: UTC +09:00 (KST)
+- 연결 액션: `cf_wms_poll`
+
+### 트리거 2 — Object Storage Event
+- 타입: Object Storage Event
+- 버킷: `{obs_bucket}`
+- 이벤트: Object Created
+- 연결 액션: `cf_obs_to_webhook`
+
+## 3. 동작 확인
+1. 모니터링 대상에서 의도적으로 에러 발생 (예: nginx 500)
+2. 5분 내 cron 발화 → WMS errorCount ≥ 1 확인 → CLA export
+3. OBS 새 파일 도착 → CF#1 발화 → AI 서버에 webhook
+4. AI 분석 완료 후 등록된 수신자에게 이메일/Slack 발송
+
+## 4. 트러블슈팅
+- CF 액션 로그에서 `status: 200` + `body` 확인
+- WMS 시나리오 ID가 잘못되면 빈 결과
+- OBS 버킷이 없거나 권한 부족이면 export 실패
+"""
+
+
+def _render_cf_files(site) -> dict:
+    """site의 식별자를 cloud-functions/*.py에 치환해 ZIP에 넣을 (path → bytes) 매핑 반환."""
+    import re
+    base_dir = "cloud-functions"
+
+    with open(f"{base_dir}/cf_wms_poll/main.py", "r", encoding="utf-8") as f:
+        wms_src = f.read()
+    # SCENARIO_ID = ... 줄 치환
+    scenario = site.wms_scenario_id or "0"
+    bucket = site.obs_bucket or "your-bucket"
+    wms_src = re.sub(r"^SCENARIO_ID\s*=.*$", f"SCENARIO_ID = {scenario}", wms_src, count=1, flags=re.M)
+    wms_src = re.sub(r'^OBS_BUCKET\s*=.*$', f'OBS_BUCKET = "{bucket}"', wms_src, count=1, flags=re.M)
+
+    with open(f"{base_dir}/cf_obs_to_webhook/main.py", "r", encoding="utf-8") as f:
+        obs_src = f.read()
+    # RESOURCE_NAME 줄 치환 — 사이트 이름 또는 패턴 fallback
+    resource_name = site.resource_pattern or site.name or "alarmed-host"
+    # 와일드카드 별표는 CF에서 그대로 두지 말고 placeholder
+    if "*" in resource_name:
+        resource_name = resource_name.replace("*", "host")
+    obs_src = re.sub(r'^RESOURCE_NAME\s*=.*$', f'RESOURCE_NAME = "{resource_name}"', obs_src, count=1, flags=re.M)
+
+    webhook_url = "https://tbit-msp.kro.kr/webhook/alarm"
+    readme = CF_BUNDLE_README_TEMPLATE.format(
+        site_name=site.name,
+        wms_scenario_id=site.wms_scenario_id or "(미등록 — site 수정에서 입력)",
+        obs_bucket=site.obs_bucket or "(미등록)",
+        webhook_url=webhook_url,
+        resource_name=resource_name,
+    )
+
+    return {
+        "cf_wms_poll/main.py": wms_src.encode("utf-8"),
+        "cf_obs_to_webhook/main.py": obs_src.encode("utf-8"),
+        "README.md": readme.encode("utf-8"),
+    }
+
+
+@app.get("/api/sites/{site_id}/cf-bundle")
+def api_cf_bundle(site_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)):
+    """site별 NCP Cloud Function 코드 ZIP 다운로드 (admin 전용).
+    NCP 키는 ZIP에 포함되지 않음 — admin이 NCP CF 콘솔에서 직접 입력."""
+    import io
+    import zipfile
+    from fastapi.responses import StreamingResponse
+
+    site = get_site(db, site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+    files = _render_cf_files(site)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for path, content in files.items():
+            zf.writestr(path, content)
+    buf.seek(0)
+
+    # 사이트 이름 안전 처리 (ASCII 외 문자 → 영문 alnum/underscore)
+    import re as _re
+    safe_name = _re.sub(r'[^A-Za-z0-9_\-]+', '_', site.name)[:40] or f"site-{site.id}"
+    filename = f"cf-bundle-{safe_name}.zip"
+    return StreamingResponse(
+        iter([buf.read()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # ── Recipients API (사이트 종속) ─────────────────────────────────────────────
 
 @app.get("/api/sites/{site_id}/recipients")
