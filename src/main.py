@@ -21,6 +21,8 @@ from src.db.crud import (
     update_user as crud_update_user, delete_user as crud_delete_user,
     create_password_reset_token, get_password_reset_token, consume_password_reset_token,
     recent_reset_for_user,
+    list_site_notes, add_site_note, update_site_note, delete_site_note,
+    get_feedback_for_incident, upsert_feedback,
 )
 from src.auth import (
     ensure_initial_admin, authenticate, login_user, logout_user,
@@ -562,7 +564,11 @@ def incident_detail(incident_id: int, request: Request, db: Session = Depends(ge
     incident = get_incident(db, incident_id)
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
-    return templates.TemplateResponse(request, "detail.html", {"incident": incident, "current_user": user})
+    feedback = get_feedback_for_incident(db, incident_id)
+    return templates.TemplateResponse(
+        request, "detail.html",
+        {"incident": incident, "feedback": feedback, "current_user": user},
+    )
 
 
 # ── Sites + Recipients UI + API ──────────────────────────────────────────────
@@ -611,7 +617,11 @@ def site_detail_page(site_id: int, request: Request, db: Session = Depends(get_d
     site = get_site(db, site_id)
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
-    return templates.TemplateResponse(request, "site_detail.html", {"site": site, "current_user": user})
+    notes = list_site_notes(db, site_id)
+    return templates.TemplateResponse(
+        request, "site_detail.html",
+        {"site": site, "notes": notes, "current_user": user},
+    )
 
 
 # ── Sites API ────────────────────────────────────────────────────────────────
@@ -675,6 +685,95 @@ def api_delete_recipient(recipient_id: int, db: Session = Depends(get_db), _admi
     if not delete_recipient(db, recipient_id):
         raise HTTPException(status_code=404, detail="Recipient not found")
     return {"deleted": recipient_id}
+
+
+# ── Site notes API ──────────────────────────────────────────────────────────
+
+def _note_to_dict(n) -> dict:
+    return {
+        "id": n.id,
+        "site_id": n.site_id,
+        "author": n.author,
+        "user_id": n.user_id,
+        "content": n.content,
+        "pinned": n.pinned,
+        "occurrences": n.occurrences,
+        "related_incident_id": n.related_incident_id,
+        "created_at": n.created_at.isoformat() if n.created_at else None,
+        "updated_at": n.updated_at.isoformat() if n.updated_at else None,
+    }
+
+
+@app.get("/api/sites/{site_id}/notes")
+def api_list_site_notes(site_id: int, db: Session = Depends(get_db), _u=Depends(require_user)) -> list[dict]:
+    return [_note_to_dict(n) for n in list_site_notes(db, site_id)]
+
+
+@app.post("/api/sites/{site_id}/notes", status_code=201)
+async def api_add_site_note(site_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_admin)) -> dict:
+    if not get_site(db, site_id):
+        raise HTTPException(status_code=404, detail="Site not found")
+    data = await request.json()
+    content = (data.get("content") or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="content는 필수입니다")
+    note = add_site_note(db, site_id, author="user", content=content, user_id=user.id)
+    return _note_to_dict(note)
+
+
+@app.put("/api/site-notes/{note_id}")
+async def api_update_site_note(note_id: int, request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    data = await request.json()
+    note = update_site_note(db, note_id, data)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return _note_to_dict(note)
+
+
+@app.delete("/api/site-notes/{note_id}")
+def api_delete_site_note(note_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    if not delete_site_note(db, note_id):
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"deleted": note_id}
+
+
+# ── Analysis feedback API ───────────────────────────────────────────────────
+
+@app.get("/api/incidents/{incident_id}/feedback")
+def api_get_feedback(incident_id: int, db: Session = Depends(get_db), _u=Depends(require_user)) -> dict:
+    fb = get_feedback_for_incident(db, incident_id)
+    if not fb:
+        return {"rating": None, "comment": None}
+    return {"rating": fb.rating, "comment": fb.comment, "user_id": fb.user_id}
+
+
+@app.post("/api/incidents/{incident_id}/feedback")
+async def api_set_feedback(incident_id: int, request: Request, db: Session = Depends(get_db), user=Depends(require_user)) -> dict:
+    data = await request.json()
+    rating = data.get("rating")
+    if rating not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="rating은 'up' 또는 'down'")
+    comment = (data.get("comment") or "").strip() or None
+    fb = upsert_feedback(db, incident_id, user.id, rating, comment)
+
+    # 👍 받은 분석은 그 incident의 site의 메모로 자동 승격 (해당 incident.cause_category 기반)
+    if rating == "up":
+        inc = get_incident(db, incident_id)
+        if inc and inc.site_id and inc.analysis_result:
+            cause = (inc.analysis_result.cause_category or "").strip()
+            detail = (inc.analysis_result.cause_detail or "").strip()
+            if cause and detail:
+                header = f"[{cause}] "
+                content = f"✓ 검증됨 — {header}{detail.split('. ')[0][:200]}"
+                if comment:
+                    content += f" / 메모: {comment[:120]}"
+                note = add_site_note(
+                    db, inc.site_id, author="user", content=content,
+                    user_id=user.id, related_incident_id=incident_id,
+                )
+                # 검증된 메모는 즉시 pin
+                update_site_note(db, note.id, {"pinned": True})
+    return {"rating": fb.rating, "comment": fb.comment}
 
 
 @app.post("/api/recipients/{recipient_id}/test")

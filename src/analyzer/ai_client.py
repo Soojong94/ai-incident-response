@@ -37,13 +37,29 @@ class TimelyAIClient:
             self._token_expires = time.time() + 55 * 60
         return self._token
 
-    async def analyze(self, alarm_data: dict, logs: list[str], site_architecture: str | None = None) -> dict:
+    async def analyze(
+        self,
+        alarm_data: dict,
+        logs: list[str],
+        site_architecture: str | None = None,
+        site_notes: list[str] | None = None,
+    ) -> dict:
         async with self._sem:
-            return await self._analyze(alarm_data, logs, site_architecture)
+            return await self._analyze(alarm_data, logs, site_architecture, site_notes)
 
-    async def _analyze(self, alarm_data: dict, logs: list[str], site_architecture: str | None = None) -> dict:
+    async def _analyze(
+        self,
+        alarm_data: dict,
+        logs: list[str],
+        site_architecture: str | None = None,
+        site_notes: list[str] | None = None,
+    ) -> dict:
         token = await self._get_token()
-        prompt = build_user_prompt(alarm_data, logs, site_architecture=site_architecture)
+        prompt = build_user_prompt(
+            alarm_data, logs,
+            site_architecture=site_architecture,
+            site_notes=site_notes,
+        )
         session_id = f"incident-{alarm_data.get('alarm_id', uuid.uuid4().hex[:8])}"
 
         async with httpx.AsyncClient() as client:

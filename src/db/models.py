@@ -60,6 +60,33 @@ class AnalysisResult(Base):
     incident = relationship("Incident", back_populates="analysis_result")
 
 
+class SiteNote(Base):
+    __tablename__ = "site_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    site_id = Column(Integer, ForeignKey("sites.id"), index=True)
+    author = Column(String(20))  # 'ai' | 'user'
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    content = Column(Text)
+    pinned = Column(Boolean, default=False)  # True면 항상 AI prompt에 포함
+    related_incident_id = Column(Integer, ForeignKey("incidents.id"), nullable=True)
+    occurrences = Column(Integer, default=1)  # 비슷한 내용 누적 시 증가
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AnalysisFeedback(Base):
+    __tablename__ = "analysis_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incident_id = Column(Integer, ForeignKey("incidents.id"), unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    rating = Column(String(10))  # 'up' | 'down'
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 

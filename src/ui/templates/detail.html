@@ -106,7 +106,54 @@ async function reanalyze(id) {
     <h3>재발 방지 권고</h3>
     <div class="md-render" style="font-size:14px; line-height:1.7; color:#cbd5e0;" data-md="{{ analysis.prevention | e }}"></div>
   </div>
+
+  <!-- 분석 피드백 -->
+  <div style="margin-top:18px; padding-top:14px; border-top:1px solid var(--border);">
+    <h3>이 분석이 정확했나요?</h3>
+    <p style="font-size:12px; color:var(--text-subtle); margin-bottom:8px;">
+      👍을 누르면 이 사이트의 메모로 자동 승격되어 다음 분석에 컨텍스트로 활용됩니다.
+    </p>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button id="fb-up" class="icon-btn{% if feedback and feedback.rating == 'up' %} active{% endif %}"
+              onclick="setFeedback('up')"
+              style="{% if feedback and feedback.rating == 'up' %}background:#276749; color:#c6f6d5; border-color:#276749;{% endif %}">
+        👍 정확함
+      </button>
+      <button id="fb-down" class="icon-btn{% if feedback and feedback.rating == 'down' %} active{% endif %}"
+              onclick="setFeedback('down')"
+              style="{% if feedback and feedback.rating == 'down' %}background:#742a2a; color:#fed7d7; border-color:#742a2a;{% endif %}">
+        👎 부정확
+      </button>
+      <input id="fb-comment" type="text" placeholder="짧은 메모 (선택)" value="{{ feedback.comment if feedback and feedback.comment else '' }}" style="flex:1; max-width:400px; padding:5px 10px;">
+      <button class="nav-btn nav-btn-primary" style="padding:5px 14px;" onclick="saveFeedbackComment()">메모 저장</button>
+    </div>
+    <div id="fb-status" style="font-size:12px; color:var(--text-subtle); margin-top:6px;"></div>
+  </div>
 </div>
+
+<script>
+const INCIDENT_ID = {{ incident.id }};
+async function setFeedback(rating) {
+  const comment = document.getElementById('fb-comment').value.trim();
+  const resp = await fetch(`/api/incidents/${INCIDENT_ID}/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rating, comment }),
+  });
+  if (!resp.ok) { alert('저장 실패: ' + await resp.text()); return; }
+  location.reload();
+}
+async function saveFeedbackComment() {
+  const upActive = document.getElementById('fb-up').classList.contains('active');
+  const downActive = document.getElementById('fb-down').classList.contains('active');
+  const rating = upActive ? 'up' : (downActive ? 'down' : null);
+  if (!rating) {
+    alert('먼저 👍 또는 👎를 선택하세요');
+    return;
+  }
+  await setFeedback(rating);
+}
+</script>
 
 {% elif incident.status == 'processing' %}
 <div class="card" style="text-align:center; padding:40px;">

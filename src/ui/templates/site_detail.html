@@ -121,6 +121,43 @@
   </div>
 </div>
 
+<!-- AI 메모 (누적 학습 컨텍스트) -->
+<div class="card">
+  <h2>AI 메모
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
+      AI 분석 prompt에 자동 포함 — 반복 3회면 ★ pinned로 자동 승격
+    </span>
+  </h2>
+
+  {% if notes %}
+  <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+    {% for n in notes %}
+    <div style="display:flex; align-items:flex-start; gap:8px; padding:8px 10px; background:var(--card-bg-alt); border:1px solid {% if n.pinned %}var(--accent){% else %}var(--border){% endif %}; border-radius:6px;">
+      <span style="font-size:11px; padding:2px 6px; border-radius:3px; flex-shrink:0; {% if n.author == 'ai' %}background:#2b6cb0; color:#bee3f8;{% else %}background:#5f370e; color:#f6e05e;{% endif %}">
+        {{ n.author }}{% if n.pinned %} ★{% endif %}
+      </span>
+      <span style="flex:1; font-size:13px; color:var(--text); word-break:break-word;">{{ n.content }}</span>
+      {% if n.occurrences and n.occurrences > 1 %}
+      <span style="font-size:11px; color:var(--text-subtle); flex-shrink:0;">×{{ n.occurrences }}</span>
+      {% endif %}
+      {% if n.related_incident_id %}
+      <a href="/incidents/{{ n.related_incident_id }}" style="font-size:11px; flex-shrink:0;">#{{ n.related_incident_id }}</a>
+      {% endif %}
+      <button class="icon-btn" onclick="togglePin({{ n.id }}, {{ 'true' if not n.pinned else 'false' }})" style="padding:2px 6px; font-size:11px; flex-shrink:0;" title="pin 토글">{% if n.pinned %}unpin{% else %}pin{% endif %}</button>
+      <button class="icon-btn danger" onclick="deleteNote({{ n.id }})" style="padding:2px 6px; font-size:11px; flex-shrink:0;">×</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="color:var(--text-subtle); font-size:13px; margin-bottom:12px;">— 아직 메모가 없습니다. 분석 완료 시 자동 추가되거나, 아래에서 직접 입력하세요. —</p>
+  {% endif %}
+
+  <div style="display:flex; gap:6px;">
+    <input id="new-note" type="text" placeholder="이 사이트에 대한 메모 (예: 야간엔 자동 재시작 스크립트 동작)" style="flex:1; padding:6px 10px;">
+    <button class="nav-btn nav-btn-primary" onclick="addNote()">+ 메모 추가</button>
+  </div>
+</div>
+
 <!-- 수신자 관리 -->
 <div class="card">
   <h2>수신자 ({{ site.recipients | length }}명)</h2>
@@ -300,6 +337,34 @@ async function submitRecipientEdit() {
 async function deleteRecipient(id) {
   if (!confirm(`수신자 #${id}를 삭제할까요?`)) return;
   await fetch(`/api/recipients/${id}`, { method:'DELETE' });
+  location.reload();
+}
+
+// ── Site notes ─────────────────────────────────────────────────────
+async function addNote() {
+  const input = document.getElementById('new-note');
+  const content = input.value.trim();
+  if (!content) return;
+  const resp = await fetch(`/api/sites/${SITE_ID}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  if (!resp.ok) { alert('추가 실패: ' + await resp.text()); return; }
+  location.reload();
+}
+async function togglePin(noteId, pinned) {
+  const resp = await fetch(`/api/site-notes/${noteId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pinned }),
+  });
+  if (!resp.ok) { alert('실패: ' + await resp.text()); return; }
+  location.reload();
+}
+async function deleteNote(noteId) {
+  if (!confirm('이 메모를 삭제할까요?')) return;
+  await fetch(`/api/site-notes/${noteId}`, { method: 'DELETE' });
   location.reload();
 }
 

@@ -47,16 +47,33 @@ def _get(d: dict, *keys):
     return "N/A"
 
 
-def build_user_prompt(alarm_data: dict, logs: list[str], site_architecture: str | None = None) -> str:
+def build_user_prompt(
+    alarm_data: dict,
+    logs: list[str],
+    site_architecture: str | None = None,
+    site_notes: list[str] | None = None,
+) -> str:
     alarm_time = _get(alarm_data, "alarmTime", "alarm_time") or datetime.now().isoformat()
     log_section = "\n".join(logs) if logs else "(로그 수집 실패 — 알람 정보만으로 분석)"
 
     arch_section = ""
     if site_architecture and site_architecture.strip():
-        # 토큰 비용 절감 — 최대 2000자
         arch_text = site_architecture.strip()[:2000]
-        arch_section = f"""## 사이트 인프라 아키텍처 (참고 컨텍스트)
+        arch_section = f"""## 사이트 인프라 아키텍처
 {arch_text}
+
+"""
+
+    notes_section = ""
+    if site_notes:
+        # 토큰 절약 — 최대 8건, 노트당 250자
+        bullet_lines = [n[:250] for n in site_notes[:8]]
+        if bullet_lines:
+            notes_section = f"""## 이 사이트의 과거 분석/메모 (학습된 컨텍스트)
+{chr(10).join(bullet_lines)}
+
+위 메모 중 '★ pinned'가 붙은 항목은 이 사이트에서 반복 확인된 문제이거나 사람이 검증한 패턴입니다.
+유사한 증상이 보이면 그 메모와의 연관성을 먼저 고려하세요.
 
 """
 
@@ -66,7 +83,7 @@ def build_user_prompt(alarm_data: dict, logs: list[str], site_architecture: str 
 - 메트릭: {_get(alarm_data, 'metricType', 'metric_type')} = {_get(alarm_data, 'currentValue', 'current_value')} (임계값: {_get(alarm_data, 'threshold', 'threshold_value')})
 - 발생시간: {alarm_time}
 
-{arch_section}## 수집된 로그 (알람 시점 ±15분)
+{arch_section}{notes_section}## 수집된 로그 (알람 시점 ±15분)
 {log_section}
 
-위 정보를 바탕으로 장애를 분석해주세요. 인프라 아키텍처가 제공된 경우, 컴포넌트 간 의존성을 고려해서 원인 후보를 좁히세요."""
+위 정보를 바탕으로 장애를 분석해주세요. 인프라 아키텍처와 과거 메모가 제공된 경우, 컴포넌트 간 의존성과 반복 패턴을 함께 고려해 원인 후보를 좁히세요."""

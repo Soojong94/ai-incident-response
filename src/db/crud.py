@@ -3,7 +3,10 @@ import logging
 import uuid
 from datetime import datetime
 from sqlalchemy.orm import Session
-from src.db.models import Incident, IncidentLog, AnalysisResult, Recipient, Site, User, NotificationLog, PasswordResetToken
+from src.db.models import (
+    Incident, IncidentLog, AnalysisResult, Recipient, Site, User,
+    NotificationLog, PasswordResetToken, SiteNote, AnalysisFeedback,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +169,134 @@ def count_incidents(
     date_to=None,
 ) -> int:
     return _incidents_query(db, search, site_id, severity, status, metric_type, date_from, date_to).count()
+
+
+# ── Site notes ─────────────────────────────────────────────────────────────
+
+def list_site_notes(db: Session, site_id: int, limit: int = 50) -> list[SiteNote]:
+    return (
+        db.query(SiteNote)
+        .filter(SiteNote.site_id == site_id)
+        .order_by(SiteNote.pinned.desc(), SiteNote.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def find_similar_ai_note(db: Session, site_id: int, content_prefix: str) -> SiteNote | None:
+    """같은 사이트에서 AI가 같은 cause_category 헤더로 적은 노트 찾기 — 누적 카운트용."""
+    if not content_prefix:
+        return None
+    return (
+        db.query(SiteNote)
+        .filter(SiteNote.site_id == site_id)
+        .filter(SiteNote.author == "ai")
+        .filter(SiteNote.content.like(content_prefix + "%"))
+        .order_by(SiteNote.created_at.desc())
+        .first()
+    )
+
+
+def add_site_note(
+    db: Session,
+    site_id: int,
+    author: str,
+    content: str,
+    user_id: int | None = None,
+    related_incident_id: int | None = None,
+) -> SiteNote:
+    note = SiteNote(
+        site_id=site_id,
+        author=author if author in ("ai", "user") else "user",
+        user_id=user_id,
+        content=content,
+        related_incident_id=related_incident_id,
+    )
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    return note
+
+
+def increment_note_occurrence(db: Session, note_id: int, threshold: int = 3) -> SiteNote | None:
+    """반복 발생 시 카운터 증가 + threshold 도달 시 pinned=True 자동 승격."""
+    note = db.query(SiteNote).filter(SiteNote.id == note_id).first()
+    if not note:
+        return None
+    note.occurrences = (note.occurrences or 1) + 1
+    note.updated_at = datetime.utcnow()
+    if note.occurrences >= threshold:
+        note.pinned = True
+    db.commit()
+    db.refresh(note)
+    return note
+
+
+def update_site_note(db: Session, note_id: int, data: dict) -> SiteNote | None:
+    note = db.query(SiteNote).filter(SiteNote.id == note_id).first()
+    if not note:
+        return None
+    if "content" in data:
+        note.content = data["content"]
+    if "pinned" in data:
+        note.pinned = bool(data["pinned"])
+    note.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(note)
+    return note
+
+
+def delete_site_note(db: Session, note_id: int) -> bool:
+    note = db.query(SiteNote).filter(SiteNote.id == note_id).first()
+    if not note:
+        return False
+    db.delete(note)
+    db.commit()
+    return True
+
+
+def get_site_notes_for_prompt(db: Session, site_id: int, max_count: int = 8) -> list[SiteNote]:
+    """AI prompt 주입용 — pinned 우선, 그 다음 최근 순. 토큰 절약 위해 max_count로 제한."""
+    pinned = (
+        db.query(SiteNote)
+        .filter(SiteNote.site_id == site_id, SiteNote.pinned.is_(True))
+        .order_by(SiteNote.updated_at.desc())
+        .limit(max_count)
+        .all()
+    )
+    if len(pinned) >= max_count:
+        return pinned
+    recent = (
+        db.query(SiteNote)
+        .filter(SiteNote.site_id == site_id, SiteNote.pinned.is_(False))
+        .order_by(SiteNote.created_at.desc())
+        .limit(max_count - len(pinned))
+        .all()
+    )
+    return pinned + recent
+
+
+# ── Analysis feedback ──────────────────────────────────────────────────────
+
+def get_feedback_for_incident(db: Session, incident_id: int) -> AnalysisFeedback | None:
+    return db.query(AnalysisFeedback).filter(AnalysisFeedback.incident_id == incident_id).first()
+
+
+def upsert_feedback(db: Session, incident_id: int, user_id: int, rating: str, comment: str | None = None) -> AnalysisFeedback:
+    existing = get_feedback_for_incident(db, incident_id)
+    if existing:
+        existing.rating = rating
+        existing.comment = comment
+        existing.user_id = user_id
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+    fb = AnalysisFeedback(incident_id=incident_id, user_id=user_id, rating=rating, comment=comment)
+    db.add(fb)
+    db.commit()
+    db.refresh(fb)
+    return fb
 
 
 def distinct_metric_types(db: Session) -> list[str]:
