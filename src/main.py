@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
@@ -58,6 +59,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Incident Response", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory="src/ui/static"), name="static")
 templates = Jinja2Templates(directory="src/ui/templates")
 
 
@@ -78,7 +80,7 @@ AUTH_EXEMPT_PATHS = {"/login", "/logout", "/favicon.svg", "/favicon.ico", "/forg
 # webhook은 외부 시스템(NCP CF)이 호출하므로 인증 면제.
 # /test/는 더 이상 면제하지 않음 — 인증된 사용자만 트리거 가능.
 # /reset/ 은 토큰이 자격증명 역할이라 인증 면제 prefix.
-AUTH_EXEMPT_PREFIXES = ("/webhook/", "/reset/")
+AUTH_EXEMPT_PREFIXES = ("/webhook/", "/reset/", "/static/")
 
 
 def _safe_next(next_url: str) -> str:
@@ -429,19 +431,46 @@ async def api_reanalyze_incident(
 # ── OBS 원본 로그 다운로드 ───────────────────────────────────────────────────────
 
 @app.get("/api/incidents/{incident_id}/logs/raw")
-async def api_logs_raw(incident_id: int, db: Session = Depends(get_db)):
-    from fastapi.responses import StreamingResponse, JSONResponse
+async def api_logs_raw(incident_id: int, db: Session = Depends(get_db), _user=Depends(require_user)):
+    from fastapi.responses import StreamingResponse
+    from src.collector.obs_collector import _s3_client
+    from src.db.crud import get_site_ncp_keys
+    from botocore.exceptions import ClientError, BotoCoreError
+
     incident = get_incident(db, incident_id)
     if not incident:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Incident not found")
-    if not incident.obs_object_key:
-        from fastapi import HTTPException
+    if not incident.obs_object_key or not incident.obs_bucket:
         raise HTTPException(status_code=404, detail="No OBS file for this incident")
-    from src.collector.obs_collector import _s3_client
-    s3 = _s3_client()
-    resp = s3.get_object(Bucket=incident.obs_bucket, Key=incident.obs_object_key)
-    body = resp["Body"].read()
+
+    # site별 NCP 키가 있으면 사용, 없으면 .env fallback
+    access_key, secret_key = (None, None)
+    if incident.site_id:
+        access_key, secret_key = get_site_ncp_keys(db, incident.site_id)
+
+    try:
+        resp = _s3_client(access_key, secret_key).get_object(
+            Bucket=incident.obs_bucket, Key=incident.obs_object_key
+        )
+        body = resp["Body"].read()
+    except ClientError as e:
+        code = e.response.get("Error", {}).get("Code", "")
+        if code in ("NoSuchKey", "404", "NoSuchBucket"):
+            raise HTTPException(
+                status_code=410,
+                detail=f"OBS 객체가 더 이상 존재하지 않습니다 ({incident.obs_bucket}/{incident.obs_object_key}). 라이프사이클 정책에 의해 삭제됐을 수 있습니다.",
+            )
+        if code in ("AccessDenied", "InvalidAccessKeyId", "SignatureDoesNotMatch"):
+            raise HTTPException(
+                status_code=502,
+                detail=f"OBS 접근 권한 없음 ({code}) — 사이트의 NCP 키 또는 .env 키를 확인하세요.",
+            )
+        logger.exception("OBS get_object 실패 (incident=%d)", incident_id)
+        raise HTTPException(status_code=502, detail=f"OBS 오류: {code or 'unknown'}")
+    except BotoCoreError as e:
+        logger.exception("boto3 오류 (incident=%d)", incident_id)
+        raise HTTPException(status_code=502, detail=f"OBS 통신 실패: {e}")
+
     filename = incident.obs_object_key.split("/")[-1]
     return StreamingResponse(
         iter([body]),
