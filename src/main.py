@@ -714,9 +714,15 @@ def site_detail_page(site_id: int, request: Request, db: Session = Depends(get_d
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
     notes = list_site_notes(db, site_id)
+    recent_incidents = get_incidents(db, skip=0, limit=10, site_id=site_id)
     return templates.TemplateResponse(
         request, "site_detail.html",
-        {"site": site, "notes": notes, "current_user": user},
+        {
+            "site": site,
+            "notes": notes,
+            "recent_incidents": recent_incidents,
+            "current_user": user,
+        },
     )
 
 
