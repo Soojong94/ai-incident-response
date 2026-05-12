@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .guide-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .guide-tile {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-decoration: none;
+    color: var(--text);
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+  .guide-tile:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+  .guide-tile h3 { font-size: 15px; margin: 0; }
+  .guide-tile .meta { font-size: 12px; color: var(--text-subtle); display: flex; gap: 12px; flex-wrap: wrap; }
+  .guide-tile .meta strong { color: var(--text); font-family: monospace; font-weight: 600; }
+  .guide-tile .arrow { color: var(--accent); font-size: 13px; margin-top: auto; }
+</style>
+
+<div style="margin-bottom:14px;">
+  <h2 style="font-size:20px;">CF 등록 가이드
+    <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">사이트별 NCP Cloud Function 등록 코드 + 절차</span>
+  </h2>
+</div>
+
+<p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">
+  사이트를 선택하면 그 사이트의 식별자가 치환된 두 CF 코드(<code>cf_wms_poll</code>, <code>cf_obs_to_webhook</code>) 와 NCP CF 콘솔 등록 절차가 표시됩니다. 관리자는 코드를 복사해 NCP CF 콘솔에 붙여넣고, 디폴트 파라미터에 NCP IAM 키만 입력하면 됩니다.
+</p>
+
+{% if sites %}
+<div class="guide-grid">
+  {% for s in sites %}
+  <a href="/sites/{{ s.id }}/guide" class="guide-tile">
+    <h3>{{ s.name }}{% if not s.enabled %} <span style="font-size:11px; color:var(--text-subtle); font-weight:normal;">비활성</span>{% endif %}</h3>
+    <div class="meta">
+      <span>📌 <strong>{{ s.resource_pattern or '—' }}</strong></span>
+      <span>🪣 <strong>{{ s.obs_bucket or '—' }}</strong></span>
+      {% if s.wms_scenario_id %}<span>🎯 scenario <strong>{{ s.wms_scenario_id }}</strong></span>{% endif %}
+    </div>
+    <div class="arrow">CF 등록 가이드 →</div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+  <p>등록된 사이트가 없습니다.</p>
+  <p><a href="/sites" class="nav-btn nav-btn-primary" style="margin-top:10px;">사이트 추가하러 가기 →</a></p>
+</div>
+{% endif %}
+{% endblock %}

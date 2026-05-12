@@ -51,7 +51,7 @@
           </svg>
           장애 목록 보기
         </a>
-        <a href="/api/sites/{{ site.id }}/cf-bundle" class="icon-btn" title="이 사이트용 NCP Cloud Function 코드 ZIP 다운로드">🚀 CF 코드 ZIP</a>
+        <a href="/sites/{{ site.id }}/guide" class="icon-btn" title="NCP Cloud Function 등록 가이드 — 코드 + 절차 + 디폴트 파라미터 안내">📖 CF 가이드</a>
         <button class="icon-btn" onclick="enterEditMode()">사이트 수정</button>
         <button class="icon-btn danger" onclick="deleteSite({{ site.id }})">사이트 삭제</button>
       </div>
@@ -260,10 +260,6 @@
       <label>WMS scenario ID</label>
       <span style="font-family:monospace; font-size:13px;">{{ site.wms_scenario_id or '— 없음 —' }}</span>
     </div>
-    <div class="meta-item">
-      <label>CF Package Name</label>
-      <span style="font-family:monospace; font-size:13px;">{{ site.cf_package_name or '— 없음 —' }}</span>
-    </div>
   </div>
 
   <!-- EDIT -->
@@ -279,10 +275,6 @@
     <div class="meta-item">
       <label>WMS scenario ID</label>
       <input id="k-wms" type="text" value="{{ site.wms_scenario_id or '' }}" placeholder="예: 9799" style="width:100%;">
-    </div>
-    <div class="meta-item">
-      <label>CF Package Name</label>
-      <input id="k-cf" type="text" value="{{ site.cf_package_name or '' }}" placeholder="예: team1-demo-pkg" style="width:100%;">
     </div>
     {% if site.ncp_access_key_enc or site.ncp_secret_key_enc %}
     <div class="meta-item" style="grid-column:1/-1;">
@@ -428,9 +420,8 @@ async function saveSite() {
   const name = document.getElementById('s-name').value.trim();
   if (!name) { alert('사이트 이름은 필수입니다'); return; }
 
-  // 1) site 기본 + 매칭 규칙 + 아키텍처 + rate-limit + 평문 식별자 (WMS/CF) 한 번에
+  // 1) site 기본 + 매칭 규칙 + 아키텍처 + rate-limit + 평문 식별자 (WMS) 한 번에
   const wmsEl = document.getElementById('k-wms');
-  const cfEl = document.getElementById('k-cf');
   const rlWin = document.getElementById('rl-window');
   const rlCnt = document.getElementById('rl-count');
   const rlDis = document.getElementById('rl-disabled');
@@ -443,7 +434,6 @@ async function saveSite() {
     architecture: document.getElementById('s-arch').value,
     enabled: document.getElementById('s-enabled').checked,
     wms_scenario_id: wmsEl ? wmsEl.value.trim() : '',
-    cf_package_name: cfEl ? cfEl.value.trim() : '',
     rate_limit_window_seconds: rlWin ? parseInt(rlWin.value, 10) : undefined,
     rate_limit_count: rlCnt ? parseInt(rlCnt.value, 10) : undefined,
     rate_limit_disabled: rlDis ? rlDis.checked : undefined,

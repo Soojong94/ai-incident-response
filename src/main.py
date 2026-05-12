@@ -371,42 +371,6 @@ async def webhook_alarm(request: Request, background_tasks: BackgroundTasks, db:
     return {"status": "accepted", "incident_id": incident_id}
 
 
-# ── Dev test trigger (admin 전용) ────────────────────────────────────────────
-
-@app.get("/test/demo", response_class=HTMLResponse)
-def demo_page(request: Request, user=Depends(require_admin)):
-    return templates.TemplateResponse(request, "demo.html", {"current_user": user})
-
-
-@app.post("/test/trigger", status_code=202)
-async def test_trigger(
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    _admin=Depends(require_admin),
-    metric_type: str = "cpu",
-    resource_name: str = "team1-test-server",
-    current_value: float = 95.3,
-    threshold_value: float = 85.0,
-    obs_object_key: str = "",
-    obs_bucket: str = "",
-):
-    payload = {
-        "alarmName": f"{metric_type.upper()}-High-Alert",
-        "alarmId": uuid.uuid4().hex[:12],
-        "resourceName": resource_name,
-        "metricType": metric_type,
-        "threshold": threshold_value,
-        "currentValue": current_value,
-        "alarmTime": datetime.now().isoformat(),
-    }
-    if obs_object_key:
-        payload["obs_object_key"] = obs_object_key
-        payload["obs_bucket"] = obs_bucket or "team1-demo"
-    incident = create_incident(db, payload)
-    background_tasks.add_task(run_pipeline, incident.id, payload)
-    return {"status": "accepted", "incident_id": incident.id}
-
-
 # ── 수동 재분석 (admin) ─────────────────────────────────────────────────────
 
 @app.post("/api/incidents/{incident_id}/reanalyze", status_code=202)
@@ -720,7 +684,6 @@ def _site_to_dict(s, include_recipients: bool = False) -> dict:
         "auto_created": s.auto_created,
         "enabled": s.enabled,
         "wms_scenario_id": s.wms_scenario_id,
-        "cf_package_name": s.cf_package_name,
         # 키는 마스킹된 값만 노출 — 평문은 절대 응답에 안 보냄
         "ncp_access_key_masked": mask_secret(decrypt_secret(s.ncp_access_key_enc)) if s.ncp_access_key_enc else "",
         "has_ncp_keys": bool(s.ncp_access_key_enc and s.ncp_secret_key_enc),
@@ -893,7 +856,8 @@ def _render_cf_files(site) -> dict:
         resource_name = resource_name.replace("*", "host")
     obs_src = re.sub(r'^RESOURCE_NAME\s*=.*$', f'RESOURCE_NAME = "{resource_name}"', obs_src, count=1, flags=re.M)
 
-    webhook_url = "https://tbit-msp.kro.kr/webhook/alarm"
+    webhook_url = f"{settings.public_base_url.rstrip('/')}/webhook/alarm"
+    obs_src = re.sub(r'^WEBHOOK_URL\s*=.*$', f'WEBHOOK_URL = "{webhook_url}"', obs_src, count=1, flags=re.M)
     readme = CF_BUNDLE_README_TEMPLATE.format(
         site_name=site.name,
         wms_scenario_id=site.wms_scenario_id or "(미등록 — site 수정에서 입력)",
@@ -909,33 +873,37 @@ def _render_cf_files(site) -> dict:
     }
 
 
-@app.get("/api/sites/{site_id}/cf-bundle")
-def api_cf_bundle(site_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)):
-    """site별 NCP Cloud Function 코드 ZIP 다운로드 (admin 전용).
-    NCP 키는 ZIP에 포함되지 않음 — admin이 NCP CF 콘솔에서 직접 입력."""
-    import io
-    import zipfile
-    from fastapi.responses import StreamingResponse
+# ── CF 등록 가이드 (admin) ──────────────────────────────────────────────────
 
+@app.get("/guide", response_class=HTMLResponse)
+def guide_index(request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    """사이트 목록 — 각 사이트의 CF 등록 가이드 진입점."""
+    sites = list_sites(db)
+    return templates.TemplateResponse(
+        request, "guide_index.html",
+        {"sites": sites, "current_user": admin},
+    )
+
+
+@app.get("/sites/{site_id}/guide", response_class=HTMLResponse)
+def site_guide(site_id: int, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    """site별 NCP Cloud Function 등록 가이드 (코드 + 절차 + 디폴트 파라미터 안내)."""
     site = get_site(db, site_id)
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
     files = _render_cf_files(site)
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for path, content in files.items():
-            zf.writestr(path, content)
-    buf.seek(0)
-
-    # 사이트 이름 안전 처리 (ASCII 외 문자 → 영문 alnum/underscore)
-    import re as _re
-    safe_name = _re.sub(r'[^A-Za-z0-9_\-]+', '_', site.name)[:40] or f"site-{site.id}"
-    filename = f"cf-bundle-{safe_name}.zip"
-    return StreamingResponse(
-        iter([buf.read()]),
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    wms_code = files["cf_wms_poll/main.py"].decode("utf-8")
+    obs_code = files["cf_obs_to_webhook/main.py"].decode("utf-8")
+    webhook_url = f"{settings.public_base_url.rstrip('/')}/webhook/alarm"
+    return templates.TemplateResponse(
+        request, "cf_guide.html",
+        {
+            "site": site,
+            "wms_code": wms_code,
+            "obs_code": obs_code,
+            "webhook_url": webhook_url,
+            "current_user": admin,
+        },
     )
 
 

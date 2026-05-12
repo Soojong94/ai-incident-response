@@ -40,7 +40,7 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
     """Background task: collect logs → analyze → store result.
     sites의 rate-limit을 먼저 검사해서 임계값 초과 시 분석 자체를 차단(suppressed).
     비상 모드(rate_limit_disabled=True)일 땐 무시하고 모두 분석."""
-    from src.collector import mock_collector, ncp_collector, obs_collector
+    from src.collector import ncp_collector, obs_collector
 
     db = next(_get_db())
     try:
@@ -68,7 +68,7 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
                 return
 
         logs: list[str] = []
-        log_source = "mock"
+        log_source = "none"
 
         obs_key = alarm_data.get("obs_object_key") or alarm_data.get("obsObjectKey")
         obs_bucket = alarm_data.get("obs_bucket") or alarm_data.get("obsBucket") or settings.obs_bucket
@@ -86,20 +86,20 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
                 logs = await obs_collector.collect(obs_bucket, obs_key, access_key=ncp_access, secret_key=ncp_secret)
                 log_source = "obs"
             except Exception as e:
-                logger.warning("OBS log collection failed (%s), falling back to CLA/mock", e)
+                logger.warning("OBS log collection failed (%s) — CLA로 재시도", e)
 
         if not logs and ncp_access and ncp_secret:
             try:
                 logs = await ncp_collector.collect(alarm_data)
                 log_source = "ncp_api"
             except Exception as e:
-                logger.warning("NCP log collection failed (%s), falling back to mock", e)
+                logger.warning("NCP log collection failed (%s)", e)
 
         if not logs:
-            logs = await mock_collector.collect(alarm_data)
-            log_source = "mock"
+            logger.info("incident %d — 로그 수집 실패. 알람 정보만으로 분석 진행", incident_id)
 
-        add_logs(db, incident_id, logs, source=log_source)
+        if logs:
+            add_logs(db, incident_id, logs, source=log_source)
 
         # site의 architecture + 누적 메모 + 같은 resource의 과거 분석을 prompt 컨텍스트로 사용
         inc = get_incident(db, incident_id)

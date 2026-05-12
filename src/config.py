@@ -42,5 +42,8 @@ class Settings(BaseSettings):
     # 미설정 시 dev key 사용 (위험 — 운영 배포 시 반드시 새로 생성).
     encryption_key: str = ""
 
+    # 공개 베이스 URL — CF 코드 가이드에서 webhook URL 만들 때 사용 (예: https://tbit-msp.kro.kr)
+    public_base_url: str = "https://tbit-msp.kro.kr"
+
 
 settings = Settings()

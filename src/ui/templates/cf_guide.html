@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .guide-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; }
+  .guide-card h2 { font-size: 16px; color: var(--text-muted); margin-bottom: 12px; }
+  .guide-card h3 { font-size: 14px; color: var(--text-subtle); margin-bottom: 8px; }
+
+  .code-block {
+    position: relative;
+    background: var(--card-bg-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .code-block pre {
+    margin: 0;
+    padding: 14px 16px;
+    max-height: 480px;
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.45;
+    background: transparent;
+    border: none;
+    color: var(--text);
+  }
+  .copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: var(--primary); color: #fff; border: none; border-radius: 4px;
+    padding: 4px 10px; font-size: 11px; cursor: pointer; font-family: inherit;
+    opacity: 0.85;
+  }
+  .copy-btn:hover { opacity: 1; }
+  .copy-btn.copied { background: #276749; }
+
+  .step { display: flex; gap: 12px; padding: 10px 0; }
+  .step-num {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: #1a202c; font-weight: 700; font-size: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .step-body { flex: 1; font-size: 13px; line-height: 1.55; }
+  .step-body code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+
+  .ident-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; padding: 12px 14px; background: var(--card-bg-alt); border-radius: 6px; margin-bottom: 12px; }
+  .ident-row span strong { font-family: monospace; color: var(--text); }
+  .ident-row span { color: var(--text-subtle); }
+</style>
+
+<div style="margin-bottom:14px;">
+  <a href="/guide">&larr; 가이드 목록</a>
+</div>
+
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+  <h2 style="font-size:20px;">CF 등록 가이드</h2>
+  <a href="/sites/{{ site.id }}" style="font-size:13px;">[{{ site.name }} 설정]</a>
+</div>
+
+<!-- 식별자 요약 -->
+<div class="guide-card">
+  <h2>사이트 식별자</h2>
+  <div class="ident-row">
+    <span>📌 resource: <strong>{{ site.resource_pattern or '—' }}</strong></span>
+    <span>🪣 OBS 버킷: <strong>{{ site.obs_bucket or '—' }}</strong></span>
+    <span>🎯 WMS scenario: <strong>{{ site.wms_scenario_id or '— (사이트 설정에서 입력)' }}</strong></span>
+    <span>📡 Webhook URL: <strong>{{ webhook_url }}</strong></span>
+  </div>
+  <p style="font-size:12px; color:var(--text-subtle); margin:0;">위 값들은 아래 코드에 이미 치환되어 있습니다. 사이트 설정이 비어 있으면 placeholder 값이 들어가니 <a href="/sites/{{ site.id }}">사이트 설정</a> 먼저 채워주세요.</p>
+</div>
+
+<!-- 등록 절차 -->
+<div class="guide-card">
+  <h2>NCP CF 콘솔 등록 절차</h2>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      NCP 콘솔 → Cloud Functions → <strong>액션 생성</strong> 두 번 (각 액션마다 런타임 <code>python:3.13</code>, 진입점 <code>main</code>).
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <strong>cf_wms_poll</strong> 액션 코드에 아래 첫 번째 코드 박스 내용 통째 붙여넣기 → <strong>Cron 트리거</strong> <code>*/5 * * * *</code> 연결 →
+      <strong>디폴트 파라미터</strong>에 NCP IAM 키 JSON 입력:
+      <div style="margin-top:6px;">
+        <pre style="font-size:11px; padding:8px 10px; margin:0;">{
+  "access_key": "&lt;NCP IAM Access Key&gt;",
+  "secret_key": "&lt;NCP IAM Secret Key&gt;"
+}</pre>
+      </div>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <strong>cf_obs_to_webhook</strong> 액션 코드에 아래 두 번째 코드 박스 붙여넣기 → <strong>Object Storage Event 트리거</strong> 연결
+      (버킷 <code>{{ site.obs_bucket or '<your-bucket>' }}</code>, Object Created). 디폴트 파라미터는 비움 — OBS 이벤트가 자동 전달.
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      검증: 1~5분 뒤 OBS 버킷에 <code>CLA-*</code> 폴더가 생기면 → AI 서버 대시보드에 incident 자동 등록 → AI 분석 → 메일 발송.
+    </div>
+  </div>
+</div>
+
+<!-- cf_wms_poll 코드 -->
+<div class="guide-card">
+  <h2>① cf_wms_poll/main.py
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">Cron 5분마다 WMS 시나리오 폴링 → 에러 누적 시 CLA → OBS export</span>
+  </h2>
+  <div class="code-block">
+    <button class="copy-btn" data-target="code-wms">복사</button>
+    <pre id="code-wms">{{ wms_code }}</pre>
+  </div>
+</div>
+
+<!-- cf_obs_to_webhook 코드 -->
+<div class="guide-card">
+  <h2>② cf_obs_to_webhook/main.py
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">OBS 업로드 감지 → AI 서버 webhook 호출</span>
+  </h2>
+  <div class="code-block">
+    <button class="copy-btn" data-target="code-obs">복사</button>
+    <pre id="code-obs">{{ obs_code }}</pre>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const target = document.getElementById(btn.dataset.target);
+    if (!target) return;
+    try {
+      await navigator.clipboard.writeText(target.textContent);
+      const orig = btn.textContent;
+      btn.textContent = '복사됨 ✓';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+    } catch (e) {
+      alert('복사 실패: ' + e.message);
+    }
+  });
+});
+</script>
+{% endblock %}

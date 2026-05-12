@@ -141,7 +141,6 @@ class Site(Base):
     ncp_access_key_enc = Column(Text, nullable=True)
     ncp_secret_key_enc = Column(Text, nullable=True)
     wms_scenario_id = Column(String(50), nullable=True)     # 평문 — 식별자만, 민감 X
-    cf_package_name = Column(String(100), nullable=True)    # 평문 — CF 배포 자동화용
     # 분석 rate-limit: 윈도우 안 incident가 count 초과 시 후속은 분석/알림 skip
     rate_limit_window_seconds = Column(Integer, default=300)  # 5분
     rate_limit_count = Column(Integer, default=3)

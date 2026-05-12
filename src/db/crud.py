@@ -682,8 +682,6 @@ def update_site(db: Session, site_id: int, data: dict) -> Site | None:
         site.architecture = data["architecture"] or None
     if "wms_scenario_id" in data:
         site.wms_scenario_id = (data["wms_scenario_id"] or "").strip() or None
-    if "cf_package_name" in data:
-        site.cf_package_name = (data["cf_package_name"] or "").strip() or None
     # API 키 — 별도 endpoint로 처리 (update_site_keys). 여기서는 안 받음.
     if "rate_limit_window_seconds" in data:
         try:
