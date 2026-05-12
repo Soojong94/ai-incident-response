@@ -7,6 +7,7 @@ import httpx
 
 from src.config import settings
 from src.analyzer.prompts import INSTRUCTIONS, OUTPUT_SCHEMA, build_user_prompt
+from src.analyzer.preprocess import preprocess_logs
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +58,13 @@ class TimelyAIClient:
         past_analyses: list[dict] | None = None,
     ) -> dict:
         token = await self._get_token()
+        trimmed_logs = preprocess_logs(
+            logs,
+            alarm_time=alarm_data.get("alarmTime") or alarm_data.get("alarm_time"),
+            max_chars=8000,
+        )
         prompt = build_user_prompt(
-            alarm_data, logs,
+            alarm_data, trimmed_logs,
             site_architecture=site_architecture,
             site_notes=site_notes,
             past_analyses=past_analyses,
