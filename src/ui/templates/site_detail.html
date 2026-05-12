@@ -2,7 +2,9 @@
 {% block title %}{{ site.name }} — 사이트 상세{% endblock %}
 {% block content %}
 <style>
-  .recipient-row { display:grid; grid-template-columns: 1.4fr 1.6fr 1.4fr 1.2fr 0.4fr 0.8fr; gap:8px; padding:8px 10px; border-top:1px solid var(--border); align-items:center; font-size:13px; }
+  .recipient-row { display:grid; grid-template-columns: 1.2fr 1.5fr 1.2fr 1fr 0.4fr 1.6fr; gap:8px; padding:8px 10px; border-top:1px solid var(--border); align-items:center; font-size:13px; }
+  .recipient-row > span:last-child button,
+  .recipient-row > span:last-child a { white-space: nowrap; flex-shrink: 0; }
   .recipient-row.header { color:var(--text-subtle); font-size:11px; text-transform:uppercase; border-top:none; padding-bottom:4px; }
   .recipient-row input { width:100%; }
   .sev-toggle { display:inline-flex; gap:4px; }
@@ -18,28 +20,56 @@
   [data-theme="light"] .sev-toggle input:checked + span.sev-Low      { background:#c6f6d5; color:#276749; }
   .add-row { padding:10px; background:var(--card-bg-alt); border-top:1px solid var(--border); border-radius:0 0 6px 6px; }
   .empty-row { padding:14px 12px; color:var(--text-subtle); text-align:center; font-size:13px; border-top:1px solid var(--border); }
+  /* 편집 모드 토글 — 기본은 view 보임, edit 숨김 */
+  body.site-editing .view-only { display: none !important; }
+  body:not(.site-editing) .edit-only { display: none !important; }
 </style>
 
 <div style="margin-bottom:20px;">
   <a href="/sites">&larr; 사이트 목록</a>
 </div>
 
+<!-- 헤더 카드 (이름 + 활성 + 설명 + 액션) -->
 <div class="card">
-  <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
-    <h2 style="font-size:18px; color:var(--text); margin:0;">{{ site.name }}</h2>
-    {% if site.enabled %}
-      <span style="font-size:11px; padding:2px 8px; background:#276749; color:#c6f6d5; border-radius:3px;">활성</span>
-    {% else %}
-      <span style="font-size:11px; padding:2px 8px; background:#4a5568; color:#cbd5e0; border-radius:3px;">비활성</span>
-    {% endif %}
-    <div style="margin-left:auto; display:flex; gap:6px;">
-      <button class="icon-btn" onclick='editSite({{ {"id": site.id, "name": site.name, "description": site.description or "", "enabled": site.enabled} | tojson }})'>사이트 수정</button>
-      <button class="icon-btn danger" onclick="deleteSite({{ site.id }})">사이트 삭제</button>
+  <!-- VIEW 모드 -->
+  <div class="view-only">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+      <h2 style="font-size:18px; color:var(--text); margin:0;">{{ site.name }}</h2>
+      {% if site.enabled %}
+        <span style="font-size:11px; padding:2px 8px; background:#276749; color:#c6f6d5; border-radius:3px;">활성</span>
+      {% else %}
+        <span style="font-size:11px; padding:2px 8px; background:#4a5568; color:#cbd5e0; border-radius:3px;">비활성</span>
+      {% endif %}
+      <div style="margin-left:auto; display:flex; gap:6px;">
+        <a href="/?site_id={{ site.id }}" class="nav-btn nav-btn-danger" style="font-size:12px; padding:5px 12px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          장애 목록 보기
+        </a>
+        <button class="icon-btn" onclick="enterEditMode()">사이트 수정</button>
+        <button class="icon-btn danger" onclick="deleteSite({{ site.id }})">사이트 삭제</button>
+      </div>
     </div>
+    {% if site.description %}
+    <p style="color:var(--text-muted); font-size:13px;">{{ site.description }}</p>
+    {% endif %}
   </div>
-  {% if site.description %}
-  <p style="color:var(--text-muted); font-size:13px;">{{ site.description }}</p>
-  {% endif %}
+
+  <!-- EDIT 모드 -->
+  <div class="edit-only">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+      <input id="s-name" type="text" value="{{ site.name }}" style="font-size:18px; font-weight:700; padding:6px 10px; flex:1; max-width:400px;">
+      <label style="display:inline-flex; align-items:center; gap:6px; font-size:13px;"><input type="checkbox" id="s-enabled" {% if site.enabled %}checked{% endif %}> 활성</label>
+      <div style="margin-left:auto; display:flex; gap:6px;">
+        <button class="refresh-btn" style="margin-left:0; padding:6px 16px; font-size:13px;" onclick="saveSite()">저장</button>
+        <button class="icon-btn" onclick="exitEditMode()">취소</button>
+      </div>
+    </div>
+    <input id="s-desc" type="text" value="{{ site.description or '' }}" placeholder="설명" style="width:100%; padding:6px 10px; font-size:13px;">
+  </div>
 </div>
 
 <!-- 매칭 규칙 카드 -->
@@ -48,7 +78,8 @@
   <p style="font-size:12px; color:var(--text-subtle); margin-bottom:10px;">
     인시던트가 들어오면 OBS 버킷 → resource 패턴 순으로 매칭. 매칭된 인시던트의 알림이 이 사이트 수신자에게 발송됩니다.
   </p>
-  <div class="meta-grid">
+  <!-- VIEW -->
+  <div class="view-only meta-grid">
     <div class="meta-item">
       <label>resource_name 글로브 패턴</label>
       <span style="font-family:monospace; font-size:13px;">{{ site.resource_pattern or '— 없음 —' }}</span>
@@ -58,6 +89,17 @@
       <span style="font-family:monospace; font-size:13px;">{{ site.obs_bucket or '— 없음 —' }}</span>
     </div>
   </div>
+  <!-- EDIT -->
+  <div class="edit-only meta-grid">
+    <div class="meta-item">
+      <label>resource_name 글로브 패턴</label>
+      <input id="s-pattern" type="text" value="{{ site.resource_pattern or '' }}" placeholder="예: team1-*" style="width:100%; font-family:monospace;">
+    </div>
+    <div class="meta-item">
+      <label>OBS 버킷</label>
+      <input id="s-bucket" type="text" value="{{ site.obs_bucket or '' }}" placeholder="예: team1-demo" style="width:100%; font-family:monospace;">
+    </div>
+  </div>
 </div>
 
 <!-- 아키텍처 카드 -->
@@ -65,45 +107,18 @@
   <h2>아키텍처
     <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">AI 분석 prompt에 포함됨</span>
   </h2>
-  {% if site.architecture %}
-    <pre style="white-space:pre-wrap; font-size:12px;">{{ site.architecture }}</pre>
-  {% else %}
-    <p style="color:var(--text-subtle); font-size:13px;">— 등록된 아키텍처가 없습니다. "사이트 수정"으로 입력하세요. —</p>
-  {% endif %}
-</div>
-
-<!-- 사이트 수정 폼 -->
-<div id="site-form" class="card" style="display:none;">
-  <h2>사이트 수정</h2>
-  <input type="hidden" id="s-id" value="{{ site.id }}">
-  <div class="meta-grid" style="margin-bottom:12px;">
-    <div class="meta-item">
-      <label>사이트 이름 *</label>
-      <input id="s-name" type="text" style="width:100%;">
-    </div>
-    <div class="meta-item">
-      <label>활성화</label>
-      <label><input type="checkbox" id="s-enabled"> 알림 활성</label>
-    </div>
-    <div class="meta-item" style="grid-column:1/-1;">
-      <label>설명</label>
-      <input id="s-desc" type="text" style="width:100%;">
-    </div>
-    <div class="meta-item">
-      <label>resource_name 글로브 패턴</label>
-      <input id="s-pattern" type="text" placeholder="예: team1-*" style="width:100%;">
-    </div>
-    <div class="meta-item">
-      <label>OBS 버킷</label>
-      <input id="s-bucket" type="text" placeholder="예: team1-demo" style="width:100%;">
-    </div>
-    <div class="meta-item" style="grid-column:1/-1;">
-      <label>아키텍처 (Markdown — AI 분석 context)</label>
-      <textarea id="s-arch" rows="8" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
-    </div>
+  <!-- VIEW -->
+  <div class="view-only">
+    {% if site.architecture %}
+      <pre style="white-space:pre-wrap; font-size:12px;">{{ site.architecture }}</pre>
+    {% else %}
+      <p style="color:var(--text-subtle); font-size:13px;">— 등록된 아키텍처가 없습니다. "사이트 수정"으로 입력하세요. —</p>
+    {% endif %}
   </div>
-  <button onclick="submitSite()" class="refresh-btn" style="margin-left:0;">저장</button>
-  <button onclick="closeSiteForm()" class="icon-btn" style="margin-left:8px;">취소</button>
+  <!-- EDIT -->
+  <div class="edit-only">
+    <textarea id="s-arch" rows="8" placeholder="예:&#10;- 웹 계층: nginx 1.24 (port 80)&#10;- 앱 계층: Tomcat 9 (JVM 4GB)&#10;- DB: MySQL 8.0" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;">{{ site.architecture or '' }}</textarea>
+  </div>
 </div>
 
 <!-- 수신자 관리 -->
@@ -133,6 +148,9 @@
       </span>
       <span>{% if r.enabled %}<span style="color:#68d391;">●</span>{% else %}<span style="color:var(--text-subtle);">○</span>{% endif %}</span>
       <span style="text-align:right; display:flex; gap:4px; justify-content:flex-end;">
+        {% if r.email %}
+        <button class="icon-btn" onclick="testRecipient({{ r.id }})" title="이메일로 샘플 알림 즉시 발송">테스트</button>
+        {% endif %}
         <button class="icon-btn" onclick='editRecipient({{ {
           "id": r.id, "name": r.name, "email": r.email or "", "slack_webhook": r.slack_webhook or "",
           "receive_critical": r.receive_critical, "receive_high": r.receive_high,
@@ -187,23 +205,18 @@
 </div>
 
 <script>
-// ── Site CRUD ──────────────────────────────────────────────────────
-function editSite(s) {
-  document.getElementById('s-name').value = s.name;
-  document.getElementById('s-desc').value = s.description || '';
-  document.getElementById('s-pattern').value = s.resource_pattern || '';
-  document.getElementById('s-bucket').value = s.obs_bucket || '';
-  document.getElementById('s-arch').value = {{ (site.architecture or '') | tojson }};
-  document.getElementById('s-enabled').checked = !!s.enabled;
-  document.getElementById('site-form').style.display = 'block';
+const SITE_ID = {{ site.id }};
+
+// ── Site inline edit ──────────────────────────────────────────────
+function enterEditMode() {
+  document.body.classList.add('site-editing');
   document.getElementById('s-name').focus();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-function closeSiteForm() {
-  document.getElementById('site-form').style.display = 'none';
+function exitEditMode() {
+  document.body.classList.remove('site-editing');
 }
-async function submitSite() {
-  const id = document.getElementById('s-id').value;
+async function saveSite() {
   const name = document.getElementById('s-name').value.trim();
   if (!name) { alert('사이트 이름은 필수입니다'); return; }
   const payload = {
@@ -214,7 +227,11 @@ async function submitSite() {
     architecture: document.getElementById('s-arch').value,
     enabled: document.getElementById('s-enabled').checked,
   };
-  const resp = await fetch(`/api/sites/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const resp = await fetch(`/api/sites/${SITE_ID}`, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
   if (!resp.ok) { alert('저장 실패: ' + await resp.text()); return; }
   location.reload();
 }
@@ -284,6 +301,29 @@ async function deleteRecipient(id) {
   if (!confirm(`수신자 #${id}를 삭제할까요?`)) return;
   await fetch(`/api/recipients/${id}`, { method:'DELETE' });
   location.reload();
+}
+
+async function testRecipient(id) {
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '발송 중...';
+  try {
+    const resp = await fetch(`/api/recipients/${id}/test`, { method: 'POST' });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      btn.textContent = '✓ 발송';
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
+    } else {
+      alert('발송 실패: ' + (data.error || data.detail || resp.status));
+      btn.textContent = orig;
+      btn.disabled = false;
+    }
+  } catch (e) {
+    alert('오류: ' + e.message);
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
 }
 </script>
 {% endblock %}

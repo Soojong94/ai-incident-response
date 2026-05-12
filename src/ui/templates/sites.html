@@ -124,7 +124,8 @@
     <div class="actions">
       <button class="icon-btn" onclick='event.stopPropagation(); editSite({{ {"id": site.id, "name": site.name, "description": site.description or "", "enabled": site.enabled} | tojson }})'>수정</button>
       <button class="icon-btn danger" onclick="event.stopPropagation(); deleteSite({{ site.id }})">삭제</button>
-      <a href="/sites/{{ site.id }}" class="icon-btn" style="margin-left:auto;" onclick="event.stopPropagation()">수신자 →</a>
+      <a href="/?site_id={{ site.id }}" class="icon-btn" style="margin-left:auto; background:rgba(229, 62, 62, 0.15); color:var(--danger); border-color:var(--danger);" onclick="event.stopPropagation()" title="이 사이트의 장애 목록">🔺 장애</a>
+      <a href="/sites/{{ site.id }}" class="icon-btn" onclick="event.stopPropagation()">수신자 →</a>
     </div>
   </div>
   {% endfor %}

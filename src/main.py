@@ -14,7 +14,7 @@ from src.config import settings
 from src.db.database import init_db, get_db, SessionLocal
 from src.db.crud import (
     create_incident, get_incident, get_incidents, count_incidents,
-    delete_incident, delete_all_incidents,
+    delete_incident, delete_all_incidents, distinct_metric_types,
     list_recipients, get_recipient, create_recipient, update_recipient, delete_recipient,
     list_sites, get_site, create_site, update_site, delete_site, list_recipients_for_site,
     get_user_by_email, get_user, list_users, create_user as crud_create_user,
@@ -458,6 +458,24 @@ def api_delete_all_incidents(db: Session = Depends(get_db), _admin=Depends(requi
     return {"deleted": count}
 
 
+@app.post("/api/incidents-bulk-delete", status_code=200)
+async def api_bulk_delete_incidents(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    """{"ids": [1, 2, 3]} 형식으로 받아 일괄 삭제.
+    /api/incidents/{id} path 매칭과 충돌하지 않도록 별도 경로로 분리."""
+    data = await request.json()
+    ids = data.get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(status_code=400, detail="ids 배열을 보내주세요")
+    deleted = 0
+    for inc_id in ids:
+        try:
+            if delete_incident(db, int(inc_id)):
+                deleted += 1
+        except (TypeError, ValueError):
+            continue
+    return {"deleted": deleted, "requested": len(ids)}
+
+
 # ── Dashboard ────────────────────────────────────────────────────────────────
 
 ALLOWED_PAGE_SIZES = [20, 50, 100]
@@ -470,22 +488,51 @@ def _normalize_pagination(page: int, size: int) -> tuple[int, int]:
     return page, size
 
 
+def _parse_date(s: str, end_of_day: bool = False) -> datetime | None:
+    s = (s or "").strip()
+    if not s:
+        return None
+    try:
+        d = datetime.strptime(s, "%Y-%m-%d")
+        if end_of_day:
+            d = d.replace(hour=23, minute=59, second=59)
+        return d
+    except ValueError:
+        return None
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     page: int = 1,
     size: int = 20,
     q: str = "",
+    site_id: int | None = None,
+    severity: str = "",
+    status: str = "",
+    metric_type: str = "",
+    date_from: str = "",
+    date_to: str = "",
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
     page, size = _normalize_pagination(page, size)
     search = q.strip() or None
-    total = count_incidents(db, search=search)
+    sev = severity.strip() or None
+    st = status.strip() or None
+    mt = metric_type.strip() or None
+    df = _parse_date(date_from)
+    dt = _parse_date(date_to, end_of_day=True)
+    total = count_incidents(db, search=search, site_id=site_id, severity=sev, status=st,
+                            metric_type=mt, date_from=df, date_to=dt)
     total_pages = max(1, (total + size - 1) // size)
     if page > total_pages:
         page = total_pages
-    incidents = get_incidents(db, skip=(page - 1) * size, limit=size, search=search)
+    incidents = get_incidents(db, skip=(page - 1) * size, limit=size, search=search,
+                              site_id=site_id, severity=sev, status=st,
+                              metric_type=mt, date_from=df, date_to=dt)
+    sites = list_sites(db)
+    metric_types = distinct_metric_types(db)
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -497,6 +544,14 @@ def dashboard(
             "total_pages": total_pages,
             "allowed_sizes": ALLOWED_PAGE_SIZES,
             "search_query": q,
+            "site_id": site_id,
+            "sites": sites,
+            "severity_filter": severity,
+            "status_filter": status,
+            "metric_type_filter": metric_type,
+            "metric_types": metric_types,
+            "date_from_filter": date_from,
+            "date_to_filter": date_to,
             "current_user": user,
         },
     )
@@ -622,6 +677,33 @@ def api_delete_recipient(recipient_id: int, db: Session = Depends(get_db), _admi
     return {"deleted": recipient_id}
 
 
+@app.post("/api/recipients/{recipient_id}/test")
+def api_test_recipient(recipient_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    """수신자 이메일로 즉시 샘플 알림을 보낸다 — SMTP 설정/주소 검증용."""
+    from src.notifier.email_notifier import send_analysis_complete
+
+    r = get_recipient(db, recipient_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    if not r.email:
+        raise HTTPException(status_code=400, detail="이 수신자는 이메일이 등록돼 있지 않습니다")
+    sample = {
+        "cause_category": "테스트",
+        "cause_detail": "이 메시지는 수신자 설정이 정상인지 확인하기 위한 샘플 알림입니다. 실제 장애가 발생한 것은 아닙니다.",
+        "severity": "Medium",
+        "impact_scope": "테스트 — 실제 영향 없음",
+        "immediate_actions": [
+            "이 메일이 정상 수신됐는지 확인",
+            "수신함/스팸 분류 점검",
+            "필요 시 수신자 정보 수정",
+        ],
+        "prevention": "수신자 등록 후에는 가끔 테스트로 발송 확인을 권장합니다.",
+        "confidence": "높음",
+    }
+    ok, err = send_analysis_complete(0, "[테스트] 수신자 설정 확인", sample, recipient_email=r.email)
+    return {"ok": ok, "email": r.email, "error": err}
+
+
 # ── API (JSON) ────────────────────────────────────────────────────────────────
 
 @app.get("/api/incidents")
@@ -629,15 +711,29 @@ def api_incidents(
     page: int = 1,
     size: int = 20,
     q: str = "",
+    site_id: int | None = None,
+    severity: str = "",
+    status: str = "",
+    metric_type: str = "",
+    date_from: str = "",
+    date_to: str = "",
     db: Session = Depends(get_db),
 ) -> dict:
     page, size = _normalize_pagination(page, size)
     search = q.strip() or None
-    total = count_incidents(db, search=search)
+    sev = severity.strip() or None
+    st = status.strip() or None
+    mt = metric_type.strip() or None
+    df = _parse_date(date_from)
+    dt = _parse_date(date_to, end_of_day=True)
+    total = count_incidents(db, search=search, site_id=site_id, severity=sev, status=st,
+                            metric_type=mt, date_from=df, date_to=dt)
     total_pages = max(1, (total + size - 1) // size)
     if page > total_pages:
         page = total_pages
-    incidents = get_incidents(db, skip=(page - 1) * size, limit=size, search=search)
+    incidents = get_incidents(db, skip=(page - 1) * size, limit=size, search=search,
+                              site_id=site_id, severity=sev, status=st,
+                              metric_type=mt, date_from=df, date_to=dt)
     items = [
         {
             "id": inc.id,

@@ -99,8 +99,29 @@ def get_incident(db: Session, incident_id: int) -> Incident | None:
     return db.query(Incident).filter(Incident.id == incident_id).first()
 
 
-def _incidents_query(db: Session, search: str | None = None):
+def _incidents_query(
+    db: Session,
+    search: str | None = None,
+    site_id: int | None = None,
+    severity: str | None = None,
+    status: str | None = None,
+    metric_type: str | None = None,
+    date_from=None,
+    date_to=None,
+):
     q = db.query(Incident)
+    if site_id is not None:
+        q = q.filter(Incident.site_id == site_id)
+    if severity:
+        q = q.filter(Incident.severity == severity)
+    if status:
+        q = q.filter(Incident.status == status)
+    if metric_type:
+        q = q.filter(Incident.metric_type == metric_type)
+    if date_from is not None:
+        q = q.filter(Incident.alarm_time >= date_from)
+    if date_to is not None:
+        q = q.filter(Incident.alarm_time <= date_to)
     if search:
         like = f"%{search}%"
         from sqlalchemy import or_
@@ -113,9 +134,20 @@ def _incidents_query(db: Session, search: str | None = None):
     return q
 
 
-def get_incidents(db: Session, skip: int = 0, limit: int = 100, search: str | None = None) -> list[Incident]:
+def get_incidents(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    search: str | None = None,
+    site_id: int | None = None,
+    severity: str | None = None,
+    status: str | None = None,
+    metric_type: str | None = None,
+    date_from=None,
+    date_to=None,
+) -> list[Incident]:
     return (
-        _incidents_query(db, search)
+        _incidents_query(db, search, site_id, severity, status, metric_type, date_from, date_to)
         .order_by(Incident.created_at.desc())
         .offset(skip)
         .limit(limit)
@@ -123,8 +155,23 @@ def get_incidents(db: Session, skip: int = 0, limit: int = 100, search: str | No
     )
 
 
-def count_incidents(db: Session, search: str | None = None) -> int:
-    return _incidents_query(db, search).count()
+def count_incidents(
+    db: Session,
+    search: str | None = None,
+    site_id: int | None = None,
+    severity: str | None = None,
+    status: str | None = None,
+    metric_type: str | None = None,
+    date_from=None,
+    date_to=None,
+) -> int:
+    return _incidents_query(db, search, site_id, severity, status, metric_type, date_from, date_to).count()
+
+
+def distinct_metric_types(db: Session) -> list[str]:
+    """현재 DB의 incident들에 등장하는 metric_type 목록 (필터 dropdown용)."""
+    rows = db.query(Incident.metric_type).filter(Incident.metric_type.isnot(None)).distinct().all()
+    return sorted({r[0] for r in rows if r[0]})
 
 
 def add_logs(db: Session, incident_id: int, logs: list[str], source: str = "mock") -> None:

@@ -1,14 +1,65 @@
 {% extends "base.html" %}
 {% block title %}장애 목록 — AI 장애 대응{% endblock %}
 {% block content %}
-<div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
-  <h2 style="font-size:20px;">장애 목록 <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">총 {{ total }}건{% if search_query %} (검색: "{{ search_query }}"){% endif %}</span></h2>
 
-  <form method="get" action="/" style="display:flex; gap:6px; margin-left:24px;" id="search-form">
-    <input type="search" name="q" value="{{ search_query }}" placeholder="알람명 / 리소스 / 메트릭 / 심각도 검색..." style="width:300px;">
+{# 현재 활성 필터 querystring 빌더 — 페이지 링크에서 사용 #}
+{% macro keep_params(extra='') -%}
+size={{ size }}
+{%- if search_query %}&q={{ search_query }}{% endif %}
+{%- if site_id %}&site_id={{ site_id }}{% endif %}
+{%- if severity_filter %}&severity={{ severity_filter }}{% endif %}
+{%- if status_filter %}&status={{ status_filter }}{% endif %}
+{%- if metric_type_filter %}&metric_type={{ metric_type_filter }}{% endif %}
+{%- if date_from_filter %}&date_from={{ date_from_filter }}{% endif %}
+{%- if date_to_filter %}&date_to={{ date_to_filter }}{% endif %}
+{%- if extra %}&{{ extra }}{% endif %}
+{%- endmacro %}
+
+{% set has_filter = search_query or site_id or severity_filter or status_filter or metric_type_filter or date_from_filter or date_to_filter %}
+{% set active_site = (sites | selectattr('id', 'equalto', site_id) | first) if site_id else None %}
+
+<style>
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 3px 10px;
+    background: var(--card-bg); border: 1px solid var(--accent);
+    color: var(--accent); border-radius: 12px;
+  }
+  .filter-chip a { color: var(--text-subtle); text-decoration: none; line-height: 1; font-size: 14px; }
+  .filter-chip a:hover { color: var(--danger); }
+  .adv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .adv-grid label { font-size: 11px; color: var(--text-subtle); display: block; margin-bottom: 3px; }
+  .adv-grid select, .adv-grid input { width: 100%; padding: 6px 10px; }
+  .date-range { display: flex; gap: 6px; align-items: center; }
+  .date-range input { flex: 1; }
+</style>
+
+<!-- 헤더 -->
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
+  <h2 style="font-size:20px;">
+    장애 목록
+    <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">총 {{ total }}건</span>
+  </h2>
+
+  <!-- 간단 검색 바 -->
+  <form method="get" action="/" style="display:flex; gap:6px; margin-left:24px; align-items:center;" id="search-form">
+    <input type="search" name="q" value="{{ search_query }}" placeholder="알람명 / 리소스 검색..." style="width:280px;">
     <input type="hidden" name="size" value="{{ size }}">
+    {# 다른 필터는 hidden으로 유지 — 키워드 검색 후에도 필터 보존 #}
+    {% if site_id %}<input type="hidden" name="site_id" value="{{ site_id }}">{% endif %}
+    {% if severity_filter %}<input type="hidden" name="severity" value="{{ severity_filter }}">{% endif %}
+    {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+    {% if metric_type_filter %}<input type="hidden" name="metric_type" value="{{ metric_type_filter }}">{% endif %}
+    {% if date_from_filter %}<input type="hidden" name="date_from" value="{{ date_from_filter }}">{% endif %}
+    {% if date_to_filter %}<input type="hidden" name="date_to" value="{{ date_to_filter }}">{% endif %}
     <button type="submit" class="nav-btn nav-btn-primary">검색</button>
-    {% if search_query %}
+    <button type="button" class="nav-btn nav-btn-outline" onclick="toggleAdvanced()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+      </svg>
+      상세 검색
+    </button>
+    {% if has_filter %}
     <a href="/?size={{ size }}" class="icon-btn" style="display:inline-flex; align-items:center;">초기화</a>
     {% endif %}
   </form>
@@ -26,10 +77,110 @@
   <button class="refresh-btn" style="background:var(--danger); margin-left:8px;" onclick="deleteAll()">전체 삭제</button>
 </div>
 
+<!-- 활성 필터 칩 -->
+{% if has_filter %}
+<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; align-items:center;">
+  <span style="font-size:12px; color:var(--text-subtle);">활성 필터:</span>
+  {% if search_query %}
+  <span class="filter-chip">검색: "{{ search_query }}" <a href="#" onclick="removeFilter('q'); return false;">×</a></span>
+  {% endif %}
+  {% if active_site %}
+  <span class="filter-chip">🏷 사이트: {{ active_site.name }} <a href="#" onclick="removeFilter('site_id'); return false;">×</a></span>
+  {% endif %}
+  {% if severity_filter %}
+  <span class="filter-chip">심각도: {{ severity_filter }} <a href="#" onclick="removeFilter('severity'); return false;">×</a></span>
+  {% endif %}
+  {% if status_filter %}
+  <span class="filter-chip">상태: {{ status_filter }} <a href="#" onclick="removeFilter('status'); return false;">×</a></span>
+  {% endif %}
+  {% if metric_type_filter %}
+  <span class="filter-chip">메트릭: {{ metric_type_filter }} <a href="#" onclick="removeFilter('metric_type'); return false;">×</a></span>
+  {% endif %}
+  {% if date_from_filter %}
+  <span class="filter-chip">시작일: {{ date_from_filter }} <a href="#" onclick="removeFilter('date_from'); return false;">×</a></span>
+  {% endif %}
+  {% if date_to_filter %}
+  <span class="filter-chip">종료일: {{ date_to_filter }} <a href="#" onclick="removeFilter('date_to'); return false;">×</a></span>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- 상세 검색 패널 (접힘/펼침) -->
+<div id="advanced-panel" class="card" style="display:none; margin-bottom:14px;">
+  <form method="get" action="/" style="display:contents;">
+    <h2 style="margin-bottom:12px;">상세 검색</h2>
+    <div class="adv-grid">
+      <div>
+        <label>사이트</label>
+        <select name="site_id">
+          <option value="">전체</option>
+          {% for s in sites %}
+          <option value="{{ s.id }}" {% if site_id == s.id %}selected{% endif %}>{{ s.name }}{% if s.auto_created %} (auto){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>심각도</label>
+        <select name="severity">
+          <option value="">전체</option>
+          <option value="Critical" {% if severity_filter == 'Critical' %}selected{% endif %}>Critical</option>
+          <option value="High" {% if severity_filter == 'High' %}selected{% endif %}>High</option>
+          <option value="Medium" {% if severity_filter == 'Medium' %}selected{% endif %}>Medium</option>
+          <option value="Low" {% if severity_filter == 'Low' %}selected{% endif %}>Low</option>
+        </select>
+      </div>
+      <div>
+        <label>상태</label>
+        <select name="status">
+          <option value="">전체</option>
+          <option value="processing" {% if status_filter == 'processing' %}selected{% endif %}>processing</option>
+          <option value="analyzed" {% if status_filter == 'analyzed' %}selected{% endif %}>analyzed</option>
+          <option value="ai_failed" {% if status_filter == 'ai_failed' %}selected{% endif %}>ai_failed</option>
+        </select>
+      </div>
+      <div>
+        <label>메트릭 종류</label>
+        <select name="metric_type">
+          <option value="">전체</option>
+          {% for m in metric_types %}
+          <option value="{{ m }}" {% if metric_type_filter == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="grid-column:span 2;">
+        <label>발생일 범위</label>
+        <div class="date-range">
+          <input type="date" name="date_from" value="{{ date_from_filter }}">
+          <span style="color:var(--text-subtle);">~</span>
+          <input type="date" name="date_to" value="{{ date_to_filter }}">
+        </div>
+      </div>
+      <div style="grid-column:span 2;">
+        <label>키워드 검색</label>
+        <input type="search" name="q" value="{{ search_query }}" placeholder="알람명 / 리소스 / 메트릭">
+      </div>
+    </div>
+    <input type="hidden" name="size" value="{{ size }}">
+    <div style="margin-top:14px; display:flex; gap:6px;">
+      <button type="submit" class="refresh-btn" style="margin-left:0;">적용</button>
+      <a href="/?size={{ size }}" class="icon-btn">초기화</a>
+      <button type="button" class="icon-btn" style="margin-left:auto;" onclick="toggleAdvanced()">닫기</button>
+    </div>
+  </form>
+</div>
+
+<!-- 선택 액션 바 -->
+<div id="bulk-bar" style="display:none; align-items:center; gap:12px; padding:10px 14px; margin-bottom:12px; background:var(--card-bg); border:1px solid var(--accent); border-radius:6px;">
+  <span style="font-size:13px; color:var(--text);"><strong id="bulk-count">0</strong>개 선택됨</span>
+  <button class="nav-btn nav-btn-danger" style="margin-left:auto; padding:5px 14px; font-size:12px;" onclick="bulkDelete()">선택 삭제</button>
+  <button class="icon-btn" onclick="clearSelection()">선택 해제</button>
+</div>
+
 {% if incidents %}
 <table>
   <thead>
     <tr>
+      <th style="width:32px;"><input type="checkbox" id="select-all" onchange="toggleAll(this.checked)"></th>
       <th>#</th>
       <th>알람명</th>
       <th>리소스</th>
@@ -43,6 +194,7 @@
   <tbody>
     {% for inc in incidents %}
     <tr>
+      <td><input type="checkbox" class="row-check" value="{{ inc.id }}" onchange="updateSelection()"></td>
       <td><a href="/incidents/{{ inc.id }}">{{ inc.id }}</a></td>
       <td><a href="/incidents/{{ inc.id }}">{{ inc.alarm_name or '-' }}</a></td>
       <td>{{ inc.resource_name or '-' }}</td>
@@ -51,9 +203,7 @@
         {{ inc.alarm_time.strftime('%Y-%m-%d %H:%M:%S') if inc.alarm_time else '-' }}
       </td>
       <td>
-        {% if inc.severity %}
-          <span class="sev-{{ inc.severity }}">{{ inc.severity }}</span>
-        {% else %}-{% endif %}
+        {% if inc.severity %}<span class="sev-{{ inc.severity }}">{{ inc.severity }}</span>{% else %}-{% endif %}
       </td>
       <td><span class="badge badge-{{ inc.status }}">{{ inc.status }}</span></td>
       <td><button onclick="deleteIncident({{ inc.id }})" style="background:#e53e3e; color:#fff; border:none; padding:3px 10px; border-radius:4px; cursor:pointer; font-size:12px;">삭제</button></td>
@@ -64,42 +214,37 @@
 
 {% if total_pages > 1 %}
 <nav style="display:flex; justify-content:center; align-items:center; gap:4px; margin-top:20px; flex-wrap:wrap;">
-  <a href="?page={{ page - 1 }}&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}"
-     style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px; {% if page <= 1 %}opacity:0.3; pointer-events:none;{% endif %}">
+  <a href="?page={{ page - 1 }}&{{ keep_params() | trim }}"
+     style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; {% if page <= 1 %}opacity:0.3; pointer-events:none;{% endif %}">
     이전
   </a>
-
   {% set window = 2 %}
   {% set start = [1, page - window] | max %}
   {% set end = [total_pages, page + window] | min %}
-
   {% if start > 1 %}
-    <a href="?page=1&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}" style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px;">1</a>
-    {% if start > 2 %}<span style="padding:6px 4px; color:#718096;">…</span>{% endif %}
+    <a href="?page=1&{{ keep_params() | trim }}" style="padding:6px 12px; border:1px solid var(--border); border-radius:4px;">1</a>
+    {% if start > 2 %}<span style="padding:6px 4px; color:var(--text-subtle);">…</span>{% endif %}
   {% endif %}
-
   {% for p in range(start, end + 1) %}
-    <a href="?page={{ p }}&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}"
-       style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px; {% if p == page %}background:#2b6cb0; color:#fff;{% endif %}">
+    <a href="?page={{ p }}&{{ keep_params() | trim }}"
+       style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; {% if p == page %}background:var(--primary); color:#fff;{% endif %}">
       {{ p }}
     </a>
   {% endfor %}
-
   {% if end < total_pages %}
-    {% if end < total_pages - 1 %}<span style="padding:6px 4px; color:#718096;">…</span>{% endif %}
-    <a href="?page={{ total_pages }}&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}" style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px;">{{ total_pages }}</a>
+    {% if end < total_pages - 1 %}<span style="padding:6px 4px; color:var(--text-subtle);">…</span>{% endif %}
+    <a href="?page={{ total_pages }}&{{ keep_params() | trim }}" style="padding:6px 12px; border:1px solid var(--border); border-radius:4px;">{{ total_pages }}</a>
   {% endif %}
-
-  <a href="?page={{ page + 1 }}&size={{ size }}{% if search_query %}&q={{ search_query }}{% endif %}"
-     style="padding:6px 12px; border:1px solid #2d3748; border-radius:4px; {% if page >= total_pages %}opacity:0.3; pointer-events:none;{% endif %}">
+  <a href="?page={{ page + 1 }}&{{ keep_params() | trim }}"
+     style="padding:6px 12px; border:1px solid var(--border); border-radius:4px; {% if page >= total_pages %}opacity:0.3; pointer-events:none;{% endif %}">
     다음
   </a>
 </nav>
 {% endif %}
 {% else %}
 <div class="empty">
-  <p style="font-size:18px; margin-bottom:8px;">장애 이력이 없습니다</p>
-  <p>Cloud Insight Webhook을 수신하거나 <code>/test/trigger</code>로 테스트 알람을 생성하세요.</p>
+  <p style="font-size:18px; margin-bottom:8px;">조건에 맞는 장애가 없습니다</p>
+  {% if has_filter %}<p><a href="/?size={{ size }}">필터를 모두 해제</a>해 보세요.</p>{% endif %}
 </div>
 {% endif %}
 
@@ -107,12 +252,62 @@
   const hasProcessing = document.querySelectorAll('.badge-processing').length > 0;
   if (hasProcessing) setTimeout(() => location.reload(), 10000);
 
+  function toggleAdvanced() {
+    const p = document.getElementById('advanced-panel');
+    p.style.display = (p.style.display === 'none' || !p.style.display) ? 'block' : 'none';
+    if (p.style.display === 'block') p.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   function changeSize(newSize) {
     const params = new URLSearchParams(window.location.search);
     params.set('size', newSize);
     params.set('page', '1');
-    // q는 그대로 유지됨 (URLSearchParams가 보존)
     window.location.search = params.toString();
+  }
+
+  function removeFilter(key) {
+    const params = new URLSearchParams(window.location.search);
+    params.delete(key);
+    params.delete('page');
+    window.location.search = params.toString();
+  }
+
+  // ── 일괄 선택/삭제 ───────────────────────────────────────────────
+  function selectedIds() {
+    return Array.from(document.querySelectorAll('.row-check:checked')).map(cb => parseInt(cb.value, 10));
+  }
+  function updateSelection() {
+    const ids = selectedIds();
+    const bar = document.getElementById('bulk-bar');
+    document.getElementById('bulk-count').textContent = ids.length;
+    bar.style.display = ids.length > 0 ? 'flex' : 'none';
+    const all = document.querySelectorAll('.row-check');
+    const sel = document.getElementById('select-all');
+    if (sel) sel.checked = (ids.length > 0 && ids.length === all.length);
+  }
+  function toggleAll(checked) {
+    document.querySelectorAll('.row-check').forEach(cb => { cb.checked = checked; });
+    updateSelection();
+  }
+  function clearSelection() {
+    document.querySelectorAll('.row-check, #select-all').forEach(cb => { cb.checked = false; });
+    updateSelection();
+  }
+  async function bulkDelete() {
+    const ids = selectedIds();
+    if (ids.length === 0) return;
+    if (!confirm(`선택한 ${ids.length}개 incident를 삭제할까요?`)) return;
+    const resp = await fetch('/api/incidents-bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (!resp.ok) { alert('삭제 실패: ' + await resp.text()); return; }
+    const data = await resp.json();
+    if (data.deleted < data.requested) {
+      alert(`${data.deleted}/${data.requested}건만 삭제됨`);
+    }
+    location.reload();
   }
 
   async function deleteIncident(id) {
