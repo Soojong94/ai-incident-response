@@ -52,30 +52,45 @@ def _parse_alarm_time(alarm_time: str | None) -> datetime | None:
         return None
 
 
+_TRUNC_SUFFIX = "...(truncated)"
+
+
+def _truncate_line(line: str, max_line_chars: int) -> str:
+    """한 줄이 너무 길면 잘라서 일부라도 보여줌. 잘렸음을 표시."""
+    if len(line) <= max_line_chars:
+        return line
+    return line[: max(0, max_line_chars - len(_TRUNC_SUFFIX))] + _TRUNC_SUFFIX
+
+
 def preprocess_logs(
     records: list[str],
     alarm_time: str | None = None,
-    max_chars: int = 8000,
+    max_chars: int = 16000,
+    max_line_chars: int = 4000,
     window_minutes: int = 5,
     sample_every: int = 5,
 ) -> list[str]:
-    """입력이 max_chars 이하면 그대로 반환. 초과 시 우선순위 보존 트리밍."""
+    """입력이 max_chars 이하면 한 줄 cap만 적용해서 반환. 초과 시 우선순위 보존 트리밍.
+    어떤 경우든 한 줄이 max_line_chars 보다 크면 잘라서 일부라도 포함."""
     if not records:
         return []
 
-    total = sum(len(l) + 1 for l in records)  # +1 for newline
+    # 한 줄 cap은 모든 경로에서 적용 — small case 라도 한 줄이 거대하면 위험
+    capped = [_truncate_line(l, max_line_chars) for l in records]
+
+    total = sum(len(l) + 1 for l in capped)  # +1 for newline
     if total <= max_chars:
-        return records
+        return capped
 
     logger.info(
         "preprocess_logs: 트리밍 적용 (입력 %d줄/%dB → 목표 ≤%dB)",
-        len(records), total, max_chars,
+        len(capped), total, max_chars,
     )
 
     # 우선순위 1: ERROR 키워드
     error_lines: list[str] = []
     error_set: set[int] = set()
-    for i, line in enumerate(records):
+    for i, line in enumerate(capped):
         upper = line.upper()
         if any(kw in upper for kw in ERROR_KEYWORDS):
             error_lines.append(line)
@@ -88,7 +103,7 @@ def preprocess_logs(
     if atime:
         lo = atime - timedelta(minutes=window_minutes)
         hi = atime + timedelta(minutes=window_minutes)
-        for i, line in enumerate(records):
+        for i, line in enumerate(capped):
             if i in error_set:
                 continue
             lt = _parse_ts(line)
@@ -98,7 +113,7 @@ def preprocess_logs(
 
     # 우선순위 3: 1/N 샘플링 (이미 채택된 줄 제외)
     sampled: list[str] = []
-    for i, line in enumerate(records):
+    for i, line in enumerate(capped):
         if i % sample_every == 0 and i not in error_set and i not in near_set:
             sampled.append(line)
 
@@ -112,8 +127,8 @@ def preprocess_logs(
         out.append(line)
         used += cost
 
-    # 시간순으로 재정렬 (AI 가 시계열로 읽을 수 있게) — 원본 records 순서 유지
-    order_map = {l: i for i, l in enumerate(records)}
+    # 시간순으로 재정렬 — capped 의 원본 인덱스 기준
+    order_map = {l: i for i, l in enumerate(capped)}
     out.sort(key=lambda l: order_map.get(l, 1_000_000))
 
     logger.info(

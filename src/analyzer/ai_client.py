@@ -61,7 +61,8 @@ class TimelyAIClient:
         trimmed_logs = preprocess_logs(
             logs,
             alarm_time=alarm_data.get("alarmTime") or alarm_data.get("alarm_time"),
-            max_chars=8000,
+            max_chars=16000,
+            max_line_chars=4000,
         )
         prompt = build_user_prompt(
             alarm_data, trimmed_logs,
