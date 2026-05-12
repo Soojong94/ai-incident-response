@@ -27,7 +27,7 @@ class Incident(Base):
 
     logs = relationship("IncidentLog", back_populates="incident", cascade="all, delete-orphan")
     analysis_result = relationship("AnalysisResult", back_populates="incident", uselist=False, cascade="all, delete-orphan")
-    notifications = relationship("NotificationLog", cascade="all, delete-orphan", order_by="NotificationLog.sent_at")
+    notifications = relationship("NotificationLog", back_populates="incident", cascade="all, delete-orphan", order_by="NotificationLog.sent_at")
     site = relationship("Site", foreign_keys=[site_id])
 
 
@@ -110,6 +110,8 @@ class NotificationLog(Base):
     status = Column(String(20))             # sent | failed
     error_message = Column(Text, nullable=True)
     sent_at = Column(DateTime, default=datetime.now)
+
+    incident = relationship("Incident", back_populates="notifications")
 
 
 class User(Base):

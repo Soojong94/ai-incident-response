@@ -127,6 +127,7 @@ size={{ size }}
         <th style="width:80px;">채널</th>
         <th style="width:80px;">상태</th>
         <th>수신자</th>
+        <th>리소스</th>
         <th style="width:160px;">시각</th>
         <th>비고</th>
       </tr>
@@ -138,6 +139,9 @@ size={{ size }}
         <td><span class="ch-badge ch-{{ n.channel }}">{{ n.channel }}</span></td>
         <td><span class="st-{{ n.status }}">● {{ n.status }}</span></td>
         <td style="font-size:13px;">{{ n.recipient_label or '-' }}</td>
+        <td style="font-size:12px; color:var(--text-muted); font-family:monospace;">
+          {{ n.incident.resource_name if n.incident else '-' }}
+        </td>
         <td style="font-size:12px; color:var(--text-subtle); white-space:nowrap;">
           {{ n.sent_at.strftime('%Y-%m-%d %H:%M:%S') if n.sent_at else '-' }}
         </td>
