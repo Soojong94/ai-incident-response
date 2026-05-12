@@ -3,7 +3,7 @@
 <style>
   .guide-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; }
   .guide-card h2 { font-size: 16px; color: var(--text-muted); margin-bottom: 12px; }
-  .guide-card h3 { font-size: 14px; color: var(--text-subtle); margin-bottom: 8px; }
+  .guide-card h3 { font-size: 13px; color: var(--text-subtle); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.05em; }
 
   .code-block {
     position: relative;
@@ -15,7 +15,7 @@
   .code-block pre {
     margin: 0;
     padding: 14px 16px;
-    max-height: 480px;
+    max-height: 420px;
     overflow: auto;
     font-size: 12px;
     line-height: 1.45;
@@ -32,18 +32,31 @@
   .copy-btn:hover { opacity: 1; }
   .copy-btn.copied { background: #276749; }
 
-  .step { display: flex; gap: 12px; padding: 10px 0; }
-  .step-num {
-    flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
-    background: var(--accent); color: #1a202c; font-weight: 700; font-size: 12px;
-    display: inline-flex; align-items: center; justify-content: center;
-  }
-  .step-body { flex: 1; font-size: 13px; line-height: 1.55; }
-  .step-body code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
-
-  .ident-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; padding: 12px 14px; background: var(--card-bg-alt); border-radius: 6px; margin-bottom: 12px; }
-  .ident-row span strong { font-family: monospace; color: var(--text); }
+  .ident-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; padding: 12px 14px; background: var(--card-bg-alt); border-radius: 6px; }
   .ident-row span { color: var(--text-subtle); }
+  .ident-row strong { font-family: monospace; color: var(--text); }
+
+  .breadcrumb {
+    font-size: 12px; color: var(--text-subtle);
+    background: var(--card-bg-alt); padding: 6px 10px; border-radius: 4px;
+    display: inline-block; margin-bottom: 8px; font-family: monospace;
+  }
+  .breadcrumb code { background: transparent; padding: 0; color: var(--accent); }
+
+  .field-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  .field-table th, .field-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); text-align: left; vertical-align: top; }
+  .field-table th { width: 130px; color: var(--text-subtle); font-weight: normal; font-size: 12px; }
+  .field-table td { color: var(--text); }
+  .field-table .copyable {
+    font-family: monospace; background: var(--code-bg);
+    padding: 2px 7px; border-radius: 3px; cursor: pointer;
+    display: inline-block; transition: background 0.15s;
+  }
+  .field-table .copyable:hover { background: var(--accent); color: #1a202c; }
+  .field-table .copyable.copied { background: #276749; color: #c6f6d5; }
+
+  .pill-action  { background: #2b6cb0; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; }
+  .pill-trigger { background: #5f370e; color: #fbd38d; padding: 2px 8px; border-radius: 3px; font-size: 11px; }
 </style>
 
 <div style="margin-bottom:14px;">
@@ -55,78 +68,106 @@
   <a href="/sites/{{ site.id }}" style="font-size:13px;">[{{ site.name }} 설정]</a>
 </div>
 
-<!-- 식별자 요약 -->
+<!-- 사이트 식별자 -->
 <div class="guide-card">
-  <h2>사이트 식별자</h2>
+  <h2>사이트 식별자 <span style="font-size:12px; color:var(--text-subtle); font-weight:normal;">— 아래 코드/필드에 이미 치환되어 있음</span></h2>
   <div class="ident-row">
     <span>📌 resource: <strong>{{ site.resource_pattern or '—' }}</strong></span>
     <span>🪣 OBS 버킷: <strong>{{ site.obs_bucket or '—' }}</strong></span>
-    <span>🎯 WMS scenario: <strong>{{ site.wms_scenario_id or '— (사이트 설정에서 입력)' }}</strong></span>
-    <span>📡 Webhook URL: <strong>{{ webhook_url }}</strong></span>
-  </div>
-  <p style="font-size:12px; color:var(--text-subtle); margin:0;">위 값들은 아래 코드에 이미 치환되어 있습니다. 사이트 설정이 비어 있으면 placeholder 값이 들어가니 <a href="/sites/{{ site.id }}">사이트 설정</a> 먼저 채워주세요.</p>
-</div>
-
-<!-- 등록 절차 -->
-<div class="guide-card">
-  <h2>NCP CF 콘솔 등록 절차</h2>
-  <div class="step">
-    <div class="step-num">1</div>
-    <div class="step-body">
-      NCP 콘솔 → Cloud Functions → <strong>액션 생성</strong> 두 번 (각 액션마다 런타임 <code>python:3.13</code>, 진입점 <code>main</code>).
-    </div>
-  </div>
-  <div class="step">
-    <div class="step-num">2</div>
-    <div class="step-body">
-      <strong>cf_wms_poll</strong> 액션 코드에 아래 첫 번째 코드 박스 내용 통째 붙여넣기 → <strong>Cron 트리거</strong> <code>*/5 * * * *</code> 연결 →
-      <strong>디폴트 파라미터</strong>에 NCP IAM 키 JSON 입력:
-      <div style="margin-top:6px;">
-        <pre style="font-size:11px; padding:8px 10px; margin:0;">{
-  "access_key": "&lt;NCP IAM Access Key&gt;",
-  "secret_key": "&lt;NCP IAM Secret Key&gt;"
-}</pre>
-      </div>
-    </div>
-  </div>
-  <div class="step">
-    <div class="step-num">3</div>
-    <div class="step-body">
-      <strong>cf_obs_to_webhook</strong> 액션 코드에 아래 두 번째 코드 박스 붙여넣기 → <strong>Object Storage Event 트리거</strong> 연결
-      (버킷 <code>{{ site.obs_bucket or '<your-bucket>' }}</code>, Object Created). 디폴트 파라미터는 비움 — OBS 이벤트가 자동 전달.
-    </div>
-  </div>
-  <div class="step">
-    <div class="step-num">4</div>
-    <div class="step-body">
-      검증: 1~5분 뒤 OBS 버킷에 <code>CLA-*</code> 폴더가 생기면 → AI 서버 대시보드에 incident 자동 등록 → AI 분석 → 메일 발송.
-    </div>
+    <span>🎯 WMS scenario: <strong>{{ site.wms_scenario_id or '—' }}</strong></span>
+    <span>📡 Webhook: <strong>{{ webhook_url }}</strong></span>
+    <span>🏷️ slug: <strong>{{ safe_slug }}</strong></span>
   </div>
 </div>
 
-<!-- cf_wms_poll 코드 -->
+<!-- ───── ① cf_wms_poll ───── -->
 <div class="guide-card">
-  <h2>① cf_wms_poll/main.py
-    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">Cron 5분마다 WMS 시나리오 폴링 → 에러 누적 시 CLA → OBS export</span>
+  <h2><span class="pill-action">액션 ①</span> cf_wms_poll
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:6px;">Cron 5분마다 WMS 폴링 → 에러 누적 시 CLA → OBS export</span>
   </h2>
+
+  <h3>1. NCP CF 콘솔 — 액션 생성</h3>
+  <div class="breadcrumb">콘솔 → Cloud Functions → <code>액션</code> → <code>+ 액션 생성</code></div>
+  <table class="field-table">
+    <tr><th>이름</th><td><span class="copyable" data-copy="cf_wms_poll_{{ safe_slug }}">cf_wms_poll_{{ safe_slug }}</span> <span style="color:var(--text-subtle); font-size:11px;">(클릭 = 복사)</span></td></tr>
+    <tr><th>런타임</th><td><span class="copyable" data-copy="python:3.13">python:3.13</span></td></tr>
+    <tr><th>진입점</th><td><span class="copyable" data-copy="main">main</span></td></tr>
+    <tr><th>코드</th><td>아래 코드 박스에서 「복사」 → 콘솔 코드 영역에 붙여넣기</td></tr>
+  </table>
+
+  <h3>2. 코드</h3>
   <div class="code-block">
     <button class="copy-btn" data-target="code-wms">복사</button>
     <pre id="code-wms">{{ wms_code }}</pre>
   </div>
+
+  <h3>3. <span class="pill-trigger">트리거</span> — Cron</h3>
+  <div class="breadcrumb">콘솔 → Cloud Functions → <code>트리거</code> → <code>+ 트리거 생성</code> → Cron</div>
+  <table class="field-table">
+    <tr><th>이름</th><td><span class="copyable" data-copy="wms-polling-{{ safe_slug }}">wms-polling-{{ safe_slug }}</span></td></tr>
+    <tr><th>타임존</th><td>UTC +09:00</td></tr>
+    <tr><th>표현식</th><td><span class="copyable" data-copy="*/5 * * * *">*/5 * * * *</span> <span style="color:var(--text-subtle); font-size:11px;">(5분마다)</span></td></tr>
+    <tr><th>연결 액션</th><td><code>cf_wms_poll_{{ safe_slug }}</code></td></tr>
+  </table>
+
+  <h3>4. 디폴트 파라미터</h3>
+  <p style="font-size:12px; color:var(--text-subtle); margin:4px 0 6px;">트리거 생성 화면의 「디폴트 파라미터」 필드에 아래 JSON 붙여넣기 — 실제 키 두 줄만 채우면 됨.</p>
+  <div class="code-block">
+    <button class="copy-btn" data-target="param-wms">복사</button>
+    <pre id="param-wms">{
+  "access_key": "&lt;NCP IAM Access Key&gt;",
+  "secret_key": "&lt;NCP IAM Secret Key&gt;"
+}</pre>
+  </div>
+  <p style="font-size:11px; color:var(--text-subtle); margin-top:6px;">⚠️ 키는 본 플랫폼 DB가 아닌 NCP CF 콘솔에만 저장됩니다.</p>
 </div>
 
-<!-- cf_obs_to_webhook 코드 -->
+<!-- ───── ② cf_obs_to_webhook ───── -->
 <div class="guide-card">
-  <h2>② cf_obs_to_webhook/main.py
-    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">OBS 업로드 감지 → AI 서버 webhook 호출</span>
+  <h2><span class="pill-action">액션 ②</span> cf_obs_to_webhook
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:6px;">OBS 업로드 감지 → AI 서버 webhook 호출</span>
   </h2>
+
+  <h3>1. NCP CF 콘솔 — 액션 생성</h3>
+  <div class="breadcrumb">콘솔 → Cloud Functions → <code>액션</code> → <code>+ 액션 생성</code></div>
+  <table class="field-table">
+    <tr><th>이름</th><td><span class="copyable" data-copy="cf_obs_to_webhook_{{ safe_slug }}">cf_obs_to_webhook_{{ safe_slug }}</span></td></tr>
+    <tr><th>런타임</th><td><span class="copyable" data-copy="python:3.13">python:3.13</span></td></tr>
+    <tr><th>진입점</th><td><span class="copyable" data-copy="main">main</span></td></tr>
+  </table>
+
+  <h3>2. 코드</h3>
   <div class="code-block">
     <button class="copy-btn" data-target="code-obs">복사</button>
     <pre id="code-obs">{{ obs_code }}</pre>
   </div>
+
+  <h3>3. <span class="pill-trigger">트리거</span> — Object Storage Event</h3>
+  <div class="breadcrumb">콘솔 → Cloud Functions → <code>트리거</code> → <code>+ 트리거 생성</code> → Object Storage Event</div>
+  <table class="field-table">
+    <tr><th>이름</th><td><span class="copyable" data-copy="obs-{{ site.obs_bucket or 'bucket' }}-created">obs-{{ site.obs_bucket or 'bucket' }}-created</span></td></tr>
+    <tr><th>버킷</th><td><span class="copyable" data-copy="{{ site.obs_bucket or '' }}">{{ site.obs_bucket or '— 사이트 설정에서 입력 —' }}</span></td></tr>
+    <tr><th>이벤트 종류</th><td>Object Created</td></tr>
+    <tr><th>Prefix / Suffix</th><td>비움</td></tr>
+    <tr><th>디폴트 파라미터</th><td><span style="color:var(--text-subtle);">비움 — 이벤트가 <code>container_name</code>/<code>object_name</code> 자동 전달</span></td></tr>
+    <tr><th>연결 액션</th><td><code>cf_obs_to_webhook_{{ safe_slug }}</code></td></tr>
+  </table>
+</div>
+
+<!-- ───── 검증 ───── -->
+<div class="guide-card">
+  <h2>검증</h2>
+  <ol style="font-size:13px; line-height:1.7; padding-left:20px; color:var(--text); margin:0;">
+    <li>운영 호스트에서 의도적으로 장애 발생 (예: nginx 500 응답)</li>
+    <li>5분 내 WMS 시나리오 <code>{{ site.wms_scenario_id or '—' }}</code> 의 errorCount 증가 — NCP 콘솔에서 확인</li>
+    <li>Cron 발화 후 OBS 버킷 <code>{{ site.obs_bucket or '—' }}</code> 에 <code>CLA-*/SearchResult1.json</code> 도착</li>
+    <li>OBS Event → 본 AI 서버로 webhook 호출 (HTTP 202 응답)</li>
+    <li><a href="/?site_id={{ site.id }}">대시보드의 이 사이트 장애 목록</a> 에서 새 incident → AI 분석 → 메일 발송 확인</li>
+  </ol>
 </div>
 
 <script>
+// 「복사」 버튼 (큰 코드 박스)
 document.querySelectorAll('.copy-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const target = document.getElementById(btn.dataset.target);
@@ -137,9 +178,17 @@ document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.textContent = '복사됨 ✓';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
-    } catch (e) {
-      alert('복사 실패: ' + e.message);
-    }
+    } catch (e) { alert('복사 실패: ' + e.message); }
+  });
+});
+// .copyable 인라인 클릭 = 복사
+document.querySelectorAll('.copyable').forEach(el => {
+  el.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(el.dataset.copy || el.textContent);
+      el.classList.add('copied');
+      setTimeout(() => el.classList.remove('copied'), 1200);
+    } catch (e) {}
   });
 });
 </script>

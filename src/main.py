@@ -888,6 +888,7 @@ def guide_index(request: Request, db: Session = Depends(get_db), admin=Depends(r
 @app.get("/sites/{site_id}/guide", response_class=HTMLResponse)
 def site_guide(site_id: int, request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
     """site별 NCP Cloud Function 등록 가이드 (코드 + 절차 + 디폴트 파라미터 안내)."""
+    import re as _re
     site = get_site(db, site_id)
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
@@ -895,6 +896,10 @@ def site_guide(site_id: int, request: Request, db: Session = Depends(get_db), ad
     wms_code = files["cf_wms_poll/main.py"].decode("utf-8")
     obs_code = files["cf_obs_to_webhook/main.py"].decode("utf-8")
     webhook_url = f"{settings.public_base_url.rstrip('/')}/webhook/alarm"
+
+    # 사이트 이름을 NCP 콘솔 이름 규칙(영문/숫자/-_)에 맞게 안전화
+    safe_slug = _re.sub(r"[^a-zA-Z0-9_-]+", "-", site.name or "").strip("-").lower()[:30] or f"site-{site.id}"
+
     return templates.TemplateResponse(
         request, "cf_guide.html",
         {
@@ -902,6 +907,7 @@ def site_guide(site_id: int, request: Request, db: Session = Depends(get_db), ad
             "wms_code": wms_code,
             "obs_code": obs_code,
             "webhook_url": webhook_url,
+            "safe_slug": safe_slug,
             "current_user": admin,
         },
     )
