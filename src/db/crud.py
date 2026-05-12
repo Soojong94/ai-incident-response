@@ -311,6 +311,41 @@ def delete_site_note(db: Session, note_id: int) -> bool:
     return True
 
 
+def get_recent_analyses_for_resource(
+    db: Session,
+    resource_name: str | None,
+    exclude_incident_id: int | None = None,
+    limit: int = 3,
+) -> list[dict]:
+    """같은 resource_name 으로 과거에 분석된 incident 의 분석 결과를 가져옴.
+    prompt 컨텍스트 주입용 — 없으면 빈 list 반환."""
+    if not resource_name:
+        return []
+    q = (
+        db.query(Incident)
+        .filter(Incident.resource_name == resource_name)
+        .filter(Incident.status == "analyzed")
+        .order_by(Incident.created_at.desc())
+    )
+    if exclude_incident_id is not None:
+        q = q.filter(Incident.id != exclude_incident_id)
+    out = []
+    for inc in q.limit(limit).all():
+        if not inc.analysis_result:
+            continue
+        a = inc.analysis_result
+        out.append({
+            "incident_id": inc.id,
+            "alarm_time": inc.alarm_time.isoformat() if inc.alarm_time else "",
+            "alarm_name": inc.alarm_name or "",
+            "severity": a.severity or "",
+            "cause_category": a.cause_category or "",
+            "cause_detail": (a.cause_detail or "")[:400],
+            "prevention": (a.prevention or "")[:250],
+        })
+    return out
+
+
 def get_site_notes_for_prompt(db: Session, site_id: int, max_count: int = 8) -> list[SiteNote]:
     """AI prompt 주입용 — pinned 우선, 그 다음 최근 순. 토큰 절약 위해 max_count로 제한."""
     pinned = (

@@ -52,6 +52,7 @@ def build_user_prompt(
     logs: list[str],
     site_architecture: str | None = None,
     site_notes: list[str] | None = None,
+    past_analyses: list[dict] | None = None,
 ) -> str:
     alarm_time = _get(alarm_data, "alarmTime", "alarm_time") or datetime.now().isoformat()
     log_section = "\n".join(logs) if logs else "(로그 수집 실패 — 알람 정보만으로 분석)"
@@ -77,13 +78,30 @@ def build_user_prompt(
 
 """
 
+    past_section = ""
+    if past_analyses:
+        blocks = []
+        for p in past_analyses:
+            blocks.append(
+                f"- #{p['incident_id']} ({p['alarm_time']}) {p['alarm_name']} / {p['severity']} / {p['cause_category']}\n"
+                f"  요약: {p['cause_detail']}\n"
+                f"  당시 권고: {p['prevention']}"
+            )
+        past_section = f"""## 참고: 같은 리소스의 과거 분석 (최신 → 과거 순)
+{chr(10).join(blocks)}
+
+위 정보는 참고용입니다. 현재 로그가 다른 원인을 가리키면 그에 따라 자유롭게 분석하세요.
+명확하게 같은 패턴이 다시 보일 때만 과거 incident 번호를 짧게 언급해도 좋습니다.
+
+"""
+
     return f"""## 장애 알람 정보
 - 알람명: {_get(alarm_data, 'alarmName', 'alarm_name')}
 - 리소스: {_get(alarm_data, 'resourceName', 'resource_name')}
 - 메트릭: {_get(alarm_data, 'metricType', 'metric_type')} = {_get(alarm_data, 'currentValue', 'current_value')} (임계값: {_get(alarm_data, 'threshold', 'threshold_value')})
 - 발생시간: {alarm_time}
 
-{arch_section}{notes_section}## 수집된 로그 (알람 시점 ±15분)
+{arch_section}{notes_section}{past_section}## 수집된 로그 (알람 시점 ±15분)
 {log_section}
 
-위 정보를 바탕으로 장애를 분석해주세요. 인프라 아키텍처와 과거 메모가 제공된 경우, 컴포넌트 간 의존성과 반복 패턴을 함께 고려해 원인 후보를 좁히세요."""
+위 정보를 바탕으로 장애를 분석해주세요. 인프라 아키텍처와 과거 메모/분석이 제공된 경우, 컴포넌트 간 의존성과 반복 패턴을 함께 고려해 원인 후보를 좁히세요."""

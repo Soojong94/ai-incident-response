@@ -43,9 +43,10 @@ class TimelyAIClient:
         logs: list[str],
         site_architecture: str | None = None,
         site_notes: list[str] | None = None,
+        past_analyses: list[dict] | None = None,
     ) -> dict:
         async with self._sem:
-            return await self._analyze(alarm_data, logs, site_architecture, site_notes)
+            return await self._analyze(alarm_data, logs, site_architecture, site_notes, past_analyses)
 
     async def _analyze(
         self,
@@ -53,12 +54,14 @@ class TimelyAIClient:
         logs: list[str],
         site_architecture: str | None = None,
         site_notes: list[str] | None = None,
+        past_analyses: list[dict] | None = None,
     ) -> dict:
         token = await self._get_token()
         prompt = build_user_prompt(
             alarm_data, logs,
             site_architecture=site_architecture,
             site_notes=site_notes,
+            past_analyses=past_analyses,
         )
         session_id = f"incident-{alarm_data.get('alarm_id', uuid.uuid4().hex[:8])}"
 

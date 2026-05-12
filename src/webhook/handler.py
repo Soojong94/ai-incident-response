@@ -13,6 +13,7 @@ from src.db.crud import (
     find_similar_ai_note, add_site_note, increment_note_occurrence,
     get_site_notes_for_prompt, list_cluster_incidents,
     get_site_ncp_keys, count_recent_incidents_for_site,
+    get_recent_analyses_for_resource,
 )
 from src.db.database import get_db as _get_db
 
@@ -100,7 +101,7 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
 
         add_logs(db, incident_id, logs, source=log_source)
 
-        # site의 architecture + 누적 메모를 prompt 컨텍스트로 사용
+        # site의 architecture + 누적 메모 + 같은 resource의 과거 분석을 prompt 컨텍스트로 사용
         inc = get_incident(db, incident_id)
         site_architecture = inc.site.architecture if inc and inc.site and inc.site.architecture else None
         site_notes_text: list[str] = []
@@ -110,15 +111,21 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
                 f"- [{n.author}{' ★ pinned' if n.pinned else ''}{' x'+str(n.occurrences) if n.occurrences and n.occurrences > 1 else ''}] {n.content}"
                 for n in notes
             ]
+        past_analyses = get_recent_analyses_for_resource(
+            db, inc.resource_name if inc else None,
+            exclude_incident_id=incident_id, limit=3,
+        )
 
         from src.analyzer.ai_client import ai_client
         try:
             logger.info(
-                "AI 분석 요청 (incident=%d, arch=%s, notes=%d)",
-                incident_id, "yes" if site_architecture else "no", len(site_notes_text),
+                "AI 분석 요청 (incident=%d, arch=%s, notes=%d, past_analyses=%d)",
+                incident_id, "yes" if site_architecture else "no",
+                len(site_notes_text), len(past_analyses),
             )
             result = await _analyze_with_retry(
-                ai_client, alarm_data, logs, site_architecture, site_notes_text, incident_id,
+                ai_client, alarm_data, logs, site_architecture, site_notes_text,
+                past_analyses, incident_id,
             )
             analysis = create_analysis(db, incident_id, result)
             update_incident_status(db, incident_id, "analyzed", severity=analysis.severity)
@@ -145,6 +152,7 @@ async def _analyze_with_retry(
     logs: list[str],
     site_architecture: str | None,
     site_notes: list[str] | None,
+    past_analyses: list[dict] | None,
     incident_id: int,
 ) -> dict:
     """AI 분석 1회 자동 재시도 — Timely 504 같은 일시 오류 대응."""
@@ -155,6 +163,7 @@ async def _analyze_with_retry(
                 alarm_data, logs,
                 site_architecture=site_architecture,
                 site_notes=site_notes,
+                past_analyses=past_analyses,
             )
         except Exception as e:
             last_err = e
