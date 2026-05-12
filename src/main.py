@@ -26,6 +26,7 @@ from src.db.crud import (
     update_site_keys, clear_site_keys,
     daily_incident_counts, severity_distribution, status_distribution,
     top_sites_by_incident, notification_success_rate, avg_analysis_duration_seconds,
+    list_notifications, count_notifications,
 )
 from src.crypto import decrypt as decrypt_secret, mask as mask_secret
 from src.auth import (
@@ -608,6 +609,54 @@ def stats_page(
             "top_sites": top_sites_by_incident(db, days, 8),
             "notif": notification_success_rate(db, days),
             "analysis_dur": avg_analysis_duration_seconds(db, days),
+            "current_user": admin,
+        },
+    )
+
+
+# ── 알림 발송 로그 (admin 전용) ───────────────────────────────────────────────
+
+@app.get("/notifications", response_class=HTMLResponse)
+def notifications_page(
+    request: Request,
+    page: int = 1,
+    size: int = 50,
+    channel: str = "",
+    status: str = "",
+    q: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    page = max(1, page)
+    size = max(10, min(size, 200))
+    ch = channel.strip() or None
+    st = status.strip() or None
+    search = q.strip() or None
+    df = _parse_date(date_from)
+    dt = _parse_date(date_to, end_of_day=True)
+    total = count_notifications(db, channel=ch, status=st, search=search, date_from=df, date_to=dt)
+    total_pages = max(1, (total + size - 1) // size)
+    if page > total_pages:
+        page = total_pages
+    logs = list_notifications(
+        db, skip=(page - 1) * size, limit=size,
+        channel=ch, status=st, search=search, date_from=df, date_to=dt,
+    )
+    return templates.TemplateResponse(
+        request, "notifications.html",
+        {
+            "logs": logs,
+            "page": page,
+            "size": size,
+            "total": total,
+            "total_pages": total_pages,
+            "channel_filter": channel,
+            "status_filter": status,
+            "search_query": q,
+            "date_from_filter": date_from,
+            "date_to_filter": date_to,
             "current_user": admin,
         },
     )

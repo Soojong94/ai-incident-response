@@ -2,6 +2,7 @@ import fnmatch
 import logging
 import uuid
 from datetime import datetime
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from src.db.models import (
     Incident, IncidentLog, AnalysisResult, Recipient, Site, User,
@@ -860,3 +861,59 @@ def list_notifications_for_incident(db: Session, incident_id: int) -> list[Notif
         .order_by(NotificationLog.sent_at.asc())
         .all()
     )
+
+
+def _notifications_query(
+    db: Session,
+    channel: str | None = None,
+    status: str | None = None,
+    search: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+):
+    q = db.query(NotificationLog)
+    if channel:
+        q = q.filter(NotificationLog.channel == channel)
+    if status:
+        q = q.filter(NotificationLog.status == status)
+    if search:
+        like = f"%{search.lower()}%"
+        q = q.filter(
+            (func.lower(NotificationLog.recipient_label).like(like))
+            | (func.lower(NotificationLog.error_message).like(like))
+        )
+    if date_from:
+        q = q.filter(NotificationLog.sent_at >= date_from)
+    if date_to:
+        q = q.filter(NotificationLog.sent_at <= date_to)
+    return q
+
+
+def list_notifications(
+    db: Session,
+    skip: int = 0,
+    limit: int = 50,
+    channel: str | None = None,
+    status: str | None = None,
+    search: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> list[NotificationLog]:
+    return (
+        _notifications_query(db, channel, status, search, date_from, date_to)
+        .order_by(NotificationLog.sent_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
+def count_notifications(
+    db: Session,
+    channel: str | None = None,
+    status: str | None = None,
+    search: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> int:
+    return _notifications_query(db, channel, status, search, date_from, date_to).count()

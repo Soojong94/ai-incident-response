@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block content %}
+{% macro keep_params(extra='') -%}
+size={{ size }}
+{%- if search_query %}&q={{ search_query }}{% endif %}
+{%- if channel_filter %}&channel={{ channel_filter }}{% endif %}
+{%- if status_filter %}&status={{ status_filter }}{% endif %}
+{%- if date_from_filter %}&date_from={{ date_from_filter }}{% endif %}
+{%- if date_to_filter %}&date_to={{ date_to_filter }}{% endif %}
+{%- if extra %}&{{ extra }}{% endif %}
+{%- endmacro %}
+
+{% set has_filter = search_query or channel_filter or status_filter or date_from_filter or date_to_filter %}
+
+<style>
+  .notif-row td { vertical-align: top; }
+  .ch-email  { background: #2b6cb0; color: #fff; }
+  .ch-slack  { background: #4a154b; color: #fff; }
+  .ch-rate_limit { background: #4a5568; color: #cbd5e0; }
+  .ch-badge { font-size: 11px; padding: 2px 7px; border-radius: 3px; display: inline-block; }
+  .st-sent    { color: #38a169; }
+  .st-failed  { color: #e53e3e; }
+  .st-skipped { color: #718096; }
+  [data-theme="dark"] .st-sent   { color: #68d391; }
+  [data-theme="dark"] .st-failed { color: #fc8181; }
+  .filter-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 3px 10px;
+    background: var(--card-bg); border: 1px solid var(--accent);
+    color: var(--accent); border-radius: 12px;
+  }
+  .filter-chip a { color: var(--text-subtle); text-decoration: none; line-height: 1; font-size: 14px; }
+  .filter-chip a:hover { color: var(--danger); }
+  .adv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .adv-grid label { font-size: 11px; color: var(--text-subtle); display: block; margin-bottom: 3px; }
+  .adv-grid select, .adv-grid input { width: 100%; padding: 6px 10px; }
+  .pager { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 20px; }
+  .pager a, .pager span {
+    padding: 6px 12px; border-radius: 4px; font-size: 13px;
+    border: 1px solid var(--border); background: var(--card-bg); color: var(--text-muted);
+    text-decoration: none;
+  }
+  .pager a:hover { background: var(--row-hover); color: var(--text); text-decoration: none; }
+  .pager .current { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .pager .disabled { opacity: 0.4; pointer-events: none; }
+</style>
+
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
+  <h2 style="font-size:20px;">알림 발송 로그
+    <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
+      총 {{ total }}건 (페이지 {{ page }}/{{ total_pages }})
+    </span>
+  </h2>
+</div>
+
+<!-- 고급 검색 -->
+<div class="card" style="padding:14px 18px;">
+  <form method="get" action="/notifications">
+    <div class="adv-grid">
+      <div>
+        <label>수신자 / 에러 검색</label>
+        <input type="search" name="q" value="{{ search_query or '' }}" placeholder="이메일/이름/에러 메시지">
+      </div>
+      <div>
+        <label>채널</label>
+        <select name="channel">
+          <option value="">전체</option>
+          <option value="email"      {% if channel_filter == 'email' %}selected{% endif %}>Email</option>
+          <option value="slack"      {% if channel_filter == 'slack' %}selected{% endif %}>Slack</option>
+          <option value="rate_limit" {% if channel_filter == 'rate_limit' %}selected{% endif %}>rate-limit (suppressed)</option>
+        </select>
+      </div>
+      <div>
+        <label>상태</label>
+        <select name="status">
+          <option value="">전체</option>
+          <option value="sent"    {% if status_filter == 'sent' %}selected{% endif %}>sent</option>
+          <option value="failed"  {% if status_filter == 'failed' %}selected{% endif %}>failed</option>
+          <option value="skipped" {% if status_filter == 'skipped' %}selected{% endif %}>skipped</option>
+        </select>
+      </div>
+      <div>
+        <label>발송일자</label>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input type="date" name="date_from" value="{{ date_from_filter or '' }}" style="flex:1;">
+          <span style="color:var(--text-subtle);">~</span>
+          <input type="date" name="date_to" value="{{ date_to_filter or '' }}" style="flex:1;">
+        </div>
+      </div>
+      <div>
+        <label>페이지 크기</label>
+        <select name="size">
+          {% for n in [20, 50, 100, 200] %}
+            <option value="{{ n }}" {% if size == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+      <button type="submit" class="nav-btn nav-btn-primary">검색</button>
+      {% if has_filter %}
+        <a href="/notifications" class="nav-btn nav-btn-outline">초기화</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+{% if has_filter %}
+<div style="display:flex; gap:6px; flex-wrap:wrap; margin: 12px 0;">
+  {% if search_query %}<span class="filter-chip">검색: {{ search_query }}</span>{% endif %}
+  {% if channel_filter %}<span class="filter-chip">채널: {{ channel_filter }}</span>{% endif %}
+  {% if status_filter %}<span class="filter-chip">상태: {{ status_filter }}</span>{% endif %}
+  {% if date_from_filter %}<span class="filter-chip">시작: {{ date_from_filter }}</span>{% endif %}
+  {% if date_to_filter %}<span class="filter-chip">종료: {{ date_to_filter }}</span>{% endif %}
+</div>
+{% endif %}
+
+{% if logs %}
+<div class="card" style="padding:0; overflow:hidden;">
+  <table style="margin-top:0;">
+    <thead>
+      <tr>
+        <th style="width:60px;">incident</th>
+        <th style="width:80px;">채널</th>
+        <th style="width:80px;">상태</th>
+        <th>수신자</th>
+        <th style="width:160px;">시각</th>
+        <th>비고</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for n in logs %}
+      <tr class="notif-row">
+        <td><a href="/incidents/{{ n.incident_id }}">#{{ n.incident_id }}</a></td>
+        <td><span class="ch-badge ch-{{ n.channel }}">{{ n.channel }}</span></td>
+        <td><span class="st-{{ n.status }}">● {{ n.status }}</span></td>
+        <td style="font-size:13px;">{{ n.recipient_label or '-' }}</td>
+        <td style="font-size:12px; color:var(--text-subtle); white-space:nowrap;">
+          {{ n.sent_at.strftime('%Y-%m-%d %H:%M:%S') if n.sent_at else '-' }}
+        </td>
+        <td style="font-size:12px; color:var(--text-subtle); max-width:340px; word-break:break-word;">
+          {{ n.error_message or '-' }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- 페이지네이션 -->
+<div class="pager">
+  {% if page > 1 %}
+    <a href="?page={{ page - 1 }}&{{ keep_params() }}">‹ 이전</a>
+  {% else %}
+    <span class="disabled">‹ 이전</span>
+  {% endif %}
+  <span class="current">{{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}&{{ keep_params() }}">다음 ›</a>
+  {% else %}
+    <span class="disabled">다음 ›</span>
+  {% endif %}
+</div>
+{% else %}
+<div class="empty">
+  <p style="font-size:18px; margin-bottom:8px;">발송 로그가 없습니다</p>
+  {% if has_filter %}<p>검색 조건을 조정해보세요.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}
