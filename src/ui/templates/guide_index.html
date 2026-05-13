@@ -1,62 +1,97 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-  .guide-grid {
+  .guide-category { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 18px; }
+  .guide-category h2 { font-size: 16px; margin-bottom: 4px; }
+  .guide-category p { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+  .guide-category .cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; background: var(--accent); color: #1a202c;
+    border-radius: 5px; font-size: 13px; font-weight: 600; text-decoration: none;
+  }
+  .guide-category .cta:hover { background: var(--primary); color: #fff; text-decoration: none; }
+
+  .site-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 14px;
+    gap: 12px;
+    margin-top: 8px;
   }
-  .guide-tile {
-    background: var(--card-bg);
+  .site-tile {
+    background: var(--card-bg-alt);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    text-decoration: none;
-    color: var(--text);
-    transition: transform 0.12s ease, border-color 0.12s ease;
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+    text-decoration: none; color: var(--text);
+    transition: border-color 0.12s ease, transform 0.12s ease;
   }
-  .guide-tile:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-    text-decoration: none;
+  .site-tile:hover { border-color: var(--accent); transform: translateY(-1px); text-decoration: none; }
+  .site-tile h3 { font-size: 14px; margin: 0; }
+  .site-tile .meta { font-size: 11px; color: var(--text-subtle); display: flex; gap: 10px; flex-wrap: wrap; }
+  .site-tile .meta strong { color: var(--text); font-family: monospace; font-weight: 600; }
+  .site-tile .arrow { color: var(--accent); font-size: 12px; margin-top: 4px; }
+
+  .step-pill {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    background: var(--card-bg-alt); color: var(--text-subtle); font-size: 11px; margin-right: 4px;
   }
-  .guide-tile h3 { font-size: 15px; margin: 0; }
-  .guide-tile .meta { font-size: 12px; color: var(--text-subtle); display: flex; gap: 12px; flex-wrap: wrap; }
-  .guide-tile .meta strong { color: var(--text); font-family: monospace; font-weight: 600; }
-  .guide-tile .arrow { color: var(--accent); font-size: 13px; margin-top: auto; }
 </style>
 
 <div style="margin-bottom:14px;">
-  <h2 style="font-size:20px;">CF 등록 가이드
-    <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">사이트별 NCP Cloud Function 등록 코드 + 절차</span>
+  <h2 style="font-size:20px;">가이드
+    <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">NCP 인프라 사전 준비 + 사이트별 CF 등록</span>
   </h2>
 </div>
 
-<p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">
-  사이트를 선택하면 그 사이트의 식별자가 치환된 두 CF 코드(<code>cf_wms_poll</code>, <code>cf_obs_to_webhook</code>) 와 NCP CF 콘솔 등록 절차가 표시됩니다. 관리자는 코드를 복사해 NCP CF 콘솔에 붙여넣고, 디폴트 파라미터에 NCP IAM 키만 입력하면 됩니다.
-</p>
+<!-- 워크플로우 한눈 -->
+<div class="guide-category" style="border-left:3px solid var(--accent);">
+  <h2 style="margin-bottom:10px;">전체 워크플로우</h2>
+  <div style="font-size:13px; line-height:1.8;">
+    <span class="step-pill">1</span> NCP 루트 키 발급 &nbsp;→&nbsp;
+    <span class="step-pill">2</span> Log Agent 설치 &nbsp;→&nbsp;
+    <span class="step-pill">3</span> OBS 버킷 생성 &nbsp;→&nbsp;
+    <span class="step-pill">4</span> WMS 시나리오 등록 (SCENARIO_ID 발급) &nbsp;→&nbsp;
+    <span class="step-pill">5</span> 본 플랫폼에 사이트 등록 (키/버킷/SCENARIO_ID 입력) &nbsp;→&nbsp;
+    <span class="step-pill">6</span> 사이트별 CF 등록 (액션 2개 + 트리거 2개)
+  </div>
+  <p style="margin-top:8px; margin-bottom:0;">1~5 는 NCP 계정에 1회 셋업, 사이트 추가 시 3·4·5 만 반복. 6은 사이트마다 반복.</p>
+</div>
 
-{% if sites %}
-<div class="guide-grid">
-  {% for s in sites %}
-  <a href="/sites/{{ s.id }}/guide" class="guide-tile">
-    <h3>{{ s.name }}{% if not s.enabled %} <span style="font-size:11px; color:var(--text-subtle); font-weight:normal;">비활성</span>{% endif %}</h3>
-    <div class="meta">
-      <span>📌 <strong>{{ s.resource_pattern or '—' }}</strong></span>
-      <span>🪣 <strong>{{ s.obs_bucket or '—' }}</strong></span>
-      {% if s.wms_scenario_id %}<span>🎯 scenario <strong>{{ s.wms_scenario_id }}</strong></span>{% endif %}
-    </div>
-    <div class="arrow">CF 등록 가이드 →</div>
-  </a>
-  {% endfor %}
+<!-- 인프라 사전 준비 -->
+<div class="guide-category">
+  <h2>🏗️ 인프라 사전 준비
+    <span style="font-size:11px; padding:2px 8px; background:var(--card-bg-alt); color:var(--text-subtle); border-radius:3px; margin-left:6px;">NCP 계정 1회 셋업</span>
+  </h2>
+  <p>NCP 콘솔에서 루트 키 / Log Agent / OBS / WMS 를 셋업합니다. 사이트 추가 시에도 단계 3·4 는 반복.</p>
+  <a href="/guide/infra" class="cta">📘 인프라 셋업 가이드 보기 →</a>
 </div>
-{% else %}
-<div class="empty">
-  <p>등록된 사이트가 없습니다.</p>
-  <p><a href="/sites" class="nav-btn nav-btn-primary" style="margin-top:10px;">사이트 추가하러 가기 →</a></p>
+
+<!-- 사이트별 CF 등록 -->
+<div class="guide-category">
+  <h2>📡 사이트별 CF 등록
+    <span style="font-size:11px; padding:2px 8px; background:var(--card-bg-alt); color:var(--text-subtle); border-radius:3px; margin-left:6px;">사이트마다 반복</span>
+  </h2>
+  <p>사이트 설정에 등록된 식별자(SCENARIO_ID / OBS_BUCKET / RESOURCE_NAME) 가 치환된 CF 코드와 트리거 정보를 보여줍니다.</p>
+
+  {% if sites %}
+  <div class="site-grid">
+    {% for s in sites %}
+    <a href="/sites/{{ s.id }}/guide" class="site-tile">
+      <h3>{{ s.name }}{% if not s.enabled %} <span style="font-size:10px; color:var(--text-subtle); font-weight:normal;">비활성</span>{% endif %}</h3>
+      <div class="meta">
+        <span>📌 <strong>{{ s.resource_pattern or '—' }}</strong></span>
+        <span>🪣 <strong>{{ s.obs_bucket or '—' }}</strong></span>
+        {% if s.wms_scenario_id %}<span>🎯 <strong>{{ s.wms_scenario_id }}</strong></span>{% endif %}
+      </div>
+      <div class="arrow">CF 등록 가이드 →</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="color:var(--text-faint); text-align:center; padding:14px 0;">
+    등록된 사이트가 없습니다. 인프라 셋업 후 <a href="/sites">사이트 추가</a> 부터 진행하세요.
+  </p>
+  {% endif %}
 </div>
-{% endif %}
 {% endblock %}

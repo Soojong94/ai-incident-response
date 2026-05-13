@@ -21,10 +21,11 @@ import time
 import requests
 
 
-SCENARIO_ID = 9799
-OBS_BUCKET = "team1-demo"
+# ── placeholder — 운영 대시보드 가이드(/sites/{id}/guide)가 자동 치환 ──
+SCENARIO_ID = 0
+OBS_BUCKET = "<your-bucket>"
 CLA_REGION = "kr"
-ERROR_THRESHOLD = 1   # 운영에서는 3 이상으로 올리는 것 권장
+ERROR_THRESHOLD = 3   # 운영 기본. 테스트 사이트는 1로 낮춰서 사용
 CLA_LOG_TYPES = "SYSLOG,nginx_access,nginx_error,security_log"
 
 

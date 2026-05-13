@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .guide-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; }
+  .guide-card h2 { font-size: 16px; color: var(--text-muted); margin-bottom: 12px; }
+  .guide-card h3 { font-size: 13px; color: var(--text-subtle); margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .breadcrumb {
+    font-size: 12px; color: var(--text-subtle);
+    background: var(--card-bg-alt); padding: 6px 10px; border-radius: 4px;
+    display: inline-block; margin: 4px 0 8px; font-family: monospace;
+  }
+  .breadcrumb code { background: transparent; padding: 0; color: var(--accent); }
+  .field-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+  .field-table th, .field-table td { padding: 7px 10px; border-bottom: 1px solid var(--border-soft); text-align: left; vertical-align: top; }
+  .field-table th { width: 150px; color: var(--text-subtle); font-weight: normal; font-size: 12px; }
+  .field-table td { color: var(--text); }
+  .step-header {
+    display: flex; gap: 12px; align-items: center; margin-bottom: 6px;
+  }
+  .step-num {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: #1a202c; font-weight: 700; font-size: 13px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .step-header h2 { margin: 0; }
+  .note {
+    background: var(--card-bg-alt); border-left: 3px solid var(--accent);
+    padding: 10px 12px; border-radius: 4px; font-size: 13px; color: var(--text-muted);
+    margin: 8px 0;
+  }
+  .note strong { color: var(--text); }
+  .warning {
+    background: rgba(229, 62, 62, 0.08); border-left: 3px solid var(--danger);
+    padding: 10px 12px; border-radius: 4px; font-size: 13px; color: var(--text);
+    margin: 8px 0;
+  }
+  ul.tight, ol.tight { padding-left: 20px; margin: 6px 0; }
+  ul.tight li, ol.tight li { margin: 3px 0; font-size: 13px; line-height: 1.6; }
+</style>
+
+<div style="margin-bottom:14px;">
+  <a href="/guide">&larr; 가이드 목록</a>
+</div>
+
+<div style="margin-bottom:14px;">
+  <h2 style="font-size:20px;">🏗️ 인프라 사전 준비 가이드</h2>
+  <p style="color:var(--text-muted); font-size:13px; margin-top:4px;">
+    NCP 계정에 1회 셋업. 새 사이트 추가 시엔 단계 3 (OBS 버킷) · 4 (WMS 시나리오) · 5 (사이트 등록) 만 반복.
+  </p>
+</div>
+
+<!-- ───── Step 1: 루트 키 발급 ───── -->
+<div class="guide-card">
+  <div class="step-header">
+    <span class="step-num">1</span>
+    <h2>NCP 루트 인증키 발급</h2>
+  </div>
+  <p style="font-size:13px; color:var(--text-muted);">OBS 객체 접근에는 <strong>루트 계정 키</strong>가 필요합니다 (IAM 키는 OBS 권한 부여 불가).</p>
+  <div class="breadcrumb">콘솔 → <code>계정 및 보안 관리</code> → <code>보안관리</code> → <code>접근관리</code></div>
+  <ol class="tight">
+    <li>「API 인증키 관리」 또는 「Access Key 발급」 메뉴 진입</li>
+    <li>새 키 생성 → Access Key / Secret Key 두 값 안전한 곳에 저장</li>
+    <li>본 플랫폼의 사이트 설정 「NCP API 키」 카드에 입력 (Fernet 암호화 저장)</li>
+  </ol>
+  <div class="warning">⚠️ Secret Key 는 발급 시점에만 노출됩니다. 분실하면 재발급 필요.</div>
+</div>
+
+<!-- ───── Step 2: Log Agent 설치 ───── -->
+<div class="guide-card">
+  <div class="step-header">
+    <span class="step-num">2</span>
+    <h2>Cloud Log Analytics (CLA) Agent 설치</h2>
+  </div>
+  <p style="font-size:13px; color:var(--text-muted);">알람 대상 호스트에 로그 수집 에이전트를 설치. NCP 콘솔이 설치 명령을 자동 생성해줍니다.</p>
+  <div class="breadcrumb">콘솔 → <code>Cloud Log Analytics</code> → <code>Management</code> → Agent 설치</div>
+  <ol class="tight">
+    <li>대상 호스트의 OS 선택 (Linux / Windows)</li>
+    <li>콘솔에서 자동 생성된 설치 스크립트 복사</li>
+    <li>대상 호스트에서 SSH 접속 → 그대로 붙여넣기 실행</li>
+    <li>「Agent 상태」 화면에서 새 호스트가 <code>Active</code> 로 보이는지 확인</li>
+  </ol>
+  <div class="note">
+    <strong>logTypes 기본값</strong>: 본 시스템 CF 코드는 <code>SYSLOG, nginx_access, nginx_error, security_log</code> 를 수집. 다른 로그 종류가 필요하면 <code>cf_wms_poll/main.py</code> 의 <code>CLA_LOG_TYPES</code> 상수 수정.
+  </div>
+</div>
+
+<!-- ───── Step 3: OBS 버킷 ───── -->
+<div class="guide-card">
+  <div class="step-header">
+    <span class="step-num">3</span>
+    <h2>Object Storage 버킷 생성</h2>
+  </div>
+  <p style="font-size:13px; color:var(--text-muted);">CLA SearchLogs Export 가 결과 JSON 을 저장할 OBS 버킷. 사이트마다 분리 또는 폴더로 구분.</p>
+  <div class="breadcrumb">콘솔 → <code>Object Storage</code> → <code>버킷 관리</code> → <code>+ 버킷 생성</code></div>
+  <table class="field-table">
+    <tr><th>버킷 이름</th><td>사이트 식별 가능한 이름 (예: <code>team1-demo</code>, <code>customer-a-logs</code>)</td></tr>
+    <tr><th>리전</th><td>KR (한국)</td></tr>
+    <tr><th>공개 설정</th><td><strong>Private</strong> — 루트 키로만 접근</td></tr>
+    <tr><th>라이프사이클</th><td>운영 정책에 따라 (권장: 30~90일 자동 삭제 — 디스크 비용 vs 회고 트레이드오프)</td></tr>
+  </table>
+  <div class="note">
+    버킷 이름은 본 플랫폼의 사이트 설정 「매칭 + CF 식별자」 카드의 <strong>OBS 버킷</strong> 필드에 입력. 인시던트 매칭 1차 기준입니다.
+  </div>
+</div>
+
+<!-- ───── Step 4: WMS 시나리오 ───── -->
+<div class="guide-card">
+  <div class="step-header">
+    <span class="step-num">4</span>
+    <h2>WMS (Web Monitoring Service) 시나리오 등록</h2>
+  </div>
+  <p style="font-size:13px; color:var(--text-muted);">알람 조건 정의. 사이트당 시나리오 1개, 여러 사이트면 여러 시나리오 + 여러 Cron 트리거.</p>
+  <div class="breadcrumb">콘솔 → <code>Web Monitoring Service</code> → <code>시나리오 관리</code> → <code>+ 시나리오 생성</code></div>
+  <table class="field-table">
+    <tr><th>시나리오 종류</th><td><strong>URL Error</strong> 시나리오 (현재 본 시스템 기준)</td></tr>
+    <tr><th>모니터링 대상 URL</th><td>알람 대상 호스트의 health-check URL</td></tr>
+    <tr><th>알람 조건</th><td>최근 5~30분 윈도우 안에 <strong>errorCount ≥ 3</strong> (운영). 테스트 사이트는 <strong>≥ 1</strong> 로 낮춰서 사용</td></tr>
+    <tr><th>발급된 SCENARIO_ID</th><td>시나리오 생성 후 발급되는 숫자 — 본 플랫폼 사이트 설정 「WMS scenario ID」 필드에 입력</td></tr>
+  </table>
+  <div class="note">
+    Cloud Insight 는 메트릭 종류가 다양해서(서버 리소스 / 커스텀 메트릭 등) 미래 고도화 영역. 현재는 WMS URL Error 만 지원.
+  </div>
+</div>
+
+<!-- ───── Step 5: 사이트 등록 ───── -->
+<div class="guide-card">
+  <div class="step-header">
+    <span class="step-num">5</span>
+    <h2>본 플랫폼에 사이트 등록</h2>
+  </div>
+  <p style="font-size:13px; color:var(--text-muted);">위 단계에서 얻은 값들을 사이트 설정에 입력.</p>
+  <div class="breadcrumb">본 플랫폼 → <code>사이트 관리</code> → <code>+ 사이트 추가</code></div>
+  <table class="field-table">
+    <tr><th>사이트 이름</th><td>대시보드에 보일 이름 (예: <code>team1-demo</code>)</td></tr>
+    <tr><th>resource_name 패턴</th><td>알람 페이로드의 <code>resourceName</code> 매칭용 글로브 (예: <code>team1-*</code>)</td></tr>
+    <tr><th>OBS 버킷</th><td>단계 3 의 버킷 이름</td></tr>
+    <tr><th>WMS scenario ID</th><td>단계 4 의 발급된 번호</td></tr>
+    <tr><th>NCP API 키</th><td>단계 1 의 Access / Secret Key — 「사이트 수정」 토글 후 입력하면 암호화 저장</td></tr>
+    <tr><th>아키텍처 (선택)</th><td>인프라 구성 요약 markdown — AI 분석 prompt 컨텍스트로 자동 주입</td></tr>
+    <tr><th>수신자</th><td>사이트별 알림 받을 이메일/Slack (심각도별 권한 체크)</td></tr>
+    <tr><th>Rate limit</th><td>윈도우/임계값. 운영 5분 3건 기본, 비상 모드 ON 시 무시</td></tr>
+  </table>
+</div>
+
+<!-- ───── Step 6: 다음 ───── -->
+<div class="guide-card" style="background:var(--card-bg-alt);">
+  <div class="step-header">
+    <span class="step-num">6</span>
+    <h2>다음 단계 — 사이트별 CF 등록</h2>
+  </div>
+  <p style="font-size:13px;">위 5단계가 끝나면 각 사이트의 「📖 CF 가이드」 페이지에서 액션 2개 + 트리거 2개 등록.</p>
+  <a href="/guide" class="breadcrumb" style="background:var(--primary); color:#fff;">사이트별 CF 등록 가이드 ↗</a>
+</div>
+{% endblock %}

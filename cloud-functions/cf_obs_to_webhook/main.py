@@ -15,8 +15,9 @@ import time
 import requests
 
 
-WEBHOOK_URL = "https://tbit-msp.kro.kr/webhook/alarm"
-RESOURCE_NAME = "team1-test-server"
+# ── placeholder — 운영 대시보드 가이드(/sites/{id}/guide)가 자동 치환 ──
+WEBHOOK_URL = "<your-webhook-url>"
+RESOURCE_NAME = "<your-resource-name>"
 
 
 def main(args):

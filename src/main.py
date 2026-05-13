@@ -877,11 +877,20 @@ def _render_cf_files(site) -> dict:
 
 @app.get("/guide", response_class=HTMLResponse)
 def guide_index(request: Request, db: Session = Depends(get_db), admin=Depends(require_admin)):
-    """사이트 목록 — 각 사이트의 CF 등록 가이드 진입점."""
+    """가이드 인덱스 — 인프라 사전 준비 + 사이트별 CF 등록 진입."""
     sites = list_sites(db)
     return templates.TemplateResponse(
         request, "guide_index.html",
         {"sites": sites, "current_user": admin},
+    )
+
+
+@app.get("/guide/infra", response_class=HTMLResponse)
+def guide_infra(request: Request, admin=Depends(require_admin)):
+    """NCP 인프라 사전 준비 가이드 — 사이트 무관 글로벌, NCP 계정에 1회 셋업."""
+    return templates.TemplateResponse(
+        request, "guide_infra.html",
+        {"current_user": admin},
     )
 
 

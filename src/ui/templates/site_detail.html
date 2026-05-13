@@ -123,12 +123,13 @@
   {% endif %}
 </div>
 
-<!-- 매칭 규칙 카드 -->
+<!-- 매칭 + CF 식별자 카드 -->
 <div class="card">
-  <h2>매칭 규칙</h2>
-  <p style="font-size:12px; color:var(--text-subtle); margin-bottom:10px;">
-    인시던트가 들어오면 OBS 버킷 → resource 패턴 순으로 매칭. 매칭된 인시던트의 알림이 이 사이트 수신자에게 발송됩니다.
-  </p>
+  <h2>매칭 + CF 식별자
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
+      들어온 알람을 이 사이트로 매칭하는 규칙 + CF 코드 빌드에 박히는 식별자
+    </span>
+  </h2>
   <!-- VIEW -->
   <div class="view-only meta-grid">
     <div class="meta-item">
@@ -138,6 +139,13 @@
     <div class="meta-item">
       <label>OBS 버킷</label>
       <span style="font-family:monospace; font-size:13px;">{{ site.obs_bucket or '— 없음 —' }}</span>
+    </div>
+    <div class="meta-item" style="grid-column:1/-1;">
+      <label>WMS scenario ID</label>
+      <span style="font-family:monospace; font-size:13px;">{{ site.wms_scenario_id or '— 없음 (CF 가이드에 SCENARIO_ID=0 으로 표시됨) —' }}</span>
+    </div>
+    <div class="meta-item" style="grid-column:1/-1; font-size:11px; color:var(--text-subtle);">
+      매칭 우선순위: 1) OBS 버킷 정확 일치 → 2) resource_name 패턴 매치. WMS scenario ID는 사이트 매칭엔 안 쓰이고 CF 가이드(/sites/{{ site.id }}/guide) 가 코드에 자동 치환할 때만 사용.
     </div>
   </div>
   <!-- EDIT -->
@@ -149,6 +157,10 @@
     <div class="meta-item">
       <label>OBS 버킷</label>
       <input id="s-bucket" type="text" value="{{ site.obs_bucket or '' }}" placeholder="예: team1-demo" style="width:100%; font-family:monospace;">
+    </div>
+    <div class="meta-item" style="grid-column:1/-1;">
+      <label>WMS scenario ID <span style="color:var(--text-subtle); font-weight:normal;">— NCP WMS 시나리오 생성 시 발급되는 숫자</span></label>
+      <input id="k-wms" type="text" value="{{ site.wms_scenario_id or '' }}" placeholder="예: 9799" style="width:100%; font-family:monospace;">
     </div>
   </div>
 </div>
@@ -228,11 +240,11 @@
   </div>
 </div>
 
-<!-- API 키 / 식별자 (NCP / WMS / CF) — 사이트별 격리 -->
+<!-- NCP API 키 (자격증명) -->
 <div class="card">
-  <h2>API 키 / 식별자
+  <h2>NCP API 키
     <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
-      Fernet 암호화 저장 — 평문은 DB/응답에 노출되지 않음. 빈 값이면 .env fallback
+      OBS 객체 다운로드용 자격증명 — Fernet 암호화 저장. 빈 값이면 .env fallback
     </span>
   </h2>
 
@@ -256,9 +268,8 @@
       <span style="color:var(--text-subtle); font-size:13px;">미등록</span>
       {% endif %}
     </div>
-    <div class="meta-item">
-      <label>WMS scenario ID</label>
-      <span style="font-family:monospace; font-size:13px;">{{ site.wms_scenario_id or '— 없음 —' }}</span>
+    <div class="meta-item" style="grid-column:1/-1; font-size:11px; color:var(--text-subtle);">
+      OBS 는 IAM 키로 접근 불가 — <strong>루트 계정 키</strong>를 발급해서 입력해야 합니다. (계정 및 보안 관리 → 보안관리 → 접근관리)
     </div>
   </div>
 
@@ -271,10 +282,6 @@
     <div class="meta-item">
       <label>NCP Secret Key</label>
       <input id="k-ncp-secret" type="password" placeholder="입력 시 암호화 저장" autocomplete="new-password" style="width:100%; font-family:monospace;">
-    </div>
-    <div class="meta-item">
-      <label>WMS scenario ID</label>
-      <input id="k-wms" type="text" value="{{ site.wms_scenario_id or '' }}" placeholder="예: 9799" style="width:100%;">
     </div>
     {% if site.ncp_access_key_enc or site.ncp_secret_key_enc %}
     <div class="meta-item" style="grid-column:1/-1;">
