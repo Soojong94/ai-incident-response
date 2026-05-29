@@ -1,0 +1,72 @@
+openapi: 3.0.3
+info:
+  title: AWS — AutoManagedReport 동기화 시 호출하는 API
+  version: "1.0"
+  description: |
+    AWS SDK for Go v2 를 통해 EC2 / EFS / S3 API 를 호출한다.
+    실제 통신은 SDK 가 SigV4 서명 + region endpoint 로 위임.
+    여기 명세는 우리가 호출하는 *Action* 만 정리.
+
+servers:
+  - url: https://ec2.{region}.amazonaws.com
+    variables:
+      region:
+        default: ap-northeast-2
+        description: EC2/EFS 리전. AWS provider 가 멀티리전 순회 호출.
+
+paths:
+  /:
+    get:
+      summary: EC2 DescribeInstances
+      description: |
+        EC2 인스턴스 전체 페이지 순회. NextToken 으로 페이지네이션.
+        응답에서 instanceType, imageId, blockDeviceMappings.volumeId 를 모아
+        DescribeInstanceTypes / DescribeImages / DescribeVolumes 로 후속 조회.
+      parameters:
+        - { name: Action,  in: query, required: true, schema: { type: string, enum: [DescribeInstances] } }
+        - { name: Version, in: query, required: true, schema: { type: string, example: "2016-11-15" } }
+        - { name: NextToken, in: query, schema: { type: string } }
+      responses:
+        "200": { description: 인스턴스 목록 }
+
+    post:
+      summary: EC2 DescribeInstanceTypes
+      parameters:
+        - { name: Action,  in: query, required: true, schema: { type: string, enum: [DescribeInstanceTypes] } }
+        - { name: InstanceType, in: query, schema: { type: array, items: { type: string } } }
+      responses:
+        "200": { description: 타입별 스펙 (한 번에 100개) }
+
+  /describe-images:
+    get:
+      summary: EC2 DescribeImages
+      parameters:
+        - { name: Action,    in: query, required: true, schema: { type: string, enum: [DescribeImages] } }
+        - { name: ImageId,   in: query, schema: { type: array, items: { type: string } } }
+      responses:
+        "200": { description: AMI 정보 (Name = OS) }
+
+  /describe-volumes:
+    get:
+      summary: EC2 DescribeVolumes
+      parameters:
+        - { name: Action,   in: query, required: true, schema: { type: string, enum: [DescribeVolumes] } }
+        - { name: VolumeId, in: query, schema: { type: array, items: { type: string } } }
+      responses:
+        "200": { description: 볼륨 메타 }
+
+  /efs/describe-file-systems:
+    get:
+      summary: EFS DescribeFileSystems
+      servers: [{ url: "https://elasticfilesystem.{region}.amazonaws.com" }]
+      responses:
+        "200": { description: EFS 파일시스템 }
+
+  /s3/list-buckets:
+    get:
+      summary: S3 ListBuckets
+      servers: [{ url: "https://s3.amazonaws.com" }]
+      responses:
+        "200": { description: 버킷 목록 }
+
+components: {}

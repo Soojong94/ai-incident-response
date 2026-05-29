@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: NAVER Cloud (NCP) — 동기화 시 호출하는 API
+  version: "1.1"
+  description: |
+    NCP V2 API. HMAC-SHA256 서명 (x-ncp-iam-access-key + x-ncp-apigw-signature-v2 + x-ncp-apigw-timestamp).
+
+    공통 규칙 (https://api.ncloud-docs.com 기준):
+      - regionCode 는 **선택**값이며, 생략 시 getRegionList 결과의 첫 리전이 적용됩니다.
+      - responseFormatType 은 선택값이며 기본 json (xml 도 가능).
+      - 목록 API 는 pageNo / pageSize 페이지네이션을 지원하며, pageNo 지정 시 pageSize 가 필요합니다.
+
+    민간/공공 분리:
+      - 민간 base: https://ncloud.apigw.ntruss.com
+      - 공공 base: https://ncloud.apigw.gov-ntruss.com  (platform=public)
+      - Cloud Insight(모니터링) 는 별도 host(cw.apigw.ntruss.com)를 사용합니다.
+
+servers:
+  - url: https://ncloud.apigw.ntruss.com
+    description: 민간
+  - url: https://ncloud.apigw.gov-ntruss.com
+    description: 공공 (gov)
+
+paths:
+  /vserver/v2/getServerInstanceList:
+    get:
+      summary: 서버 인스턴스 목록 (VPC)
+      description: VPC 환경 서버 인스턴스 목록. Classic 환경은 /server/v2 를 사용합니다.
+      parameters:
+        - { name: regionCode, in: query, required: false, schema: { type: string, example: "KR" }, description: "생략 시 첫 리전" }
+        - { name: responseFormatType, in: query, required: false, schema: { type: string, enum: [json, xml], default: json } }
+        - { name: pageNo, in: query, required: false, schema: { type: integer } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer }, description: "pageNo 지정 시 필수" }
+        - { name: vpcNo, in: query, required: false, schema: { type: string }, description: "VPC 번호 필터" }
+        - { name: serverInstanceStatusCode, in: query, required: false, schema: { type: string, enum: [INIT, CREAT, RUN, NSTOP] } }
+        - { name: serverName, in: query, required: false, schema: { type: string } }
+        - { name: ip, in: query, required: false, schema: { type: string }, description: "사설/공인 IP 필터" }
+      responses:
+        "200": { description: "VPC 서버 인스턴스 목록 (serverInstanceNo, serverName, cpuCount, memorySize, serverInstanceStatus 등)" }
+
+  /vserver/v2/getNetworkInterfaceList:
+    get:
+      summary: 네트워크 인터페이스 목록 (VPC)
+      parameters:
+        - { name: regionCode, in: query, required: false, schema: { type: string }, description: "생략 시 첫 리전" }
+        - { name: responseFormatType, in: query, required: false, schema: { type: string, enum: [json, xml], default: json } }
+        - { name: pageNo, in: query, required: false, schema: { type: integer } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer }, description: "pageNo 지정 시 필수" }
+        - { name: vpcNo, in: query, required: false, schema: { type: string } }
+        - { name: subnetNo, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: "NIC + IP 매핑 (networkInterfaceNo, ip, serverInstanceNo, subnetNo 등)" }
+
+  /vserver/v2/getBlockStorageInstanceList:
+    get:
+      summary: 블록 스토리지 인스턴스 목록 (VPC)
+      parameters:
+        - { name: regionCode, in: query, required: false, schema: { type: string }, description: "생략 시 첫 리전" }
+        - { name: responseFormatType, in: query, required: false, schema: { type: string, enum: [json, xml], default: json } }
+        - { name: pageNo, in: query, required: false, schema: { type: integer } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer }, description: "pageNo 지정 시 필수" }
+        - { name: serverInstanceNo, in: query, required: false, schema: { type: string }, description: "연결된 서버 필터" }
+        - { name: blockStorageType, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: "블록 스토리지 메타 (blockStorageInstanceNo, blockStorageSize, blockStorageType, serverInstanceNo 등)" }
+
+  /vnas/v2/getNasVolumeInstanceList:
+    get:
+      summary: NAS 볼륨 목록 (VPC)
+      parameters:
+        - { name: regionCode, in: query, required: false, schema: { type: string }, description: "생략 시 첫 리전" }
+        - { name: zoneCode, in: query, required: false, schema: { type: string } }
+        - { name: responseFormatType, in: query, required: false, schema: { type: string, enum: [json, xml], default: json } }
+        - { name: pageNo, in: query, required: false, schema: { type: integer } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer }, description: "pageNo 지정 시 필수" }
+        - { name: volumeName, in: query, required: false, schema: { type: string } }
+        - { name: volumeAllotmentProtocolTypeCode, in: query, required: false, schema: { type: string, enum: [NFS, CIFS] } }
+      responses:
+        "200": { description: "NAS 볼륨 (nasVolumeInstanceNo, volumeName, volumeSize, volumeTotalUseRatio 등)" }
+
+  /backup/v2/getBackupList:
+    get:
+      summary: 백업 목록 (Backup)
+      description: Backup 서비스의 백업 목록.
+      parameters:
+        - { name: regionCode, in: query, required: false, schema: { type: string }, description: "생략 시 첫 리전" }
+        - { name: responseFormatType, in: query, required: false, schema: { type: string, enum: [json, xml], default: json } }
+        - { name: pageNo, in: query, required: false, schema: { type: integer } }
+        - { name: pageSize, in: query, required: false, schema: { type: integer }, description: "pageNo 지정 시 필수" }
+      responses:
+        "200": { description: "백업 인스턴스 목록" }
+
+  /cw_fea/real/cw/api/v2/event_history:
+    post:
+      summary: Cloud Insight 이벤트(알람) 히스토리
+      description: |
+        Cloud Insight 모니터링 이벤트 히스토리. cw 전용 host(cw.apigw.ntruss.com)로 호출합니다.
+      servers:
+        - url: https://cw.apigw.ntruss.com
+          description: Cloud Insight (민간)
+        - url: https://cw.apigw.gov-ntruss.com
+          description: Cloud Insight (공공)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                start: { type: integer, description: "조회 시작 (epoch ms)" }
+                end:   { type: integer, description: "조회 종료 (epoch ms)" }
+      responses:
+        "200": { description: 알람 이벤트 list }
+
+components:
+  securitySchemes:
+    NcpHmacV2:
+      type: apiKey
+      in: header
+      name: x-ncp-apigw-signature-v2
+      description: |
+        서명 = Base64(HMAC-SHA256(secretKey, "{method} {path}?{query}\n{timestamp}\n{accessKey}"))
+        함께 전송하는 헤더:
+          - x-ncp-iam-access-key : 액세스 키
+          - x-ncp-apigw-timestamp : 1970-01-01 UTC 이후 경과 밀리초 (서명/서버시각 차 ±5분 이내)
+
+security:
+  - NcpHmacV2: []

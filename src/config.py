@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # AI API (Timely GPT or Claude)
     ai_api_key: str = ""
     ai_base_url: str = "https://hello.timelygpt.co.kr/api/v2/chat"
-    ai_model: str = "gpt-5.1"
+    ai_model: str = "claude-sonnet-4-6"
 
     # Database
     database_url: str = "sqlite:///./incidents.db"

@@ -1,0 +1,27 @@
+## CSP API 명세 viewer (Scalar) + CORS proxy.
+##
+## 사용:
+##   docker compose up -d
+##   → http://localhost:4400  (Scalar viewer)
+##   → http://localhost:8090  (CORS proxy — Scalar 가 Try It 호출 시 경유)
+##
+## 끄기:
+##   docker compose down
+
+services:
+  scalar:
+    image: nginx:alpine
+    container_name: csp-api-scalar
+    ports:
+      - "4400:80"
+    volumes:
+      # 현재 폴더 통째로 정적 서빙 (index.html / *.html / specs/*.yaml)
+      - ./:/usr/share/nginx/html:ro
+
+  cors:
+    build:
+      context: .
+      dockerfile: Dockerfile.cors
+    container_name: csp-api-cors
+    ports:
+      - "8090:8090"

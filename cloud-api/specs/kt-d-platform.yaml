@@ -1,0 +1,2281 @@
+openapi: 3.0.3
+info:
+  title: KT Cloud D-platform — Open API 전체
+  version: "1.0"
+  description: |
+    KT Cloud D-platform Open API 전체.
+    출처: https://cloud.kt.com/docs/open-api-guide/d/guide/how-to-use
+
+    Zone abbreviations:
+      - d1  (DX-M1)
+      - d2  (DX-Central)
+      - gd1 (DX-G)
+      - gd4 (DX-G-YS)
+
+    기본 인증: Keystone v3 토큰 (X-Subject-Token → 후속 호출의 X-Auth-Token)
+
+    CDN/WAF/AutoScaling/Messaging 은 단일 endpoint + command 쿼리 파라미터 방식이라
+    OpenAPI 의 path 1개로 표현이 불가능 → 각 command 별 synthetic path 로 분리 표기하였음.
+    실제 호출 시에는 각 operation 의 description 에 명시된 base URL 에 ?command=... 형태로 호출.
+
+servers:
+  - url: https://api.ucloudbiz.olleh.com
+    description: D-platform 공용 base (Compute / Network / Storage 일부 / CDN / WAF / AutoScaling / Messaging / Watch)
+  - url: https://ss1.cloud.kt.com:1000
+    description: Object Storage 3.0 전용 host
+
+x-tagGroups:
+  - name: 공통
+    tags:
+      - 인증
+  - name: Computing
+    tags:
+      - Compute - Virtual Machine
+      - Compute - Networking
+      - Compute - Tier
+      - Compute - Volume
+      - Compute - Image
+      - Compute - Snapshot
+      - Compute - SSH Keypair
+      - Compute - Resource Log
+  - name: Network
+    tags:
+      - Network - LoadBalancer
+      - Network - GSLB
+  - name: Storage
+    tags:
+      - Storage - NAS
+      - Storage - ObjectStorage 3.0
+      - Storage - ObjectStorage 2.0
+      - Storage - ObjectStorage 1.0
+  - name: CDN
+    tags:
+      - CDN
+  - name: Security
+    tags:
+      - Security - WAF
+  - name: Management
+    tags:
+      - Management - AutoScaling
+      - Management - Watch
+      - Management - Messaging
+
+tags:
+  - { name: 인증 }
+  - { name: Compute - Virtual Machine }
+  - { name: Compute - Networking }
+  - { name: Compute - Tier }
+  - { name: Compute - Volume }
+  - { name: Compute - Image }
+  - { name: Compute - Snapshot }
+  - { name: Compute - SSH Keypair }
+  - { name: Compute - Resource Log }
+  - { name: Network - LoadBalancer }
+  - { name: Network - GSLB }
+  - { name: Storage - NAS }
+  - { name: Storage - ObjectStorage 3.0 }
+  - { name: Storage - ObjectStorage 2.0 }
+  - { name: Storage - ObjectStorage 1.0 }
+  - { name: CDN }
+  - { name: Security - WAF }
+  - { name: Management - AutoScaling }
+  - { name: Management - Watch }
+  - { name: Management - Messaging }
+
+paths:
+  # ============================================================
+  # 인증 (Keystone v3) — 모든 Compute / Storage / Watch 등 D-platform API 의 사전 단계
+  # ============================================================
+  /{zone}/identity/auth/tokens:
+    post:
+      tags: [인증]
+      summary: Keystone v3 토큰 발급
+      description: |
+        응답 header `X-Subject-Token` = bearer 토큰.
+        응답 body.token.project.id = project_id (cinder/manila URL 에 필요).
+      parameters:
+        - { name: zone, in: path, required: true, schema: { type: string, enum: [d1, d2, gd1, gd4] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth]
+              properties:
+                auth:
+                  type: object
+                  properties:
+                    identity:
+                      type: object
+                      properties:
+                        methods: { type: array, items: { type: string, enum: [password] } }
+                        password:
+                          type: object
+                          properties:
+                            user:
+                              type: object
+                              required: [name, password]
+                              properties:
+                                domain: { type: object, properties: { id: { type: string, default: default } } }
+                                name: { type: string, example: user@example.com }
+                                password: { type: string, format: password }
+                    scope:
+                      type: object
+                      properties:
+                        project:
+                          type: object
+                          properties:
+                            domain: { type: object, properties: { id: { type: string, default: default } } }
+                            name: { type: string, example: user@example.com }
+      responses: { "201": { description: 토큰 발급 (X-Subject-Token 헤더) } }
+
+  # ============================================================
+  # Compute - Virtual Machine
+  # ============================================================
+  /{zone}/server/servers:
+    post:
+      tags: [Compute - Virtual Machine]
+      summary: VM 생성 (async)
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [server]
+              properties:
+                server:
+                  type: object
+                  required: [name, key_name, flavorRef, networks, block_device_mapping_v2]
+                  properties:
+                    name: { type: string }
+                    key_name: { type: string, description: SSH keypair 이름 }
+                    flavorRef: { type: string }
+                    availability_zone: { type: string, default: DX-M1 }
+                    networks: { type: array, items: { type: object } }
+                    block_device_mapping_v2: { type: array, items: { type: object } }
+                    user_data: { type: string, description: base64 startup script }
+      responses: { "202": { description: 생성 요청 수락 } }
+
+  /{zone}/server/servers/detail:
+    get:
+      tags: [Compute - Virtual Machine]
+      summary: VM detail 목록
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: VM detail 목록 } }
+
+  /{zone}/server/servers/{server_id}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: server_id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Compute - Virtual Machine]
+      summary: VM 상세 조회
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: VM 상세 } }
+    delete:
+      tags: [Compute - Virtual Machine]
+      summary: VM 삭제
+      security: [{ KeystoneToken: [] }]
+      responses: { "204": { description: 삭제됨 } }
+
+  /{zone}/server/servers/{server_id}/os-interface:
+    get:
+      tags: [Compute - Virtual Machine]
+      summary: VM 네트워크 인터페이스 조회
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: server_id, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: interface 목록 } }
+
+  /{zone}/server/servers/{server_id}/action:
+    post:
+      tags: [Compute - Virtual Machine]
+      summary: VM 액션 (forceDelete / shelve / unshelve / resize)
+      description: |
+        body 의 키로 액션 구분:
+          - `forceDelete`  : 강제 삭제
+          - `shelve`       : 정지 (async)
+          - `unshelve`     : 시작 (async)
+          - `resize`       : flavor 변경 — `resize.flavorRef`
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: server_id, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                forceDelete: { type: string, nullable: true }
+                shelve: { type: string, nullable: true }
+                unshelve: { type: string, nullable: true }
+                resize:
+                  type: object
+                  properties: { flavorRef: { type: string } }
+      responses: { "202": { description: 요청 수락 } }
+
+  /{zone}/server/flavors/detail:
+    get:
+      tags: [Compute - Virtual Machine]
+      summary: flavor 목록 (CPU/Memory 사양)
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: flavor 목록 } }
+
+  /{zone}/server/networks/traffics:
+    get:
+      tags: [Compute - Virtual Machine]
+      summary: 네트워크 사용량 조회
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: yearMonth, in: query, required: true, schema: { type: string, example: "2026-05" } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 트래픽 사용량 } }
+
+  /{zone}/server/networks/alarms/history:
+    get:
+      tags: [Compute - Virtual Machine]
+      summary: 네트워크 사용량 알람 이력
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: yearMonth, in: query, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 알람 이력 } }
+
+  # ============================================================
+  # Compute - Networking (NSM)
+  # ============================================================
+  /{zone}/nsm/v1/publicIp:
+    get:
+      tags: [Compute - Networking]
+      summary: Public IP 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: page, in: query, schema: { type: string } }
+        - { name: size, in: query, schema: { type: string } }
+        - { name: cidr, in: query, schema: { type: string } }
+        - { name: publicIpId, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: "{ data: [...] }" } }
+    post:
+      tags: [Compute - Networking]
+      summary: Public IP 생성
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/nsm/v1/publicIp/{publicIpId}:
+    delete:
+      tags: [Compute - Networking]
+      summary: Public IP 삭제
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: publicIpId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  /{zone}/nsm/v1/portforwarding:
+    get:
+      tags: [Compute - Networking]
+      summary: 포트포워딩 규칙 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: page, in: query, schema: { type: string } }
+        - { name: size, in: query, schema: { type: string } }
+        - { name: mappedIp, in: query, schema: { type: string } }
+        - { name: protocol, in: query, schema: { type: string } }
+        - { name: startPrivatePort, in: query, schema: { type: string } }
+        - { name: endPrivatePort, in: query, schema: { type: string } }
+        - { name: startPublicPort, in: query, schema: { type: string } }
+        - { name: endPublicPort, in: query, schema: { type: string } }
+        - { name: portForwardingId, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 규칙 목록 } }
+    post:
+      tags: [Compute - Networking]
+      summary: 포트포워딩 규칙 생성
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [publicIpId, mappedIp, protocol, startPrivatePort, endPrivatePort, startPublicPort, endPublicPort]
+              properties:
+                publicIpId: { type: string }
+                mappedIp: { type: string }
+                protocol: { type: string }
+                startPrivatePort: { type: string }
+                endPrivatePort: { type: string }
+                startPublicPort: { type: string }
+                endPublicPort: { type: string }
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/nsm/v1/portforwarding/{portforwardingId}:
+    delete:
+      tags: [Compute - Networking]
+      summary: 포트포워딩 규칙 삭제
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: portforwardingId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  /{zone}/nsm/v1/staticNat:
+    get:
+      tags: [Compute - Networking]
+      summary: Static NAT 목록
+      description: |
+        응답 data 의 mappedIp (private) + publicIp (public) 매핑이 곧 server 의 fixed IP →
+        Public IP 매핑.
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: page, in: query, schema: { type: string } }
+        - { name: size, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: Static NAT 목록 } }
+    post:
+      tags: [Compute - Networking]
+      summary: Static NAT 생성
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [publicIpId, mappedIp]
+              properties:
+                publicIpId: { type: string }
+                mappedIp: { type: string }
+                sourceAddress: { type: string }
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/nsm/v1/staticNat/{staticNatId}:
+    delete:
+      tags: [Compute - Networking]
+      summary: Static NAT 삭제
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: staticNatId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  /{zone}/nsm/v1/firewall/policy:
+    get:
+      tags: [Compute - Networking]
+      summary: 방화벽 정책 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: page, in: query, schema: { type: string } }
+        - { name: size, in: query, schema: { type: string } }
+        - { name: policyId, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 정책 목록 } }
+    post:
+      tags: [Compute - Networking]
+      summary: 방화벽 정책 생성
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [srcNat]
+              properties:
+                srcNat: { type: boolean }
+                portForwardingId: { type: string }
+                staticNatId: { type: string }
+                srcInterface: { type: string }
+                dstInterface: { type: string }
+                action: { type: string }
+                protocol: { type: string }
+                startPort: { type: string }
+                endPort: { type: string }
+                srcNetwork: { type: array, items: { type: string } }
+                dstNetwork: { type: array, items: { type: string } }
+                srcAddress: { type: array, items: { type: string } }
+                dstAddress: { type: array, items: { type: string } }
+                comment: { type: string }
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/nsm/v1/firewall/policy/{policyId}:
+    delete:
+      tags: [Compute - Networking]
+      summary: 방화벽 정책 삭제
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: policyId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  /{zone}/nsm/v1/vpc:
+    get:
+      tags: [Compute - Networking]
+      summary: VPC 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: page, in: query, schema: { type: string } }
+        - { name: size, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: VPC 목록 } }
+
+  /{zone}/nsm/v1/job/status/{jobid}:
+    get:
+      tags: [Compute - Networking]
+      summary: 비동기 작업 상태 조회
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: jobid, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 작업 상태 } }
+
+  # ============================================================
+  # Compute - Tier (네트워크 Tier)
+  # ============================================================
+  /{zone}/nsm/v1/network:
+    get:
+      tags: [Compute - Tier]
+      summary: Tier 네트워크 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: page, in: query, schema: { type: string } }
+        - { name: size, in: query, schema: { type: string } }
+        - { name: networkType, in: query, schema: { type: string } }
+        - { name: isPrivateSubnet, in: query, schema: { type: boolean } }
+        - { name: networkId, in: query, schema: { type: string } }
+        - { name: refid, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: tier 네트워크 목록 } }
+    post:
+      tags: [Compute - Tier]
+      summary: Tier 네트워크 생성
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type]
+              properties:
+                name: { type: string }
+                type: { type: string }
+                isCustom: { type: boolean }
+                detail:
+                  type: object
+                  properties:
+                    cclass: { type: string }
+                    cidr: { type: string }
+                    gatewayIp: { type: string }
+                    startIp: { type: string }
+                    endIp: { type: string }
+                    lbStartIp: { type: string }
+                    lbEndIp: { type: string }
+                    bmStartIp: { type: string }
+                    bmEndIp: { type: string }
+                    iscsiStartIp: { type: string }
+                    iscsiEndIp: { type: string }
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/nsm/v1/network/{networkId}:
+    delete:
+      tags: [Compute - Tier]
+      summary: Tier 네트워크 삭제
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: networkId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  # ============================================================
+  # Compute - Volume (cinder)
+  # ============================================================
+  /{zone}/volume/{project_id}/volumes:
+    post:
+      tags: [Compute - Volume]
+      summary: 볼륨 생성 (async)
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                availability_zone: { type: string }
+                size: { type: integer }
+                usage_plan_type: { type: string }
+                name: { type: string }
+                bootable: { type: boolean }
+                snapshot_id: { type: string }
+      responses: { "202": { description: 생성 요청 수락 } }
+
+  /{zone}/volume/{project_id}/volumes/detail:
+    get:
+      tags: [Compute - Volume]
+      summary: 볼륨 detail 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 볼륨 목록 } }
+
+  /{zone}/volume/{project_id}/volumes/{volume_id}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - $ref: "#/components/parameters/ProjectId"
+      - { name: volume_id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Compute - Volume]
+      summary: 볼륨 상세
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 볼륨 상세 } }
+    delete:
+      tags: [Compute - Volume]
+      summary: 볼륨 삭제 (async)
+      security: [{ KeystoneToken: [] }]
+      responses: { "202": { description: 삭제 요청 수락 } }
+
+  /{zone}/server/servers/{server_id}/os-volume_attachments:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: server_id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Compute - Volume]
+      summary: VM 에 attach 된 볼륨 목록
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: attach 된 볼륨 } }
+    post:
+      tags: [Compute - Volume]
+      summary: 볼륨을 VM 에 attach (async)
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [volumeId, device]
+              properties:
+                volumeId: { type: string }
+                device: { type: string }
+      responses: { "202": { description: 요청 수락 } }
+
+  /{zone}/server/servers/{server_id}/os-volume_attachments/{volume_id}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: server_id, in: path, required: true, schema: { type: string } }
+      - { name: volume_id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Compute - Volume]
+      summary: attach 된 볼륨 상세
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 상세 } }
+    delete:
+      tags: [Compute - Volume]
+      summary: 볼륨을 VM 에서 detach
+      security: [{ KeystoneToken: [] }]
+      responses: { "202": { description: 요청 수락 } }
+
+  # ============================================================
+  # Compute - Image (glance)
+  # ============================================================
+  /{zone}/volume/{project_id}/volumes/{volume_id}/action:
+    post:
+      tags: [Compute - Image]
+      summary: 루트 볼륨에서 이미지 생성 (async)
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+        - { name: volume_id, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [os-volume_upload_image]
+              properties:
+                os-volume_upload_image:
+                  type: object
+                  required: [image_name, container_format, disk_format]
+                  properties:
+                    force: { type: boolean }
+                    image_name: { type: string }
+                    container_format: { type: string }
+                    disk_format: { type: string }
+      responses: { "202": { description: 요청 수락 } }
+
+  /{zone}/image/images:
+    get:
+      tags: [Compute - Image]
+      summary: 이미지 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: limit, in: query, schema: { type: integer, default: 200 } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 이미지 목록 } }
+
+  /{zone}/image/images/{image_id}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: image_id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Compute - Image]
+      summary: 이미지 상세
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 이미지 상세 } }
+    delete:
+      tags: [Compute - Image]
+      summary: 이미지 삭제
+      security: [{ KeystoneToken: [] }]
+      responses: { "204": { description: 삭제됨 } }
+
+  # ============================================================
+  # Compute - Snapshot (cinder)
+  # ============================================================
+  /{zone}/volume/{project_id}/snapshots:
+    post:
+      tags: [Compute - Snapshot]
+      summary: 볼륨 스냅샷 생성 (async)
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [snapshot]
+              properties:
+                snapshot:
+                  type: object
+                  required: [name, volume_id]
+                  properties:
+                    name: { type: string }
+                    volume_id: { type: string }
+                    force: { type: boolean }
+                    description: { type: string }
+      responses: { "202": { description: 요청 수락 } }
+
+  /{zone}/volume/{project_id}/snapshots/detail:
+    get:
+      tags: [Compute - Snapshot]
+      summary: 스냅샷 detail 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 스냅샷 목록 } }
+
+  /{zone}/volume/{project_id}/snapshots/{snapshot_id}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - $ref: "#/components/parameters/ProjectId"
+      - { name: snapshot_id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Compute - Snapshot]
+      summary: 스냅샷 상세
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 스냅샷 상세 } }
+    delete:
+      tags: [Compute - Snapshot]
+      summary: 스냅샷 삭제
+      security: [{ KeystoneToken: [] }]
+      responses: { "204": { description: 삭제됨 } }
+
+  # ============================================================
+  # Compute - SSH Keypair
+  # ============================================================
+  /{zone}/server/os-keypairs:
+    get:
+      tags: [Compute - SSH Keypair]
+      summary: SSH 키페어 목록
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 키페어 목록 } }
+    post:
+      tags: [Compute - SSH Keypair]
+      summary: SSH 키페어 생성
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keypair]
+              properties:
+                keypair:
+                  type: object
+                  required: [name]
+                  properties: { name: { type: string } }
+      responses: { "200": { description: 생성됨 (private key 응답) } }
+
+  /{zone}/server/os-keypairs/{keypair_name}:
+    delete:
+      tags: [Compute - SSH Keypair]
+      summary: SSH 키페어 삭제
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: keypair_name, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "204": { description: 삭제됨 } }
+
+  # ============================================================
+  # Compute - Resource Log
+  # ============================================================
+  /{zone}/logs:
+    get:
+      tags: [Compute - Resource Log]
+      summary: 리소스 로그 조회
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: resource, in: query, required: true, schema: { type: string } }
+        - { name: event, in: query, required: true, schema: { type: string } }
+        - { name: start, in: query, schema: { type: string } }
+        - { name: end, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 로그 } }
+
+  # ============================================================
+  # Network - LoadBalancer
+  # ============================================================
+  /{zone}/loadbalancers:
+    get:
+      tags: [Network - LoadBalancer]
+      summary: 로드밸런서 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: loadbalancerName, in: query, schema: { type: string } }
+        - { name: loadbalancerId, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: string } }
+        - { name: size, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: LB 목록 } }
+    post:
+      tags: [Network - LoadBalancer]
+      summary: 로드밸런서 생성
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [loadbalancerName, networkId, servicePort, serviceType]
+              properties:
+                loadbalancerName: { type: string }
+                networkId: { type: string }
+                serviceIp: { type: string }
+                servicePort: { type: integer }
+                serviceType: { type: string, description: HTTP/HTTPS/SSLBRIDGE/TCP/FTP/REDIRECT/DSR }
+                loadbalancerOption: { type: string }
+                healthCheckType: { type: string }
+                healthCheckUrl: { type: string }
+                cipherGroupName: { type: string }
+                tlsv1: { type: string }
+                tlsv11: { type: string }
+                tlsv12: { type: string }
+                redirectUrl: { type: string }
+                isWebSocket: { type: boolean }
+                isXForwardProto: { type: boolean }
+                comment: { type: string }
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/loadbalancers/ciphers:
+    get:
+      tags: [Network - LoadBalancer]
+      summary: 사용 가능한 cipher group
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: cipher group } }
+
+  /{zone}/loadbalancers/usage:
+    get:
+      tags: [Network - LoadBalancer]
+      summary: LB 대역폭 사용량
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: loadbalancerId, in: query, required: true, schema: { type: string } }
+        - { name: startDte, in: query, required: true, schema: { type: string } }
+        - { name: endDate, in: query, required: true, schema: { type: string } }
+        - { name: page, in: query, schema: { type: string } }
+        - { name: size, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 사용량 } }
+
+  /{zone}/loadbalancers/validate-name:
+    get:
+      tags: [Network - LoadBalancer]
+      summary: LB 이름 중복 검사
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: loadbalancerName, in: query, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 사용 가능 여부 } }
+
+  /{zone}/loadbalancers/{loadbalancerId}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: loadbalancerId, in: path, required: true, schema: { type: string } }
+    put:
+      tags: [Network - LoadBalancer]
+      summary: 로드밸런서 수정
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 수정됨 } }
+    delete:
+      tags: [Network - LoadBalancer]
+      summary: 로드밸런서 삭제
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  /{zone}/loadbalancers/{loadbalancerId}/certificate:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: loadbalancerId, in: path, required: true, schema: { type: string } }
+    put:
+      tags: [Network - LoadBalancer]
+      summary: SSL 인증서 적용
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 적용됨 } }
+    delete:
+      tags: [Network - LoadBalancer]
+      summary: SSL 인증서 해제
+      parameters:
+        - { name: certificateName, in: query, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 해제됨 } }
+
+  /{zone}/loadbalancers/{loadbalancerId}/servers:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: loadbalancerId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Network - LoadBalancer]
+      summary: 백엔드 서버 목록
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 백엔드 목록 } }
+    post:
+      tags: [Network - LoadBalancer]
+      summary: 백엔드 VM 추가
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 추가됨 } }
+
+  /{zone}/loadbalancers/{loadbalancerId}/servers/{serviceId}:
+    delete:
+      tags: [Network - LoadBalancer]
+      summary: 백엔드 서버 제거
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: loadbalancerId, in: path, required: true, schema: { type: string } }
+        - { name: serviceId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 제거됨 } }
+
+  /{zone}/loadbalancers/{loadbalancerId}/tag:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: loadbalancerId, in: path, required: true, schema: { type: string } }
+    put:
+      tags: [Network - LoadBalancer]
+      summary: LB 태그 생성
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 생성됨 } }
+    delete:
+      tags: [Network - LoadBalancer]
+      summary: LB 태그 삭제
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  # ============================================================
+  # Network - GSLB
+  # ============================================================
+  /{zone}/gslbs:
+    get:
+      tags: [Network - GSLB]
+      summary: GSLB 서비스 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: page, in: query, schema: { type: string } }
+        - { name: size, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: GSLB 목록 } }
+    post:
+      tags: [Network - GSLB]
+      summary: GSLB 서비스 생성
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/gslbs/validate-name:
+    get:
+      tags: [Network - GSLB]
+      summary: GSLB 이름 중복 검사
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: name, in: query, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 사용 가능 여부 } }
+
+  /{zone}/gslbs/{serverId}:
+    delete:
+      tags: [Network - GSLB]
+      summary: GSLB 삭제
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: serverId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  /{zone}/gslbs/{serverId}/ips:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: serverId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Network - GSLB]
+      summary: GSLB IP 목록
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: IP 목록 } }
+    post:
+      tags: [Network - GSLB]
+      summary: GSLB 에 IP 추가
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 추가됨 } }
+
+  /{zone}/gslbs/ips/{serviceId}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: serviceId, in: path, required: true, schema: { type: string } }
+    put:
+      tags: [Network - GSLB]
+      summary: GSLB IP 수정
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 수정됨 } }
+    delete:
+      tags: [Network - GSLB]
+      summary: GSLB IP 제거
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 제거됨 } }
+
+  # ============================================================
+  # Storage - NAS (manila)
+  # ============================================================
+  /{zone}/nas/{project_id}/shares:
+    post:
+      tags: [Storage - NAS]
+      summary: NAS 볼륨 생성
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/nas/{project_id}/shares/detail:
+    get:
+      tags: [Storage - NAS]
+      summary: NAS 볼륨 detail 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: NAS 볼륨 목록 } }
+
+  /{zone}/nas/{project_id}/shares/{share_id}:
+    get:
+      tags: [Storage - NAS]
+      summary: NAS 볼륨 상세
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+        - { name: share_id, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: NAS 상세 } }
+
+  /{zone}/nas/{project_id}/shares/{share_id}/action:
+    post:
+      tags: [Storage - NAS]
+      summary: NAS 액션 (expand / access-allow / access-list / access-deny)
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+        - { name: share_id, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 요청 수락 } }
+
+  /{zone}/nas/{project_id}/share-networks:
+    post:
+      tags: [Storage - NAS]
+      summary: NAS shared network 생성
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/nas/{project_id}/share-networks/detail:
+    get:
+      tags: [Storage - NAS]
+      summary: shared network detail 목록
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 목록 } }
+
+  /{zone}/nas/{project_id}/share-networks/{share_network_id}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - $ref: "#/components/parameters/ProjectId"
+      - { name: share_network_id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Storage - NAS]
+      summary: shared network 상세
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 상세 } }
+    delete:
+      tags: [Storage - NAS]
+      summary: shared network 삭제
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  /{zone}/nas/{project_id}/share/{share_id}/cifs:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - $ref: "#/components/parameters/ProjectId"
+      - { name: share_id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Storage - NAS]
+      summary: CIFS 사용자 목록
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 목록 } }
+    post:
+      tags: [Storage - NAS]
+      summary: CIFS 인증 생성
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/nas/{project_id}/share/{share_id}/cifs/{cifs_id}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - $ref: "#/components/parameters/ProjectId"
+      - { name: share_id, in: path, required: true, schema: { type: string } }
+      - { name: cifs_id, in: path, required: true, schema: { type: string } }
+    patch:
+      tags: [Storage - NAS]
+      summary: CIFS 비밀번호 변경
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 변경됨 } }
+    delete:
+      tags: [Storage - NAS]
+      summary: CIFS 계정 삭제
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  /{zone}/iscsi/{project_id}/initiator:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - $ref: "#/components/parameters/ProjectId"
+    get:
+      tags: [Storage - NAS]
+      summary: iSCSI initiator 목록
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: initiator 목록 } }
+    post:
+      tags: [Storage - NAS]
+      summary: iSCSI initiator (IQN) 생성
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 생성됨 } }
+
+  /{zone}/iscsi/{project_id}/initiator/{initiator_id}:
+    delete:
+      tags: [Storage - NAS]
+      summary: iSCSI initiator 삭제
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - $ref: "#/components/parameters/ProjectId"
+        - { name: initiator_id, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 삭제됨 } }
+
+  # ============================================================
+  # Storage - ObjectStorage 3.0 (host: ss1.cloud.kt.com:1000)
+  # 인증은 KT 자체 signature (Date + Authorization 헤더)
+  # ============================================================
+  /v1/{tenant_id}:
+    get:
+      tags: [Storage - ObjectStorage 3.0]
+      summary: 파일박스(컨테이너) 목록 — 실제 host=ss1.cloud.kt.com:1000
+      parameters:
+        - { name: tenant_id, in: path, required: true, schema: { type: string } }
+        - { name: Date, in: header, required: true, schema: { type: string } }
+        - { name: Authorization, in: header, required: true, schema: { type: string } }
+      responses: { "200": { description: 파일박스 목록 } }
+
+  /v1/{tenant_id}/{filebox_name}:
+    parameters:
+      - { name: tenant_id, in: path, required: true, schema: { type: string } }
+      - { name: filebox_name, in: path, required: true, schema: { type: string } }
+      - { name: Date, in: header, required: true, schema: { type: string } }
+      - { name: Authorization, in: header, required: true, schema: { type: string } }
+    put:
+      tags: [Storage - ObjectStorage 3.0]
+      summary: 파일박스 생성
+      responses: { "201": { description: 생성됨 } }
+    get:
+      tags: [Storage - ObjectStorage 3.0]
+      summary: 파일박스 내 파일 목록
+      responses: { "200": { description: 파일 목록 } }
+    delete:
+      tags: [Storage - ObjectStorage 3.0]
+      summary: 파일박스 삭제
+      responses: { "204": { description: 삭제됨 } }
+
+  /v1/{tenant_id}/{filebox_name}/{file}:
+    parameters:
+      - { name: tenant_id, in: path, required: true, schema: { type: string } }
+      - { name: filebox_name, in: path, required: true, schema: { type: string } }
+      - { name: file, in: path, required: true, schema: { type: string } }
+      - { name: Date, in: header, required: true, schema: { type: string } }
+      - { name: Authorization, in: header, required: true, schema: { type: string } }
+    put:
+      tags: [Storage - ObjectStorage 3.0]
+      summary: 파일 업로드 (또는 멀티파트 파트 업로드)
+      parameters:
+        - { name: partNumber, in: query, schema: { type: string }, description: 멀티파트 시 파트 번호 }
+        - { name: uploadId, in: query, schema: { type: string }, description: 멀티파트 업로드 세션 ID }
+        - { name: Content-Type, in: header, schema: { type: string } }
+      responses: { "201": { description: 업로드됨 } }
+    get:
+      tags: [Storage - ObjectStorage 3.0]
+      summary: 파일 다운로드
+      responses: { "200": { description: 다운로드 } }
+    delete:
+      tags: [Storage - ObjectStorage 3.0]
+      summary: 파일 삭제
+      responses: { "204": { description: 삭제됨 } }
+    post:
+      tags: [Storage - ObjectStorage 3.0]
+      summary: 멀티파트 업로드 시작/완료 (?uploads / ?uploadId)
+      parameters:
+        - { name: uploads, in: query, schema: { type: string }, description: 멀티파트 시작 flag }
+        - { name: uploadId, in: query, schema: { type: string }, description: 멀티파트 완료 시 session ID }
+      responses: { "200": { description: 처리됨 } }
+
+  # ============================================================
+  # Storage - ObjectStorage 2.0 (Swift + Keystone v3)
+  # ============================================================
+  /v2/identity/auth/tokens:
+    post:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: Keystone v3 토큰 발급 (Object Storage 2.0 전용 endpoint)
+      responses: { "201": { description: 토큰 발급 } }
+
+  /v1/AUTH_{project_id}:
+    parameters:
+      - { name: project_id, in: path, required: true, schema: { type: string } }
+      - { name: X-Auth-Token, in: header, required: true, schema: { type: string } }
+    get:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 컨테이너 목록
+      parameters:
+        - { name: limit, in: query, schema: { type: string } }
+        - { name: marker, in: query, schema: { type: string } }
+        - { name: format, in: query, schema: { type: string, enum: [json, xml] } }
+      responses: { "200": { description: 컨테이너 목록 } }
+    head:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 계정 메타데이터
+      responses: { "204": { description: 메타데이터 헤더 } }
+    post:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 계정 메타데이터 수정
+      parameters:
+        - { name: X-Account-Meta-Temp-URL-Key, in: header, schema: { type: string } }
+      responses: { "204": { description: 수정됨 } }
+
+  /v1/AUTH_{project_id}/{container}:
+    parameters:
+      - { name: project_id, in: path, required: true, schema: { type: string } }
+      - { name: container, in: path, required: true, schema: { type: string } }
+      - { name: X-Auth-Token, in: header, required: true, schema: { type: string } }
+    put:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 컨테이너 생성 / 버전관리 / history 설정
+      parameters:
+        - { name: X-Storage-Policy, in: header, schema: { type: string, enum: ["3copy", "ec"] } }
+        - { name: X-Versions-Location, in: header, schema: { type: string } }
+        - { name: X-History-Location, in: header, schema: { type: string } }
+      responses: { "201": { description: 생성됨 } }
+    get:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 컨테이너 내 객체 목록
+      parameters:
+        - { name: limit, in: query, schema: { type: string } }
+        - { name: marker, in: query, schema: { type: string } }
+        - { name: prefix, in: query, schema: { type: string } }
+        - { name: format, in: query, schema: { type: string, enum: [json, xml] } }
+        - { name: path, in: query, schema: { type: string } }
+      responses: { "200": { description: 객체 목록 } }
+    head:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 컨테이너 메타데이터
+      responses: { "204": { description: 헤더 } }
+    post:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 컨테이너 메타데이터 / ACL / static web 수정
+      parameters:
+        - { name: X-Container-Read, in: header, schema: { type: string }, description: 읽기 ACL }
+        - { name: X-Container-Write, in: header, schema: { type: string }, description: 쓰기 ACL }
+      responses: { "204": { description: 수정됨 } }
+    delete:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 빈 컨테이너 삭제
+      responses: { "204": { description: 삭제됨 } }
+
+  /v1/AUTH_{project_id}/{container}/{object}:
+    parameters:
+      - { name: project_id, in: path, required: true, schema: { type: string } }
+      - { name: container, in: path, required: true, schema: { type: string } }
+      - { name: object, in: path, required: true, schema: { type: string } }
+      - { name: X-Auth-Token, in: header, required: true, schema: { type: string } }
+    head:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 객체 메타데이터
+      responses: { "200": { description: 메타데이터 헤더 } }
+    get:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 객체 다운로드 (TempURL 지원)
+      parameters:
+        - { name: temp_url_sig, in: query, schema: { type: string } }
+        - { name: temp_url_expires, in: query, schema: { type: string } }
+      responses: { "200": { description: 객체 콘텐츠 } }
+    put:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 객체 업로드 / 복사 / SLO / Symlink / 아카이브 추출
+      parameters:
+        - { name: Content-Type, in: header, schema: { type: string } }
+        - { name: Content-Length, in: header, schema: { type: string } }
+        - { name: Transfer-Encoding, in: header, schema: { type: string, enum: [chunked] } }
+        - { name: X-Delete-At, in: header, schema: { type: string } }
+        - { name: X-Delete-After, in: header, schema: { type: string } }
+        - { name: X-Copy-From, in: header, schema: { type: string } }
+        - { name: X-Object-Manifest, in: header, schema: { type: string }, description: DLO 매니페스트 }
+        - { name: multipart-manifest, in: query, schema: { type: string }, description: put → SLO }
+        - { name: symlink, in: query, schema: { type: string } }
+        - { name: extract-archive, in: query, schema: { type: string, enum: [tar, "tar.gz", "tar.bz2"] } }
+      responses: { "201": { description: 업로드됨 } }
+    post:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 객체 메타데이터 수정
+      responses: { "202": { description: 수정됨 } }
+    delete:
+      tags: [Storage - ObjectStorage 2.0]
+      summary: 객체 삭제 (?bulk-delete 로 대량 삭제)
+      parameters:
+        - { name: bulk-delete, in: query, schema: { type: string } }
+      responses: { "204": { description: 삭제됨 } }
+
+  # ============================================================
+  # Storage - ObjectStorage 1.0
+  # ============================================================
+  /auth/v1.0:
+    get:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 인증 후 토큰 발급
+      parameters:
+        - { name: X-Storage-User, in: header, required: true, schema: { type: string }, description: Access Key ID }
+        - { name: X-Storage-Pass, in: header, required: true, schema: { type: string }, description: Secret Key }
+      responses: { "200": { description: X-Storage-Token / X-Storage-Url 헤더 } }
+
+  /v1/{account}:
+    parameters:
+      - { name: account, in: path, required: true, schema: { type: string } }
+      - { name: X-Auth-Token, in: header, required: true, schema: { type: string } }
+    get:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 파일박스 목록
+      parameters:
+        - { name: limit, in: query, schema: { type: string } }
+        - { name: marker, in: query, schema: { type: string } }
+        - { name: format, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+    head:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 계정 메타데이터
+      responses: { "204": { description: 메타데이터 } }
+    post:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 계정 메타데이터 수정
+      responses: { "204": { description: 수정됨 } }
+
+  /v1/{account}/{container}:
+    parameters:
+      - { name: account, in: path, required: true, schema: { type: string } }
+      - { name: container, in: path, required: true, schema: { type: string } }
+      - { name: X-Auth-Token, in: header, required: true, schema: { type: string } }
+    put:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 파일박스 생성
+      responses: { "201": { description: 생성됨 } }
+    get:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 파일박스 내 파일 목록
+      parameters:
+        - { name: limit, in: query, schema: { type: string } }
+        - { name: marker, in: query, schema: { type: string } }
+        - { name: prefix, in: query, schema: { type: string } }
+        - { name: format, in: query, schema: { type: string } }
+        - { name: path, in: query, schema: { type: string } }
+      responses: { "200": { description: 파일 목록 } }
+    head:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 파일박스 메타데이터
+      responses: { "204": { description: 메타데이터 } }
+    post:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 파일박스 메타데이터 / ACL / static web / logging / IP ACL 수정
+      parameters:
+        - { name: X-Container-Read, in: header, schema: { type: string } }
+        - { name: X-Container-Write, in: header, schema: { type: string } }
+        - { name: X-Container-Meta-Ipacl-Read, in: header, schema: { type: string } }
+        - { name: X-Container-Meta-Ipacl-Write, in: header, schema: { type: string } }
+      responses: { "204": { description: 수정됨 } }
+    delete:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 빈 파일박스 삭제
+      responses: { "204": { description: 삭제됨 } }
+
+  /v1/{account}/{container}/{object}:
+    parameters:
+      - { name: account, in: path, required: true, schema: { type: string } }
+      - { name: container, in: path, required: true, schema: { type: string } }
+      - { name: object, in: path, required: true, schema: { type: string } }
+      - { name: X-Auth-Token, in: header, required: true, schema: { type: string } }
+    head:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 객체 메타데이터
+      responses: { "200": { description: 메타데이터 } }
+    get:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 객체 다운로드
+      responses: { "200": { description: 콘텐츠 } }
+    put:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 객체 업로드 / 복사
+      parameters:
+        - { name: Content-Type, in: header, schema: { type: string } }
+        - { name: Content-Length, in: header, schema: { type: string } }
+        - { name: Transfer-Encoding, in: header, schema: { type: string } }
+        - { name: X-Copy-From, in: header, schema: { type: string } }
+      responses: { "201": { description: 업로드됨 } }
+    post:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 객체 메타데이터 수정
+      responses: { "202": { description: 수정됨 } }
+    delete:
+      tags: [Storage - ObjectStorage 1.0]
+      summary: 객체 삭제
+      responses: { "204": { description: 삭제됨 } }
+
+  # ============================================================
+  # CDN (CDN Standard)
+  # 실제 base: https://api.ucloudbiz.olleh.com/cdn3.0/v1/client/api
+  # 호출 형식: GET {base}?command={command}&apiKey=...&signature=...&response=json
+  # 각 command 는 아래 synthetic path 로 분리 표기.
+  # 공통 query: apiKey (필수), signature (HMAC-SHA1, 필수), response=json (필수)
+  # ============================================================
+  /cdn3.0/v1/client/api/createCdn:
+    get:
+      tags: [CDN]
+      summary: CDN Standard 서비스 생성
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=createCdn"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: name, in: query, required: true, schema: { type: string } }
+        - { name: cdnType, in: query, required: true, schema: { type: string, enum: [direct, storage, storage2] } }
+        - { name: srcDomain, in: query, required: true, schema: { type: string } }
+        - { name: svcType, in: query, required: true, schema: { type: string, enum: [download, streaming] } }
+        - { name: svcDomain, in: query, schema: { type: string } }
+        - { name: allowNonExistReferrers, in: query, schema: { type: string } }
+        - { name: certificateName, in: query, schema: { type: string } }
+        - { name: description, in: query, schema: { type: string } }
+        - { name: positiveTtl, in: query, schema: { type: integer } }
+        - { name: referers, in: query, schema: { type: array, items: { type: string } } }
+        - { name: secureTokenSecrets, in: query, schema: { type: string } }
+        - { name: sslProtocol, in: query, schema: { type: array, items: { type: string } } }
+        - { name: useGzip, in: query, schema: { type: string } }
+        - { name: useIgnoreQuery, in: query, schema: { type: string } }
+        - { name: useRedirectHttps, in: query, schema: { type: string } }
+        - { name: useSsl, in: query, schema: { type: string } }
+        - { name: useStreaming, in: query, schema: { type: string } }
+      responses: { "200": { description: 생성됨 } }
+
+  /cdn3.0/v1/client/api/listCdn:
+    get:
+      tags: [CDN]
+      summary: CDN 서비스 목록/조회
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=listCdn"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: svcid, in: query, schema: { type: string } }
+      responses: { "200": { description: CDN 목록 } }
+
+  /cdn3.0/v1/client/api/updateCdn:
+    get:
+      tags: [CDN]
+      summary: CDN 서비스 수정
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=updateCdn"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: cdnType, in: query, required: true, schema: { type: string } }
+        - { name: srcDomain, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 수정됨 } }
+
+  /cdn3.0/v1/client/api/deleteCdn:
+    get:
+      tags: [CDN]
+      summary: CDN 서비스 삭제
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=deleteCdn"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: id, in: query, schema: { type: string } }
+      responses: { "200": { description: 삭제됨 } }
+
+  /cdn3.0/v1/client/api/startCdn:
+    get:
+      tags: [CDN]
+      summary: CDN 서비스 시작
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=startCdn"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: id, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 시작됨 } }
+
+  /cdn3.0/v1/client/api/stopCdn:
+    get:
+      tags: [CDN]
+      summary: CDN 서비스 정지
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=stopCdn"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: id, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 정지됨 } }
+
+  /cdn3.0/v1/client/api/networkStatistics:
+    get:
+      tags: [CDN]
+      summary: CDN 네트워크 사용량 통계
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=networkStatistics"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: startdt, in: query, schema: { type: string } }
+        - { name: enddt, in: query, schema: { type: string } }
+        - { name: math, in: query, schema: { type: string } }
+        - { name: statsType, in: query, schema: { type: string } }
+        - { name: unit, in: query, schema: { type: string } }
+      responses: { "200": { description: 통계 } }
+
+  /cdn3.0/v1/client/api/contentStatistics:
+    get:
+      tags: [CDN]
+      summary: CDN 콘텐츠 사용량
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=contentStatistics"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: startdt, in: query, schema: { type: string } }
+        - { name: enddt, in: query, schema: { type: string } }
+      responses: { "200": { description: 통계 } }
+
+  /cdn3.0/v1/client/api/locationStatistics:
+    get:
+      tags: [CDN]
+      summary: CDN ISP/지역 사용량
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=locationStatistics"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: startdt, in: query, schema: { type: string } }
+        - { name: enddt, in: query, schema: { type: string } }
+      responses: { "200": { description: 통계 } }
+
+  /cdn3.0/v1/client/api/purgeCdn:
+    get:
+      tags: [CDN]
+      summary: CDN 캐시 purge
+      description: "실제 호출: GET /cdn3.0/v1/client/api?command=purgeCdn"
+      parameters:
+        - $ref: "#/components/parameters/CdnCommon"
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: fileList, in: query, required: true, schema: { type: array, items: { type: string } } }
+        - { name: hardPurge, in: query, schema: { type: string } }
+        - { name: purgeAll, in: query, schema: { type: string } }
+      responses: { "200": { description: purge 요청 수락 } }
+
+  # ============================================================
+  # Security - WAF
+  # 실제 base: /d1/waf/v1/client/api ?command=...
+  # ============================================================
+  /d1/waf/v1/client/api/createWAF:
+    get:
+      tags: [Security - WAF]
+      summary: WAF 인스턴스 생성
+      description: "실제 호출: GET /d1/waf/v1/client/api?command=createWAF"
+      parameters:
+        - { name: name, in: query, required: true, schema: { type: string } }
+        - { name: networkid, in: query, required: true, schema: { type: string } }
+        - { name: spec, in: query, required: true, schema: { type: string, enum: [standard, advanced, premium] } }
+        - { name: managetype, in: query, required: true, schema: { type: string } }
+        - { name: waf1consoleport, in: query, required: true, schema: { type: integer } }
+        - { name: waf1dbport, in: query, required: true, schema: { type: integer } }
+        - { name: waf1sshport, in: query, required: true, schema: { type: integer } }
+        - { name: zoneid, in: query, schema: { type: string } }
+      responses: { "200": { description: 생성됨 } }
+
+  /d1/waf/v1/client/api/listWAFs:
+    get:
+      tags: [Security - WAF]
+      summary: WAF 인스턴스 목록
+      description: "실제 호출: GET /d1/waf/v1/client/api?command=listWAFs"
+      responses: { "200": { description: 목록 } }
+
+  /d1/waf/v1/client/api/deleteWAF:
+    get:
+      tags: [Security - WAF]
+      summary: WAF 인스턴스 삭제
+      description: "실제 호출: GET /d1/waf/v1/client/api?command=deleteWAF"
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: integer } }
+      responses: { "200": { description: 삭제됨 } }
+
+  /d1/waf/v1/client/api/addWAFWebServer:
+    get:
+      tags: [Security - WAF]
+      summary: WAF 에 웹서버 추가
+      description: "실제 호출: GET /d1/waf/v1/client/api?command=addWAFWebServer"
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: integer } }
+        - { name: proxyport1, in: query, required: true, schema: { type: integer } }
+        - { name: sslmode, in: query, required: true, schema: { type: string } }
+        - { name: virtualmachineid, in: query, required: true, schema: { type: string } }
+        - { name: webserverport, in: query, required: true, schema: { type: integer } }
+      responses: { "200": { description: 추가됨 } }
+
+  /d1/waf/v1/client/api/listWAFWebServers:
+    get:
+      tags: [Security - WAF]
+      summary: WAF 웹서버 목록
+      description: "실제 호출: GET /d1/waf/v1/client/api?command=listWAFWebServers"
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: integer } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/waf/v1/client/api/removeWAFWebServer:
+    get:
+      tags: [Security - WAF]
+      summary: WAF 에서 웹서버 제거
+      description: "실제 호출: GET /d1/waf/v1/client/api?command=removeWAFWebServer"
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: integer } }
+        - { name: webserverid, in: query, required: true, schema: { type: integer } }
+      responses: { "200": { description: 제거됨 } }
+
+  /d1/waf/v1/client/api/addWAFWebSite:
+    get:
+      tags: [Security - WAF]
+      summary: WAF 에 웹사이트 추가
+      description: "실제 호출: GET /d1/waf/v1/client/api?command=addWAFWebSite"
+      parameters:
+        - { name: wafid, in: query, required: true, schema: { type: integer } }
+        - { name: port, in: query, required: true, schema: { type: integer } }
+        - { name: sitename, in: query, required: true, schema: { type: string } }
+        - { name: policynum, in: query, required: true, schema: { type: integer }, description: 보안정책 0-3 }
+      responses: { "200": { description: 추가됨 } }
+
+  /d1/waf/v1/client/api/listWAFWebSites:
+    get:
+      tags: [Security - WAF]
+      summary: WAF 웹사이트 목록
+      description: "실제 호출: GET /d1/waf/v1/client/api?command=listWAFWebSites"
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: integer } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/waf/v1/client/api/removeWAFWebSite:
+    get:
+      tags: [Security - WAF]
+      summary: WAF 에서 웹사이트 제거
+      description: "실제 호출: GET /d1/waf/v1/client/api?command=removeWAFWebSite"
+      parameters:
+        - { name: id, in: query, required: true, schema: { type: integer } }
+        - { name: websiteid, in: query, required: true, schema: { type: integer } }
+      responses: { "200": { description: 제거됨 } }
+
+  # ============================================================
+  # Management - AutoScaling
+  # 실제 base: /d1/autoscaling/v1/client/api ?command=...
+  # 공통 query: apiKey, response=json, signature
+  # ============================================================
+  /d1/autoscaling/v1/client/api/createAutoScalingGroup:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Auto Scaling Group 생성
+      description: "실제 호출: GET /d1/autoscaling/v1/client/api?command=createAutoScalingGroup"
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: availabilityzones.member.N, in: query, required: true, schema: { type: string } }
+        - { name: launchconfigurationname, in: query, required: true, schema: { type: string } }
+        - { name: minsize, in: query, required: true, schema: { type: integer } }
+        - { name: maxsize, in: query, required: true, schema: { type: integer } }
+        - { name: defaultcooldown, in: query, schema: { type: integer } }
+        - { name: desiredcapacity, in: query, schema: { type: integer } }
+        - { name: healthcheckgraceperiod, in: query, schema: { type: integer } }
+      responses: { "200": { description: 생성됨 } }
+
+  /d1/autoscaling/v1/client/api/createLaunchConfiguration:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Launch Configuration 생성
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: launchconfigurationname, in: query, required: true, schema: { type: string } }
+        - { name: serviceofferingid, in: query, required: true, schema: { type: string } }
+        - { name: templateid, in: query, required: true, schema: { type: string } }
+        - { name: diskofferingid, in: query, schema: { type: string } }
+        - { name: productcode, in: query, schema: { type: string } }
+        - { name: userdata, in: query, schema: { type: string } }
+      responses: { "200": { description: 생성됨 } }
+
+  /d1/autoscaling/v1/client/api/listLaunchConfigurations:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Launch Configuration 목록
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: launchconfigurationnames.member.N, in: query, schema: { type: string } }
+        - { name: maxrecords, in: query, schema: { type: integer } }
+        - { name: nexttoken, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/listAutoScalingGroups:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Auto Scaling Group 목록
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupnames.member.N, in: query, schema: { type: string } }
+        - { name: maxrecords, in: query, schema: { type: integer } }
+        - { name: nexttoken, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/listAutoScalingInstances:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Auto Scaling 인스턴스 목록
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: instanceids.member.N, in: query, schema: { type: string } }
+        - { name: autoscalinggroupname, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/listScalingActivities:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Scaling 활동 목록
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: activityids.member.N, in: query, schema: { type: string } }
+        - { name: autoscalinggroupname, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/deleteLaunchConfiguration:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Launch Configuration 삭제
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: launchconfigurationname, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 삭제됨 } }
+
+  /d1/autoscaling/v1/client/api/deleteAutoScalingGroup:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Auto Scaling Group 삭제
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: forcedelete, in: query, schema: { type: boolean } }
+      responses: { "200": { description: 삭제됨 } }
+
+  /d1/autoscaling/v1/client/api/updateAutoScalingGroup:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Auto Scaling Group 수정
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: minsize, in: query, required: true, schema: { type: integer } }
+        - { name: maxsize, in: query, required: true, schema: { type: integer } }
+      responses: { "200": { description: 수정됨 } }
+
+  /d1/autoscaling/v1/client/api/setDesiredCapacity:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Desired Capacity 설정
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: desiredcapacity, in: query, required: true, schema: { type: integer } }
+        - { name: honorcooldown, in: query, schema: { type: boolean } }
+      responses: { "200": { description: 설정됨 } }
+
+  /d1/autoscaling/v1/client/api/setInstanceHealth:
+    get:
+      tags: [Management - AutoScaling]
+      summary: 인스턴스 헬스 상태 설정
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: instanceid, in: query, required: true, schema: { type: string } }
+        - { name: healthstatus, in: query, required: true, schema: { type: string } }
+        - { name: shouldrespectgraceperiod, in: query, schema: { type: boolean } }
+      responses: { "200": { description: 설정됨 } }
+
+  /d1/autoscaling/v1/client/api/terminateInstanceInAutoScalingGroup:
+    get:
+      tags: [Management - AutoScaling]
+      summary: ASG 내 인스턴스 종료
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: instanceid, in: query, required: true, schema: { type: string } }
+        - { name: shoulddecrementdesiredcapacity, in: query, required: true, schema: { type: boolean } }
+      responses: { "200": { description: 종료됨 } }
+
+  /d1/autoscaling/v1/client/api/putScalingPolicy:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Scaling 정책 생성/수정
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: policyname, in: query, required: true, schema: { type: string } }
+        - { name: adjustmenttype, in: query, required: true, schema: { type: string } }
+        - { name: scalingadjustment, in: query, required: true, schema: { type: integer } }
+        - { name: minadjustmentstep, in: query, required: true, schema: { type: integer } }
+        - { name: cooldown, in: query, schema: { type: integer } }
+      responses: { "200": { description: 처리됨 } }
+
+  /d1/autoscaling/v1/client/api/putScheduledUpdateGroupAction:
+    get:
+      tags: [Management - AutoScaling]
+      summary: 스케줄 기반 Scaling 작업 생성
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: scheduledactionname, in: query, required: true, schema: { type: string } }
+        - { name: starttime, in: query, schema: { type: string } }
+        - { name: endtime, in: query, schema: { type: string } }
+        - { name: recurrence, in: query, schema: { type: string } }
+      responses: { "200": { description: 생성됨 } }
+
+  /d1/autoscaling/v1/client/api/listPolicies:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Scaling 정책 목록
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: policynames.member.N, in: query, schema: { type: string } }
+        - { name: autoscalinggroupname, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/listAdjustmentTypes:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Adjustment Type 목록
+      parameters: [{ $ref: "#/components/parameters/AsgCommon" }]
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/listScalingProcessTypes:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Scaling Process Type 목록
+      parameters: [{ $ref: "#/components/parameters/AsgCommon" }]
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/listScheduledActions:
+    get:
+      tags: [Management - AutoScaling]
+      summary: 스케줄 작업 목록
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: scheduledactionnames.member.N, in: query, schema: { type: string } }
+        - { name: autoscalinggroupname, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/deletePolicy:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Scaling 정책 삭제
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: policyname, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 삭제됨 } }
+
+  /d1/autoscaling/v1/client/api/executePolicy:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Scaling 정책 즉시 실행
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: policyname, in: query, required: true, schema: { type: string } }
+        - { name: honorcooldown, in: query, schema: { type: boolean } }
+      responses: { "200": { description: 실행됨 } }
+
+  /d1/autoscaling/v1/client/api/deleteScheduledAction:
+    get:
+      tags: [Management - AutoScaling]
+      summary: 스케줄 작업 삭제
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: scheduledactionname, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 삭제됨 } }
+
+  /d1/autoscaling/v1/client/api/listMetricCollectionTypes:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Metric Collection Type 목록
+      parameters: [{ $ref: "#/components/parameters/AsgCommon" }]
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/listNotificationConfigurations:
+    get:
+      tags: [Management - AutoScaling]
+      summary: 알림 설정 목록
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupnames.member.N, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/listAutoScalingNotificationTypes:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Notification Type 목록
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalingnotificationtypes, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/autoscaling/v1/client/api/disableMetricsCollection:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Metric 수집 비활성화
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: granularity, in: query, schema: { type: string } }
+        - { name: metrics.member.N, in: query, schema: { type: string } }
+      responses: { "200": { description: 비활성화 } }
+
+  /d1/autoscaling/v1/client/api/enableMetricsCollection:
+    get:
+      tags: [Management - AutoScaling]
+      summary: Metric 수집 활성화
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: granularity, in: query, required: true, schema: { type: string } }
+        - { name: metrics.member.N, in: query, schema: { type: string } }
+      responses: { "200": { description: 활성화 } }
+
+  /d1/autoscaling/v1/client/api/putNotificationConfiguration:
+    get:
+      tags: [Management - AutoScaling]
+      summary: ASG 알림 설정
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: topicurn, in: query, required: true, schema: { type: string } }
+        - { name: notificationtypes.member.N, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 설정됨 } }
+
+  /d1/autoscaling/v1/client/api/deleteNotificationConfiguration:
+    get:
+      tags: [Management - AutoScaling]
+      summary: ASG 알림 설정 삭제
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: topicurn, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 삭제됨 } }
+
+  /d1/autoscaling/v1/client/api/resumeProcesses:
+    get:
+      tags: [Management - AutoScaling]
+      summary: ASG process 재개
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: scalingprocesses.member.N, in: query, schema: { type: string } }
+      responses: { "200": { description: 재개됨 } }
+
+  /d1/autoscaling/v1/client/api/suspendProcesses:
+    get:
+      tags: [Management - AutoScaling]
+      summary: ASG process 일시중지
+      parameters:
+        - $ref: "#/components/parameters/AsgCommon"
+        - { name: autoscalinggroupname, in: query, required: true, schema: { type: string } }
+        - { name: scalingprocesses.member.N, in: query, schema: { type: string } }
+      responses: { "200": { description: 일시중지됨 } }
+
+  # ============================================================
+  # Management - Watch (모니터링)
+  # ============================================================
+  /{zone}/watch/v2/alarms:
+    parameters: [{ $ref: "#/components/parameters/Zone" }]
+    get:
+      tags: [Management - Watch]
+      summary: 알람 목록
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 알람 목록 } }
+    post:
+      tags: [Management - Watch]
+      summary: 알람 생성
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alarmName, metricName, statisticType, period, evaluationPeriods, threshold, comparisonOperator, actionsEnabled]
+              properties:
+                alarmName: { type: string }
+                serverId: { type: string, description: VM ID (serverId/imageNm/flavorVnm 중 하나 필수) }
+                imageNm: { type: string }
+                flavorVnm: { type: string }
+                metricName: { type: string }
+                statisticType: { type: string }
+                period: { type: integer }
+                evaluationPeriods: { type: integer }
+                threshold: { type: integer }
+                comparisonOperator: { type: string }
+                actionsEnabled: { type: boolean }
+                alarmStateActions: { type: string }
+                insufficientStateActions: { type: string }
+                okStateActions: { type: string }
+                alarmTag: { type: string }
+      responses: { "201": { description: 생성됨 } }
+    delete:
+      tags: [Management - Watch]
+      summary: 알람 일괄 삭제
+      parameters:
+        - { name: alarmIds, in: query, required: true, schema: { type: string }, description: 콤마 분리 ID }
+      security: [{ KeystoneToken: [] }]
+      responses: { "204": { description: 삭제됨 } }
+
+  /{zone}/watch/v2/alarms/{alarm_id}:
+    parameters:
+      - $ref: "#/components/parameters/Zone"
+      - { name: alarm_id, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [Management - Watch]
+      summary: 알람 상세
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 알람 상세 } }
+    put:
+      tags: [Management - Watch]
+      summary: 알람 수정
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                alarmName: { type: string }
+                serverId: { type: string }
+                metricName: { type: string }
+                statisticType: { type: string }
+                period: { type: integer }
+                evaluationPeriods: { type: integer }
+                threshold: { type: integer }
+                comparisonOperator: { type: string }
+                actionsEnabled: { type: boolean }
+                alarmTag: { type: string }
+      responses: { "200": { description: 수정됨 } }
+    delete:
+      tags: [Management - Watch]
+      summary: 알람 삭제
+      security: [{ KeystoneToken: [] }]
+      responses: { "204": { description: 삭제됨 } }
+
+  /{zone}/watch/v2/alarms/{alarm_id}/history:
+    get:
+      tags: [Management - Watch]
+      summary: 알람 이력
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: alarm_id, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 이력 } }
+
+  /{zone}/watch/v2/alarms/{alarm_id}/action:
+    put:
+      tags: [Management - Watch]
+      summary: 알람 상태/액션 변경
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: alarm_id, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemName, itemValue]
+              properties:
+                itemName: { type: string, description: actionsEnabled 또는 stateValue }
+                itemValue: { type: string }
+                stateReason: { type: string }
+      responses: { "200": { description: 변경됨 } }
+
+  /{zone}/watch/v3/metrics/metadata:
+    get:
+      tags: [Management - Watch]
+      summary: 사용 가능한 metric 메타데이터
+      parameters: [{ $ref: "#/components/parameters/Zone" }]
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: 메타데이터 } }
+
+  /{zone}/watch/v3/metrics:
+    get:
+      tags: [Management - Watch]
+      summary: Metric 데이터 조회
+      parameters:
+        - $ref: "#/components/parameters/Zone"
+        - { name: namespace, in: query, required: true, schema: { type: string, default: "ucloud/server" } }
+        - { name: metricName, in: query, required: true, schema: { type: string } }
+        - { name: statisticType, in: query, required: true, schema: { type: string } }
+        - { name: period, in: query, required: true, schema: { type: string } }
+        - { name: term, in: query, required: true, schema: { type: string }, description: 조회 범위 (분, 1-1440) }
+        - { name: dimension.name, in: query, schema: { type: string } }
+        - { name: dimension.value, in: query, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses: { "200": { description: metric 시계열 } }
+
+  # ============================================================
+  # Management - Messaging (Pub/Sub)
+  # 실제 base: /d1/messaging/v1/client/api ?command=...
+  # ============================================================
+  /d1/messaging/v1/client/api/createTopic:
+    get:
+      tags: [Management - Messaging]
+      summary: Topic 생성
+      description: "실제 호출: GET /d1/messaging/v1/client/api?command=createTopic"
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: name, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 생성됨 } }
+
+  /d1/messaging/v1/client/api/listTopics:
+    get:
+      tags: [Management - Messaging]
+      summary: Topic 목록
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: nextToken, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/messaging/v1/client/api/getTopicAttributes:
+    get:
+      tags: [Management - Messaging]
+      summary: Topic 속성 조회
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: topicUrn, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 속성 } }
+
+  /d1/messaging/v1/client/api/setTopicAttributes:
+    get:
+      tags: [Management - Messaging]
+      summary: Topic 속성 설정
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: topicUrn, in: query, required: true, schema: { type: string } }
+        - { name: attributeName, in: query, required: true, schema: { type: string } }
+        - { name: attributeValue, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 설정됨 } }
+
+  /d1/messaging/v1/client/api/deleteTopic:
+    get:
+      tags: [Management - Messaging]
+      summary: Topic 삭제
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: topicUrn, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 삭제됨 } }
+
+  /d1/messaging/v1/client/api/subscribe:
+    get:
+      tags: [Management - Messaging]
+      summary: Topic 구독
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: topicUrn, in: query, required: true, schema: { type: string } }
+        - { name: protocol, in: query, required: true, schema: { type: string, enum: [http, https, email] } }
+        - { name: endpoint, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 구독됨 } }
+
+  /d1/messaging/v1/client/api/publish:
+    get:
+      tags: [Management - Messaging]
+      summary: 메시지 발행
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: topicUrn, in: query, required: true, schema: { type: string } }
+        - { name: message, in: query, required: true, schema: { type: string } }
+        - { name: messageStructure, in: query, schema: { type: string } }
+        - { name: subject, in: query, schema: { type: string } }
+      responses: { "200": { description: 발행됨 } }
+
+  /d1/messaging/v1/client/api/confirmSubscription:
+    get:
+      tags: [Management - Messaging]
+      summary: 구독 확인
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: topicUrn, in: query, required: true, schema: { type: string } }
+        - { name: token, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 확인됨 } }
+
+  /d1/messaging/v1/client/api/listSubscriptions:
+    get:
+      tags: [Management - Messaging]
+      summary: 구독 전체 목록
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: nextToken, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/messaging/v1/client/api/listSubscriptionsByTopic:
+    get:
+      tags: [Management - Messaging]
+      summary: Topic별 구독 목록
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: topicUrn, in: query, required: true, schema: { type: string } }
+        - { name: nextToken, in: query, schema: { type: string } }
+      responses: { "200": { description: 목록 } }
+
+  /d1/messaging/v1/client/api/getSubscriptionAttributes:
+    get:
+      tags: [Management - Messaging]
+      summary: 구독 속성
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: subscriptionUrn, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 속성 } }
+
+  /d1/messaging/v1/client/api/unsubscribe:
+    get:
+      tags: [Management - Messaging]
+      summary: 구독 해제
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: subscriptionUrn, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 해제됨 } }
+
+  /d1/messaging/v1/client/api/addPermission:
+    get:
+      tags: [Management - Messaging]
+      summary: Topic 권한 추가
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: topicUrn, in: query, required: true, schema: { type: string } }
+        - { name: label, in: query, schema: { type: string } }
+        - { name: ucloudAccountId.member.N, in: query, required: true, schema: { type: string } }
+        - { name: actionName.member.N, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 추가됨 } }
+
+  /d1/messaging/v1/client/api/removePermission:
+    get:
+      tags: [Management - Messaging]
+      summary: Topic 권한 제거
+      parameters:
+        - $ref: "#/components/parameters/MsgCommon"
+        - { name: topicUrn, in: query, required: true, schema: { type: string } }
+        - { name: label, in: query, required: true, schema: { type: string } }
+      responses: { "200": { description: 제거됨 } }
+
+components:
+  parameters:
+    Zone:
+      name: zone
+      in: path
+      required: true
+      schema: { type: string, enum: [d1, d2, gd1, gd4] }
+      description: D-platform zone
+    ProjectId:
+      name: project_id
+      in: path
+      required: true
+      schema: { type: string }
+      description: Keystone project ID
+    CdnCommon:
+      name: apiKey
+      in: query
+      required: true
+      schema: { type: string }
+      description: |
+        CDN/AutoScaling/Messaging 공통 인증 파라미터.
+        실제 호출 시 추가로 `response=json`, `signature=<HMAC-SHA1>` 도 query 에 포함되어야 함.
+    AsgCommon:
+      name: apiKey
+      in: query
+      required: true
+      schema: { type: string }
+      description: AutoScaling 인증. 추가로 response, signature 필요.
+    MsgCommon:
+      name: apiKey
+      in: query
+      required: true
+      schema: { type: string }
+      description: Messaging 인증. 추가로 response, signature 필요.
+  securitySchemes:
+    KeystoneToken:
+      type: apiKey
+      in: header
+      name: X-Auth-Token
+      description: /identity/auth/tokens 응답 헤더의 X-Subject-Token

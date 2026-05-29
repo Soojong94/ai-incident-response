@@ -1,0 +1,101 @@
+openapi: 3.0.3
+info:
+  title: NHN Cloud — 동기화 시 호출하는 API
+  version: "1.0"
+  description: |
+    Keystone v2 + OpenStack (nova / glance / cinder / manila).
+    민간/공공 분리:
+      - 민간 identity: api-identity-infrastructure.nhncloudservice.com
+      - 공공 identity: api-identity-infrastructure.gov-nhncloudservice.com
+    인증 후 token catalog 에서 region 별 nova/image/volumev2/share 의 publicURL 추출.
+
+servers:
+  - url: https://api-identity-infrastructure.nhncloudservice.com
+    description: 민간 identity (Keystone)
+  - url: https://api-identity-infrastructure.gov-nhncloudservice.com
+    description: 공공 (gov) identity (Keystone)
+
+paths:
+  /v2.0/tokens:
+    post:
+      summary: Keystone v2 token 발급
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                auth:
+                  type: object
+                  properties:
+                    tenantId: { type: string, description: 32자리 hex }
+                    passwordCredentials:
+                      type: object
+                      properties:
+                        username: { type: string, description: "콘솔 로그인 이메일 또는 IAM 멤버 ID" }
+                        password: { type: string, description: "API 비밀번호 (콘솔 > API 엔드포인트 설정)" }
+      responses:
+        "200":
+          description: access.token.id (X-Auth-Token) + serviceCatalog
+
+  /v2/{tenantId}/servers/detail:
+    get:
+      summary: 서버 detail 목록
+      servers: [{ url: "https://kr1-api-instance-infrastructure.nhncloudservice.com" }]
+      parameters:
+        - { name: tenantId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses:
+        "200": { description: 서버 detail. flavor / image / addresses / os-extended-volumes:volumes_attached }
+
+  /v2/{tenantId}/flavors/detail:
+    get:
+      summary: flavor detail 목록
+      servers: [{ url: "https://kr1-api-instance-infrastructure.nhncloudservice.com" }]
+      parameters:
+        - { name: tenantId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses:
+        "200": { description: flavor map (id → vcpus/ram) }
+
+  /v2/images:
+    get:
+      summary: glance 이미지 목록
+      servers: [{ url: "https://kr1-api-image-infrastructure.nhncloudservice.com" }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 200 } }
+      security: [{ KeystoneToken: [] }]
+      responses:
+        "200": { description: 공개 이미지 + 본인 owned 이미지 목록 }
+
+  /v2/images/{imageId}:
+    get:
+      summary: glance 단일 이미지
+      servers: [{ url: "https://kr1-api-image-infrastructure.nhncloudservice.com" }]
+      parameters:
+        - { name: imageId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses:
+        "200": { description: 이미지 detail (name = OS) }
+
+  /v2/{tenantId}/volumes/detail:
+    get:
+      summary: cinder 블록 볼륨 detail
+      servers: [{ url: "https://kr1-api-block-storage-infrastructure.nhncloudservice.com" }]
+      parameters:
+        - { name: tenantId, in: path, required: true, schema: { type: string } }
+      security: [{ KeystoneToken: [] }]
+      responses:
+        "200": { description: 볼륨 목록 }
+
+components:
+  securitySchemes:
+    KeystoneToken:
+      type: apiKey
+      in: header
+      name: X-Auth-Token
+      description: /v2.0/tokens 응답의 access.token.id
+
+security:
+  - KeystoneToken: []

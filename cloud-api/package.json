@@ -1,0 +1,13 @@
+{
+  "name": "csp-api-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CSP (AWS/NCP/NHN/KT) API 명세 viewer — Scalar 정적 페이지",
+  "scripts": {
+    "postinstall": "mkdir -p vendor && cp node_modules/@scalar/api-reference/dist/browser/standalone.js vendor/scalar-standalone.js",
+    "vendor": "pnpm run postinstall"
+  },
+  "dependencies": {
+    "@scalar/api-reference": "^1"
+  }
+}

@@ -72,27 +72,44 @@ class TimelyAIClient:
         )
         session_id = f"incident-{alarm_data.get('alarm_id', uuid.uuid4().hex[:8])}"
 
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{settings.ai_base_url}/llm-completion",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "session_id": session_id,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "model": settings.ai_model,
-                    "instructions": INSTRUCTIONS,
-                    "output_type": "JSON",
-                    "output_schema": OUTPUT_SCHEMA,
-                    "chat_type": "DYNAMIC_CHAT",
-                    "locale": "ko",
-                },
-                timeout=90,
-            )
-            resp.raise_for_status()
-            body = resp.json()
+        payload = {
+            "session_id": session_id,
+            "messages": [{"role": "user", "content": prompt}],
+            "model": settings.ai_model,
+            "instructions": INSTRUCTIONS,
+            "output_type": "JSON",
+            "output_schema": OUTPUT_SCHEMA,
+            "chat_type": "DYNAMIC_CHAT",
+            "locale": "ko",
+        }
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        # Timely 게이트웨이 간헐적 504/타임아웃 대비 — 1회만 재시도. 그래도 실패하면
+        # 예외를 올려 caller가 incident를 ai_failed로 처리.
+        last_exc: Exception | None = None
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        f"{settings.ai_base_url}/llm-completion",
+                        headers=headers,
+                        json=payload,
+                        timeout=90,
+                    )
+                    resp.raise_for_status()
+                    body = resp.json()
+                break
+            except (httpx.HTTPStatusError, httpx.TransportError) as exc:
+                last_exc = exc
+                if attempt == 0:
+                    logger.warning("AI call failed (%s), retrying once: incident=%s", exc, session_id)
+                    await asyncio.sleep(2)
+                    continue
+                logger.error("AI call failed after retry: incident=%s err=%s", session_id, exc)
+                raise
 
         parsed = body.get("parsed")
         if not parsed:
