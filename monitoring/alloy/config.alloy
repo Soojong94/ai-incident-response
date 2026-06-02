@@ -1,0 +1,63 @@
+// 에이전트 기반 PoC — Grafana Alloy (테스트/고객 서버 1대당 이 설정 1개)
+// 메트릭 → VictoriaMetrics remote_write, 로그 → VictoriaLogs(Loki push 프로토콜).
+//
+// ⚠ host 라벨은 OBS 객체 키 첫 세그먼트(= resource_name)와 반드시 일치시킬 것.
+//   RESOURCE_NAME 환경변수로 주입. (불일치 시 중앙 CF가 사이트 매칭 실패)
+//
+// ⚠ prometheus.exporter.unix 는 Linux 전용. Windows 호스트에서 PoC하려면
+//   windows exporter 컴포넌트로 교체하거나, 로컬 검증은 README의 "합성 알람" 경로 사용.
+//
+// 환경변수:
+//   RESOURCE_NAME      예: tbit-air-mon-01   (사이트 식별자)
+//   VM_REMOTE_WRITE_URL  로컬: http://victoriametrics:8428/api/v1/write
+//   VL_LOKI_PUSH_URL     로컬: http://victorialogs:9428/insert/loki/api/v1/push
+//   LOG_PATH           예: /var/log/syslog
+
+// ---------- 메트릭 ----------
+prometheus.exporter.unix "host" { }
+
+prometheus.scrape "host" {
+  targets         = prometheus.exporter.unix.host.targets
+  forward_to      = [prometheus.relabel.add_host.receiver]
+  scrape_interval = "15s"
+}
+
+prometheus.relabel "add_host" {
+  forward_to = [prometheus.remote_write.central.receiver]
+  rule {
+    target_label = "host"
+    replacement  = sys.env("RESOURCE_NAME")
+  }
+}
+
+prometheus.remote_write "central" {
+  endpoint {
+    url = sys.env("VM_REMOTE_WRITE_URL")
+  }
+}
+
+// ---------- 로그 ----------
+local.file_match "logs" {
+  path_targets = [{ "__path__" = sys.env("LOG_PATH") }]
+}
+
+loki.source.file "logs" {
+  targets    = local.file_match.logs.targets
+  forward_to = [loki.process.add_host.receiver]
+}
+
+loki.process "add_host" {
+  forward_to = [loki.write.central.receiver]
+  stage.static_labels {
+    values = {
+      host = sys.env("RESOURCE_NAME"),
+      job  = "syslog",
+    }
+  }
+}
+
+loki.write "central" {
+  endpoint {
+    url = sys.env("VL_LOKI_PUSH_URL")
+  }
+}

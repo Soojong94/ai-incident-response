@@ -1,0 +1,16 @@
+# vmalert 룰 — PoC: CPU 80% 초과 5분 지속 시 발화 → 브리지로 직접 통보(결정 #3)
+groups:
+  - name: air-poc
+    interval: 30s
+    rules:
+      - alert: HighCPU
+        # CPU 사용률(%) = 100 * (1 - idle 비율). Alloy unix exporter의 node_cpu_seconds_total 기반.
+        # host 라벨은 Alloy가 부착(= OBS 객체 키 첫 세그먼트 = resource_name). 브리지가 이 라벨로 로그 조회.
+        expr: |
+          100 * (1 - avg by (host, instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 80
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High CPU on {{ $labels.host }}"
+          description: "CPU > 80% (5m) on {{ $labels.host }} (instance {{ $labels.instance }})"
