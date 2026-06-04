@@ -1,0 +1,33 @@
+// 폐쇄망 게이트웨이 (relay-server) — 고객망 안에서 인터넷 아웃바운드가 되는 1대.
+// 내부 relay-agent들의 메트릭/로그를 받아 중앙으로 중계한다.
+//   수신: 메트릭 :9999 (prometheus remote_write), 로그 :9998 (loki push)
+//   전달: 중앙 VictoriaMetrics(8428) / VictoriaLogs(9428)
+// 환경변수:
+//   CENTRAL_VM_URL = http://<중앙>:8428/api/v1/write
+//   CENTRAL_VL_URL = http://<중앙>:9428/insert/loki/api/v1/push
+
+// ── 메트릭 수신 → 중앙 전달 ──
+prometheus.receive_http "in" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 9999
+  }
+  forward_to = [prometheus.remote_write.central.receiver]
+}
+
+prometheus.remote_write "central" {
+  endpoint { url = sys.env("CENTRAL_VM_URL") }
+}
+
+// ── 로그 수신 → 중앙 전달 ──
+loki.source.api "in" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 9998
+  }
+  forward_to = [loki.write.central.receiver]
+}
+
+loki.write "central" {
+  endpoint { url = sys.env("CENTRAL_VL_URL") }
+}

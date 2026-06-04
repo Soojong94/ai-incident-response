@@ -82,6 +82,18 @@ loki.write "c" {
   </div>
 
   <div class="g-card">
+    <h2>폐쇄망(인터넷 불가) 서버 — relay 경유</h2>
+    <p>아웃바운드 인터넷이 막힌 서버는 중앙에 직접 못 보냅니다. 고객망 안에 <strong>인터넷 되는 게이트웨이 1대(relay-server)</strong>를
+    두고, 폐쇄 서버들은 그쪽으로만 보냅니다.</p>
+    <div class="g-flow">[폐쇄 서버] Alloy(relay-agent) ──내부망──► [relay-server] ──아웃바운드──► 중앙</div>
+    <ul>
+      <li><strong>relay-server</strong>: 내부 수신(메트릭 :9999 / 로그 :9998) → 중앙(8428/9428)로 중계. config: <code>monitoring/alloy/relay-server.alloy</code></li>
+      <li><strong>relay-agent</strong>(폐쇄 서버): 전송 대상만 relay-server 내부 IP로. config: <code>monitoring/alloy/relay-agent.alloy</code></li>
+      <li>중앙 ACG는 <strong>relay-server IP만</strong> 8428/9428 허용하면 됨(폐쇄 서버는 IP 등록 불필요).</li>
+    </ul>
+  </div>
+
+  <div class="g-card">
     <h2>확인</h2>
     <ul>
       <li>설치 후 몇 분 내 메트릭/로그가 중앙에 쌓입니다.</li>

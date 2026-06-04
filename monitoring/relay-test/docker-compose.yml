@@ -1,0 +1,43 @@
+# 폐쇄망 relay 검증 — relay-agent는 internal(인터넷X) 네트워크, relay-server만 egress 보유.
+# relay-agent가 중앙에 직접 못 가고 relay-server 경유로만 도달함을 입증.
+#   docker compose -f monitoring/relay-test/docker-compose.yml up -d
+name: air-relay-test
+
+networks:
+  closed:
+    internal: true     # 인터넷 차단 (폐쇄망 시뮬)
+  egress: {}           # 인터넷 가능
+
+services:
+  relay-server:
+    image: grafana/alloy:latest
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/tmp/alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+    volumes:
+      - ../alloy/relay-server.alloy:/etc/alloy/config.alloy:ro
+    environment:
+      - CENTRAL_VM_URL=http://101.79.23.149:8428/api/v1/write
+      - CENTRAL_VL_URL=http://101.79.23.149:9428/insert/loki/api/v1/push
+    networks: [closed, egress]
+    restart: unless-stopped
+
+  relay-agent:
+    image: grafana/alloy:latest
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/tmp/alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+    volumes:
+      - ../alloy/relay-agent.alloy:/etc/alloy/config.alloy:ro
+    environment:
+      - RESOURCE_NAME=relay-agent-test
+      - RELAY_VM_URL=http://relay-server:9999/api/v1/metrics/write
+      - RELAY_VL_URL=http://relay-server:9998/loki/api/v1/push
+      - LOG_PATH=/tmp/none.log
+    networks: [closed]      # 인터넷 없음 — relay-server로만 도달 가능
+    depends_on: [relay-server]
+    restart: unless-stopped

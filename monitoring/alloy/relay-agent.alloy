@@ -1,0 +1,47 @@
+// 폐쇄망 서버 (relay-agent) — 인터넷 없이 내부 relay-server로만 전송.
+// direct와 동일하되 전송 대상이 중앙이 아니라 relay-server 내부 IP.
+// 환경변수:
+//   RESOURCE_NAME = 이 서버 식별자 (= 대시보드 사이트 = 알람 host)
+//   RELAY_VM_URL  = http://<relay내부IP>:9999/api/v1/metrics/write
+//   RELAY_VL_URL  = http://<relay내부IP>:9998/loki/api/v1/push
+//   LOG_PATH      = /var/log/**/*.log 등
+
+prometheus.exporter.unix "n" { }
+
+prometheus.scrape "n" {
+  targets         = prometheus.exporter.unix.n.targets
+  forward_to      = [prometheus.relabel.h.receiver]
+  scrape_interval = "15s"
+}
+
+prometheus.relabel "h" {
+  forward_to = [prometheus.remote_write.relay.receiver]
+  rule {
+    target_label = "host"
+    replacement  = sys.env("RESOURCE_NAME")
+  }
+}
+
+prometheus.remote_write "relay" {
+  endpoint { url = sys.env("RELAY_VM_URL") }
+}
+
+local.file_match "f" {
+  path_targets = [{ "__path__" = sys.env("LOG_PATH") }]
+}
+
+loki.source.file "f" {
+  targets    = local.file_match.f.targets
+  forward_to = [loki.process.h.receiver]
+}
+
+loki.process "h" {
+  forward_to = [loki.write.relay.receiver]
+  stage.static_labels {
+    values = { host = sys.env("RESOURCE_NAME"), job = "applog" }
+  }
+}
+
+loki.write "relay" {
+  endpoint { url = sys.env("RELAY_VL_URL") }
+}
