@@ -31,6 +31,47 @@ services:
       - TZ=Asia/Seoul
     restart: unless-stopped
 
+  # 메트릭 저장소 — Alloy가 remote_write로 push, vmalert가 룰 평가.
+  # ⚠ 8428은 무인증 — 공인 노출 시 ACG로 에이전트 IP만.
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.106.1
+    ports:
+      - "8428:8428"
+    command:
+      - "-storageDataPath=/vmdata"
+      - "-retentionPeriod=3"          # 개월. 필요시 조정
+    volumes:
+      - ./data/vmdata:/vmdata
+    environment:
+      - TZ=Asia/Seoul
+    restart: unless-stopped
+
+  # 룰 평가 — CPU/메모리/디스크/다운. 발화 시 Alertmanager로.
+  vmalert:
+    image: victoriametrics/vmalert:v1.106.1
+    command:
+      - "-datasource.url=http://victoriametrics:8428"
+      - "-remoteWrite.url=http://victoriametrics:8428"
+      - "-notifier.url=http://alertmanager:9093"
+      - "-rule=/etc/vmalert/rules/*.yml"
+      - "-evaluationInterval=30s"
+    volumes:
+      - ./monitoring/vmalert/rules:/etc/vmalert/rules:ro
+    depends_on:
+      - victoriametrics
+      - alertmanager
+    restart: unless-stopped
+
+  # 알람 라우팅 — dedup/그룹핑 후 분석앱 webhook(/webhook/alert)으로.
+  # (이메일은 분석앱이 AI 분석 후 직접 발송 → Alertmanager는 webhook만)
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
   nginx:
     image: nginx:alpine
     ports:

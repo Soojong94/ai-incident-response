@@ -1,0 +1,53 @@
+# vmalert 룰 — Alloy node 메트릭 기반. 라벨은 host로 통일
+# (config.alloy가 메트릭에 host 부여 = 로그 라벨 = 알람 server_name 매칭 = 수집기 host:= 쿼리).
+# 발화 → Alertmanager → /webhook/alert → host 직전5분 로그 pull → AI 분석.
+groups:
+  - name: host.rules
+    interval: 60s
+    rules:
+
+      # 서버 다운: 5분간 메트릭 미수신
+      - alert: ServerDown
+        expr: absent_over_time(node_uname_info{host!=""}[5m]) == 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "서버 다운: {{ $labels.host }}"
+          description: "{{ $labels.host }} 에서 5분 이상 메트릭이 수신되지 않습니다."
+
+      # CPU 과부하: 평균 사용률 80% 초과 5분 지속
+      - alert: HighCPUUsage
+        expr: |
+          (1 - avg by (host) (rate(node_cpu_seconds_total{mode="idle", host!=""}[5m]))) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU 과부하: {{ $labels.host }} {{ $value | humanize }}%"
+          description: "{{ $labels.host }} CPU 사용률이 {{ $value | humanize }}% 입니다 (기준 80%)."
+
+      # 메모리 과부하: 사용률 85% 초과 5분 지속
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes{host!=""} / node_memory_MemTotal_bytes{host!=""})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "메모리 과부하: {{ $labels.host }} {{ $value | humanize }}%"
+          description: "{{ $labels.host }} 메모리 사용률이 {{ $value | humanize }}% 입니다 (기준 85%)."
+
+      # 디스크 부족: 마운트포인트별 사용률 90% 초과 5분 지속
+      - alert: HighDiskUsage
+        expr: |
+          (1 - (
+            node_filesystem_avail_bytes{host!="", fstype!~"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\..*"}
+            / node_filesystem_size_bytes{host!="", fstype!~"tmpfs|devtmpfs|overlay|squashfs|nfs|nfs4|fuse\\..*"}
+          )) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "디스크 부족: {{ $labels.host }} {{ $labels.mountpoint }} {{ $value | humanize }}%"
+          description: "{{ $labels.host }} {{ $labels.mountpoint }} 사용률 {{ $value | humanize }}% (기준 90%)."
