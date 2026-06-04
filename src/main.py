@@ -35,7 +35,7 @@ from src.auth import (
     current_user, require_user, require_admin, hash_password, verify_password,
     check_security_config,
 )
-from src.webhook.handler import receive_alarm, run_pipeline, parse_alertmanager_payload
+from src.webhook.handler import run_pipeline, parse_alertmanager_payload
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 logger = logging.getLogger(__name__)
@@ -361,15 +361,6 @@ def favicon_ico():
 
 
 # ── Webhook ──────────────────────────────────────────────────────────────────
-
-@app.post("/webhook/alarm", status_code=202)
-async def webhook_alarm(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    payload = await request.json()
-    result = await receive_alarm(request, payload, db)
-    incident_id = result["incident_id"]
-    background_tasks.add_task(run_pipeline, incident_id, payload)
-    return {"status": "accepted", "incident_id": incident_id}
-
 
 @app.post("/webhook/alert", status_code=202)
 async def webhook_alert(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):

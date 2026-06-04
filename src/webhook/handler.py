@@ -20,22 +20,6 @@ from src.db.database import get_db as _get_db
 logger = logging.getLogger(__name__)
 
 
-def verify_hmac(body: bytes, signature: str) -> bool:
-    if not settings.webhook_secret:
-        return True
-    expected = hmac.new(settings.webhook_secret.encode(), body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
-
-
-async def receive_alarm(request: Request, payload: dict, db) -> dict:
-    body_bytes = await request.body()
-    sig = request.headers.get("x-ncp-apigw-signature-v2", "")
-    if not verify_hmac(body_bytes, sig):
-        raise HTTPException(status_code=401, detail="Invalid webhook signature")
-    incident = create_incident(db, payload)
-    return {"incident_id": incident.id, "status": incident.status}
-
-
 def parse_alertmanager_payload(payload) -> list[dict]:
     """monitoring_msp Alertmanager webhook(v4, {alerts:[...]}) 또는 vmalert 직접(list[alert])을
     내부 alarm_data 리스트로 변환. firing + host 라벨이 있는 알람만 채택.
