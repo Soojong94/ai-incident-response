@@ -36,7 +36,7 @@
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
       <h2 style="font-size:18px; color:var(--text); margin:0;">{{ site.name }}</h2>
       {% if site.enabled %}
-        <span style="font-size:11px; padding:2px 8px; background:#2563eb; color:#ffffff; border-radius:3px;">활성</span>
+        <span style="font-size:11px; padding:2px 8px; background:#c0564b; color:#ffffff; border-radius:3px;">활성</span>
       {% else %}
         <span style="font-size:11px; padding:2px 8px; background:#4a5568; color:#cbd5e0; border-radius:3px;">비활성</span>
       {% endif %}
@@ -237,7 +237,7 @@
   <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
     {% for n in notes %}
     <div style="display:flex; align-items:flex-start; gap:8px; padding:8px 10px; background:var(--card-bg-alt); border:1px solid {% if n.pinned %}var(--accent){% else %}var(--border){% endif %}; border-radius:6px;">
-      <span style="font-size:11px; padding:2px 6px; border-radius:3px; flex-shrink:0; {% if n.author == 'ai' %}background:#dbeafe; color:#1e40af;{% else %}background:#e2e8f0; color:#475569;{% endif %}">
+      <span style="font-size:11px; padding:2px 6px; border-radius:3px; flex-shrink:0; {% if n.author == 'ai' %}background:#f6e1dc; color:#8f3a30;{% else %}background:#e2e8f0; color:#475569;{% endif %}">
         {{ n.author }}{% if n.pinned %} ★{% endif %}
       </span>
       <span style="flex:1; font-size:13px; color:var(--text); word-break:break-word;">{{ n.content }}</span>

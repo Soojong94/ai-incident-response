@@ -14,14 +14,14 @@
   </script>
   <style>
     :root, [data-theme="light"] {
-      --bg: #ffffff; --card-bg: #ffffff; --border: #cbd5e1;
-      --text: #0f172a; --text-muted: #475569; --text-subtle: #64748b;
-      --input-bg: #ffffff; --primary: #2563eb; --danger: #1d4ed8;
+      --bg: #faf6f3; --card-bg: #ffffff; --border: #ddcdc6;
+      --text: #2b211d; --text-muted: #6b5950; --text-subtle: #8a766c;
+      --input-bg: #ffffff; --primary: #c0564b; --danger: #b03a2e;
     }
     [data-theme="dark"] {
-      --bg: #0b1220; --card-bg: #0f172a; --border: #334155;
-      --text: #e2e8f0; --text-muted: #94a3b8; --text-subtle: #64748b;
-      --input-bg: #0b1220; --primary: #2563eb; --danger: #60a5fa;
+      --bg: #1c1715; --card-bg: #241d1a; --border: #4a3d38;
+      --text: #f0e6e1; --text-muted: #c0aaa0; --text-subtle: #9a857b;
+      --input-bg: #1c1715; --primary: #c0564b; --danger: #e2897d;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -38,12 +38,12 @@
     }
     .logo .icon {
       width: 40px; height: 40px; border-radius: 10px;
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      background: linear-gradient(135deg, #c0564b 0%, #a64539 100%);
       display: inline-flex; align-items: center; justify-content: center;
     }
     .logo h1 {
       font-size: 18px; font-weight: 700;
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      background: linear-gradient(135deg, #c0564b 0%, #a64539 100%);
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
     label { display: block; margin-bottom: 14px; }
@@ -58,9 +58,9 @@
       border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
       margin-top: 8px;
     }
-    button[type=submit]:hover { background: #1d4ed8; }
+    button[type=submit]:hover { background: #a64539; }
     .error {
-      background: rgba(37, 99, 235, 0.10); border: 1px solid var(--danger);
+      background: rgba(192, 86, 75, 0.10); border: 1px solid var(--danger);
       color: var(--danger); padding: 10px 12px; border-radius: 6px;
       font-size: 13px; margin-bottom: 16px;
     }
@@ -73,7 +73,7 @@
       <span class="icon">
         <svg width="22" height="22" viewBox="0 0 32 32">
           <path d="M16 4.2 L6.5 7.2 v8.3 c0 5.5 3.6 9.2 9.5 11.3 c5.9-2.1 9.5-5.8 9.5-11.3 V7.2 z" fill="#1a202c"/>
-          <text x="16" y="20.3" font-family="Arial Black, system-ui, sans-serif" font-size="10.5" font-weight="900" fill="#2563eb" text-anchor="middle" letter-spacing="-0.5">AI</text>
+          <text x="16" y="20.3" font-family="Arial Black, system-ui, sans-serif" font-size="10.5" font-weight="900" fill="#c0564b" text-anchor="middle" letter-spacing="-0.5">AI</text>
         </svg>
       </span>
       <h1>AI 장애 대응</h1>
@@ -83,7 +83,7 @@
     <div class="error">이메일 또는 비밀번호가 올바르지 않습니다.</div>
     {% endif %}
     {% if request.query_params.get('reset') == 'ok' %}
-    <div style="background: rgba(37, 99, 235, 0.10); border: 1px solid #2563eb; color: #1d4ed8; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 16px;">
+    <div style="background: rgba(192, 86, 75, 0.10); border: 1px solid #c0564b; color: #a64539; padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 16px;">
       ✓ 비밀번호가 변경되었습니다. 새 비밀번호로 로그인하세요.
     </div>
     {% endif %}

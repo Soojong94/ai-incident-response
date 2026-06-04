@@ -6,7 +6,7 @@
   <title>AI 장애 대응</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
-  <meta name="theme-color" content="#2563eb">
+  <meta name="theme-color" content="#c0564b">
   <script>
     // 페이지 깜빡임 방지 — body 렌더 전에 테마 적용
     (function() {
@@ -18,46 +18,46 @@
   </script>
   <style>
     /* ── Theme variables ────────────────────────────────────────────── */
-    /* 흰색 + 파랑 + 중립 회색만. 기본(:root) = 흰색 테마 */
+    /* 따뜻한 오프화이트 + 붉은(벽돌/코랄) 계열. 기본(:root) = 밝은 테마 */
     :root, [data-theme="light"] {
-      --bg:           #ffffff;
-      --nav-bg:       #f1f5f9;
+      --bg:           #faf6f3;
+      --nav-bg:       #f3eae5;
       --card-bg:      #ffffff;
-      --card-bg-alt:  #f8fafc;
-      --border:       #cbd5e1;
-      --border-soft:  #e2e8f0;
-      --text:         #0f172a;
-      --text-muted:   #475569;
-      --text-subtle:  #64748b;
-      --text-faint:   #94a3b8;
-      --link:         #2563eb;
+      --card-bg-alt:  #f7efea;
+      --border:       #ddcdc6;
+      --border-soft:  #ece1db;
+      --text:         #2b211d;
+      --text-muted:   #6b5950;
+      --text-subtle:  #8a766c;
+      --text-faint:   #b6a69c;
+      --link:         #b04a3f;
       --input-bg:     #ffffff;
-      --code-bg:      #eff6ff;
-      --row-hover:    #f1f5f9;
-      --primary:      #2563eb;
-      --primary-hover:#1d4ed8;
-      --danger:       #1d4ed8;
-      --accent:       #2563eb;
+      --code-bg:      #f3eae5;
+      --row-hover:    #f7efea;
+      --primary:      #c0564b;
+      --primary-hover:#a64539;
+      --danger:       #b03a2e;
+      --accent:       #c0564b;
     }
     [data-theme="dark"] {
-      --bg:           #0b1220;
-      --nav-bg:       #0f172a;
-      --card-bg:      #0f172a;
-      --card-bg-alt:  #0b1220;
-      --border:       #334155;
-      --border-soft:  #1e293b;
-      --text:         #e2e8f0;
-      --text-muted:   #94a3b8;
-      --text-subtle:  #64748b;
-      --text-faint:   #475569;
-      --link:         #60a5fa;
-      --input-bg:     #0b1220;
-      --code-bg:      #1e293b;
-      --row-hover:    #1e293b;
-      --primary:      #2563eb;
-      --primary-hover:#1d4ed8;
-      --danger:       #60a5fa;
-      --accent:       #60a5fa;
+      --bg:           #1c1715;
+      --nav-bg:       #241d1a;
+      --card-bg:      #241d1a;
+      --card-bg-alt:  #1c1715;
+      --border:       #4a3d38;
+      --border-soft:  #2e2521;
+      --text:         #f0e6e1;
+      --text-muted:   #c0aaa0;
+      --text-subtle:  #9a857b;
+      --text-faint:   #6b5950;
+      --link:         #e2897d;
+      --input-bg:     #1c1715;
+      --code-bg:      #2e2521;
+      --row-hover:    #2e2521;
+      --primary:      #c0564b;
+      --primary-hover:#a64539;
+      --danger:       #e2897d;
+      --accent:       #e2897d;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -78,18 +78,18 @@
       display: inline-block; padding: 2px 8px; border-radius: 4px;
       font-size: 12px; font-weight: 600;
     }
-    .badge-processing  { background: #dbeafe; color: #1e40af; }
-    .badge-analyzed    { background: #2563eb; color: #ffffff; }
+    .badge-processing  { background: #f6e1dc; color: #8f3a30; }
+    .badge-analyzed    { background: #c0564b; color: #ffffff; }
     .badge-ai_failed   { background: #475569; color: #ffffff; }
     .badge-suppressed  { background: #e2e8f0; color: #475569; }
 
-    .sev-Critical { color: #1e3a8a; font-weight: 800; }
-    .sev-High     { color: #1d4ed8; font-weight: 700; }
-    .sev-Medium   { color: #3b82f6; font-weight: 600; }
+    .sev-Critical { color: #7e3329; font-weight: 800; }
+    .sev-High     { color: #a64539; font-weight: 700; }
+    .sev-Medium   { color: #d07a6e; font-weight: 600; }
     .sev-Low      { color: #64748b; }
-    [data-theme="dark"] .sev-Critical { color: #93c5fd; font-weight: 800; }
-    [data-theme="dark"] .sev-High     { color: #60a5fa; }
-    [data-theme="dark"] .sev-Medium   { color: #3b82f6; }
+    [data-theme="dark"] .sev-Critical { color: #f0b3a9; font-weight: 800; }
+    [data-theme="dark"] .sev-High     { color: #e2897d; }
+    [data-theme="dark"] .sev-Medium   { color: #d07a6e; }
     [data-theme="dark"] .sev-Low      { color: #94a3b8; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 16px; }
@@ -130,12 +130,12 @@
     }
     .nav-btn-primary  { background: var(--primary); color: white; border-color: var(--primary); }
     .nav-btn-primary:hover  { background: var(--primary-hover); border-color: var(--primary-hover); text-decoration: none; }
-    .nav-btn-accent   { background: #2563eb; color: #ffffff; border-color: #2563eb; font-weight: 600; }
-    .nav-btn-accent:hover { background: #1d4ed8; border-color: #1d4ed8; text-decoration: none; color: #fff; }
+    .nav-btn-accent   { background: #c0564b; color: #ffffff; border-color: #c0564b; font-weight: 600; }
+    .nav-btn-accent:hover { background: #a64539; border-color: #a64539; text-decoration: none; color: #fff; }
     .nav-btn-outline  { background: transparent; color: var(--text); border-color: var(--border); }
     .nav-btn-outline:hover { background: var(--row-hover); border-color: var(--primary); text-decoration: none; }
-    .nav-btn-danger   { background: #1d4ed8; color: white; border-color: #1d4ed8; font-weight: 600; }
-    .nav-btn-danger:hover { background: #1e40af; border-color: #1e40af; color: white; text-decoration: none; }
+    .nav-btn-danger   { background: #a64539; color: white; border-color: #a64539; font-weight: 600; }
+    .nav-btn-danger:hover { background: #8f3a30; border-color: #8f3a30; color: white; text-decoration: none; }
 
     .brand {
       display: inline-flex; align-items: center; gap: 10px;
@@ -145,13 +145,13 @@
     .brand .logo {
       display: inline-flex; align-items: center; justify-content: center;
       width: 32px; height: 32px; border-radius: 8px;
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      background: linear-gradient(135deg, #c0564b 0%, #a64539 100%);
       color: #1a202c;
     }
     [data-theme="dark"] .brand .logo { color: #1a1d2e; }
     .brand .title {
       font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      background: linear-gradient(135deg, #c0564b 0%, #a64539 100%);
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
 
@@ -160,7 +160,7 @@
       padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-family: inherit;
     }
     .icon-btn:hover { background: var(--row-hover); color: var(--text); }
-    .icon-btn.danger:hover { background: #2563eb; color: #ffffff; border-color: #2563eb; }
+    .icon-btn.danger:hover { background: #c0564b; color: #ffffff; border-color: #c0564b; }
 
     .empty { text-align: center; padding: 60px; color: var(--text-faint); }
 
@@ -208,7 +208,7 @@
       <span class="logo">
         <svg width="22" height="22" viewBox="0 0 32 32">
           <path d="M16 4.2 L6.5 7.2 v8.3 c0 5.5 3.6 9.2 9.5 11.3 c5.9-2.1 9.5-5.8 9.5-11.3 V7.2 z" fill="currentColor"/>
-          <text x="16" y="20.3" font-family="Arial Black, system-ui, sans-serif" font-size="10.5" font-weight="900" fill="#2563eb" text-anchor="middle" letter-spacing="-0.5">AI</text>
+          <text x="16" y="20.3" font-family="Arial Black, system-ui, sans-serif" font-size="10.5" font-weight="900" fill="#c0564b" text-anchor="middle" letter-spacing="-0.5">AI</text>
         </svg>
       </span>
       <span class="title">AI 장애 대응</span>
@@ -284,8 +284,8 @@
   {% if current_user %}
   <style>
     .help-fab { position: fixed; right: 22px; bottom: 22px; z-index: 900; display: flex; align-items: center; gap: 8px;
-      padding: 12px 18px; border-radius: 999px; background: #2563eb; color: #ffffff; font-weight: 800; font-size: 14px;
-      box-shadow: 0 4px 16px rgba(37,99,235,.32); text-decoration: none; transition: filter .12s, transform .12s; }
+      padding: 12px 18px; border-radius: 999px; background: #c0564b; color: #ffffff; font-weight: 800; font-size: 14px;
+      box-shadow: 0 4px 16px rgba(192,86,75,.32); text-decoration: none; transition: filter .12s, transform .12s; }
     .help-fab:hover { filter: brightness(1.08); transform: translateY(-1px); text-decoration: none; color: #ffffff; }
   </style>
   <a href="/guide" class="help-fab" title="에이전트 설치 & 사이트 사용 가이드">
