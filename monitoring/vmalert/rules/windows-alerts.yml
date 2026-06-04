@@ -1,0 +1,30 @@
+# vmalert 룰 — Windows 호스트용 (windows_exporter 메트릭). node_exporter와 메트릭명이 달라 별도.
+# Alloy의 prometheus.exporter.windows + host 라벨 부착 전제.
+groups:
+  - name: windows.rules
+    interval: 60s
+    rules:
+
+      # CPU 과부하: 사용률 80% 초과 5분 지속 (idle 역수)
+      - alert: HighCPUUsageWindows
+        expr: |
+          (1 - avg by (host) (rate(windows_cpu_time_total{mode="idle", host!=""}[5m]))) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          os: windows
+        annotations:
+          summary: "CPU 과부하(Win): {{ $labels.host }} {{ $value | humanize }}%"
+          description: "{{ $labels.host }} (Windows) CPU 사용률 {{ $value | humanize }}% (기준 80%)."
+
+      # 메모리 과부하: 사용률 85% 초과 5분 지속
+      - alert: HighMemoryUsageWindows
+        expr: |
+          (1 - (windows_memory_available_bytes{host!=""} / windows_cs_physical_memory_bytes{host!=""})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          os: windows
+        annotations:
+          summary: "메모리 과부하(Win): {{ $labels.host }} {{ $value | humanize }}%"
+          description: "{{ $labels.host }} (Windows) 메모리 사용률 {{ $value | humanize }}% (기준 85%)."
