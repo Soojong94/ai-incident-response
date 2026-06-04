@@ -86,18 +86,26 @@
 
 ## 5. 기술 아키텍처 요약
 
+> ⚠ **2026-06-04 에이전트 기반(vendor-neutral)으로 전환.** 정본: `docs/agent-based-pivot.md` §12 · `docs/architecture.drawio`.
+> 메트릭/알람/에이전트는 별도 시스템 `monitoring_msp`(Grafana Alloy → VictoriaMetrics + vmalert + Alertmanager) 재사용,
+> 이 레포는 알람 수신 + 로그 쿼리 + AI 분석 담당. OBS·Cloud Function 제거(NCP 종속 소거).
+
 ```
-[Cloud Insight] --Webhook--> [중앙 서버 FastAPI]
-                                    |
-                    ┌───────────────┼───────────────┐
-                    ↓               ↓               ↓
-              [로그 수집]     [AI 분석]         [DB 저장]
-              (Mock/NCP)   (Timely gpt-5.1)
-                    └───────────────┼───────────────┘
-                                    ↓
-                               [웹 대시보드]
-                          (Slack 알림 — Phase 2)
+[고객 호스트] Alloy --상시 push(메트릭+로그)--> [monitoring_msp 중앙]
+                                                  VictoriaMetrics / VictoriaLogs(7d) / vmalert / Alertmanager
+                                                        | 알람 webhook (사설)
+                                                        ↓
+                                          [분석 서버 FastAPI: /webhook/alert]
+                                                        |
+                          ┌─────────────────────────────┼─────────────────────────────┐
+                          ↓                              ↓                             ↓
+              [VictoriaLogs 직전5분 쿼리(pull)]   [AI 분석 (Timely gpt-5.1)]      [incident DB]
+                          └─────────────────────────────┼─────────────────────────────┘
+                                                        ↓
+                                              [웹 대시보드 + 이메일]
 ```
+
+(아래 §3 F-01/F-02의 Cloud Insight/NCP 로그 수집 서술은 레거시 — 에이전트 기반에선 Alertmanager 알람 + VictoriaLogs 쿼리로 대체)
 
 ---
 

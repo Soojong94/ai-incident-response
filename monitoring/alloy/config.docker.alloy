@@ -1,0 +1,15 @@
+// 컨테이너 호스트 전용 오버레이 — config.alloy 와 같은 디렉토리에 드롭인.
+// Alloy가 /etc/alloy/*.alloy 를 합쳐 로드하므로 base의 loki.process.add_host 를 그대로 재사용.
+// 모든 컨테이너 stdout/stderr 자동 수집 — 컨테이너별 설정 불필요.
+//
+// ⚠ Alloy 프로세스가 docker.sock 접근 권한 필요(컨테이너로 돌리면 /var/run/docker.sock 마운트).
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.containers.targets
+  forward_to = [loki.process.add_host.receiver]   // base(config.alloy)의 add_host 재사용
+}

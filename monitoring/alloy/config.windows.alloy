@@ -1,0 +1,51 @@
+// Windows 서버용 베이스라인 (config.alloy 대신 이 파일 단독 사용).
+// journald 대응 = Windows 이벤트로그. 앱 경로 안 받는 원칙 동일.
+//
+// 환경변수: RESOURCE_NAME / VM_REMOTE_WRITE_URL / VL_LOKI_PUSH_URL
+
+// ========== 메트릭 ==========
+prometheus.exporter.windows "host" { }
+
+prometheus.scrape "host" {
+  targets         = prometheus.exporter.windows.host.targets
+  forward_to      = [prometheus.relabel.add_host.receiver]
+  scrape_interval = "15s"
+}
+
+prometheus.relabel "add_host" {
+  forward_to = [prometheus.remote_write.central.receiver]
+  rule {
+    target_label = "host"
+    replacement  = sys.env("RESOURCE_NAME")
+  }
+}
+
+prometheus.remote_write "central" {
+  endpoint {
+    url = sys.env("VM_REMOTE_WRITE_URL")
+  }
+}
+
+// ========== 로그: Windows 이벤트로그 (Application + System) ==========
+loki.source.windowsevent "application" {
+  eventlog_name = "Application"
+  forward_to    = [loki.process.add_host.receiver]
+}
+
+loki.source.windowsevent "system" {
+  eventlog_name = "System"
+  forward_to    = [loki.process.add_host.receiver]
+}
+
+loki.process "add_host" {
+  forward_to = [loki.write.central.receiver]
+  stage.static_labels {
+    values = { host = sys.env("RESOURCE_NAME") }
+  }
+}
+
+loki.write "central" {
+  endpoint {
+    url = sys.env("VL_LOKI_PUSH_URL")
+  }
+}

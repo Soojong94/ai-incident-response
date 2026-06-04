@@ -1,19 +1,21 @@
-// 에이전트 기반 PoC — Grafana Alloy (테스트/고객 서버 1대당 이 설정 1개)
-// 메트릭 → VictoriaMetrics remote_write, 로그 → VictoriaLogs(Loki push 프로토콜).
+// 에이전트 기반 PoC — Grafana Alloy 베이스라인 (모든 Linux 고객 서버 동일)
 //
-// ⚠ host 라벨은 OBS 객체 키 첫 세그먼트(= resource_name)와 반드시 일치시킬 것.
-//   RESOURCE_NAME 환경변수로 주입. (불일치 시 중앙 CF가 사이트 매칭 실패)
+// 핵심 원칙: 앱별 로그 경로를 받지 않는다. 중앙 싱크(journald) + 표준 위치(/var/log)만 잡는다.
+//   - systemd 서비스 stdout/stderr → journald 자동 → 경로 불필요
+//   - nginx/mysql 등 표준 위치 → /var/log glob 일괄
+//   - 비표준 경로 앱만 예외적으로 path 추가(opt-in)
+//   - 컨테이너 호스트는 config.docker.alloy 를 같은 디렉토리에 추가(드롭인)
 //
-// ⚠ prometheus.exporter.unix 는 Linux 전용. Windows 호스트에서 PoC하려면
-//   windows exporter 컴포넌트로 교체하거나, 로컬 검증은 README의 "합성 알람" 경로 사용.
+// ⚠ host 라벨 = OBS 객체 키 첫 세그먼트(= resource_name). 불일치 시 중앙 CF 매칭 실패.
+// ⚠ journald/varlog 접근 위해 Alloy는 호스트 패키지(systemd)로 실행 권장.
+//   (컨테이너로 돌리면 /var/log, /run/log/journal 마운트 필요)
 //
 // 환경변수:
-//   RESOURCE_NAME      예: tbit-air-mon-01   (사이트 식별자)
+//   RESOURCE_NAME        예: tbit-air-mon-01
 //   VM_REMOTE_WRITE_URL  로컬: http://victoriametrics:8428/api/v1/write
 //   VL_LOKI_PUSH_URL     로컬: http://victorialogs:9428/insert/loki/api/v1/push
-//   LOG_PATH           예: /var/log/syslog
 
-// ---------- 메트릭 ----------
+// ========== 메트릭 (호스트 시스템 지표) ==========
 prometheus.exporter.unix "host" { }
 
 prometheus.scrape "host" {
@@ -36,23 +38,29 @@ prometheus.remote_write "central" {
   }
 }
 
-// ---------- 로그 ----------
-local.file_match "logs" {
-  path_targets = [{ "__path__" = sys.env("LOG_PATH") }]
-}
-
-loki.source.file "logs" {
-  targets    = local.file_match.logs.targets
+// ========== 로그 1: journald (systemd 서비스 + 시스템 로그 전체) ==========
+loki.source.journal "system" {
+  max_age    = "12h"
+  labels     = { job = "journal" }
   forward_to = [loki.process.add_host.receiver]
 }
 
+// ========== 로그 2: 표준 위치 파일 일괄 (앱 경로 몰라도 됨) ==========
+local.file_match "varlog" {
+  path_targets = [{ "__path__" = "/var/log/**/*.log" }]
+}
+
+loki.source.file "varlog" {
+  targets    = local.file_match.varlog.targets
+  forward_to = [loki.process.add_host.receiver]
+}
+
+// ========== 공통: host 라벨(resource_name) 부착 후 중앙 전송 ==========
+// (config.docker.alloy 의 docker 로그도 이 add_host 로 합류)
 loki.process "add_host" {
   forward_to = [loki.write.central.receiver]
   stage.static_labels {
-    values = {
-      host = sys.env("RESOURCE_NAME"),
-      job  = "syslog",
-    }
+    values = { host = sys.env("RESOURCE_NAME") }
   }
 }
 

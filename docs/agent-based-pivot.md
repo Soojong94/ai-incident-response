@@ -131,6 +131,70 @@
 
 ---
 
+## 11. 대전환 (2026-06-04) — monitoring_msp 통합 (§5~9 일부 대체)
+
+별도 레포 `dev/monitoring_msp`가 **이미 메트릭/알람/에이전트 스택을 가동 중**임을 발견. 이걸 재사용하고, ai-incident-response는 AI 분석만 얹는다.
+
+**monitoring_msp 현황(재사용 대상)**
+- Alloy 에이전트 **direct/relay 모드**, **9999 push**, 아웃바운드 차단 서버까지 커버
+- 중앙: VictoriaMetrics + vmalert + **Alertmanager** + Grafana + Gmail 이메일
+- 라벨: customer_id / server_name / csp / region / environment
+- **로그는 수집하지 않음 → 중앙엔 메트릭만 적재** (= "중앙에 앱 로그 안 쌓는다" 모델과 일치)
+
+**바뀐 결정**
+- ai-incident-response의 **VictoriaMetrics·vmalert·VictoriaLogs는 중복 → 폐기.** monitoring_msp 재사용.
+- **중앙 로그 저장 안 함**(VictoriaLogs 제외). 로그는 **트리거 때만** 수집, 수명주기는 **OBS**가 관리.
+- ai-incident-response가 더하는 유일한 것 = **"알람 시 로그 수집 + AI 분석"**.
+
+**통합 흐름**
+```
+monitoring_msp Alertmanager (임계 초과 발화)
+   → webhook → ai-incident-response 브리지
+   → 해당 host 직전 5분 로그 수집  ← (NEW, 미해결: 수집 방식)
+   → 중앙 OBS(tbit-air) 업로드
+   ──────── 여기서부터 기존 그대로(무변경) ────────
+   → OBS Object Created → CF(obs-to-webhook) → /webhook/alarm → claude 분석 → 대시보드/이메일
+```
+
+**미해결 (다음 단계)** — 에이전트가 평소 로그를 안 모으므로 알람 시 5분 로그를 호스트에서 꺼내는 방식:
+- **direct 서버**: 호스트가 자가 수집(`journalctl --since=-5min`) → OBS 직접 업로드(아웃바운드). → **direct-first PoC 권장**
+- **relay(아웃바운드 차단) 서버**: 호스트가 OBS 도달 불가 → relay 경유 전송 필요(후속).
+
+**`monitoring/` 스캐폴드 처리**: 브리지만 존속(입력=Alertmanager webhook, 로그 원천=호스트 수집으로 변경). docker-compose.poc.yml의 VM/VictoriaLogs/vmalert 및 alloy 로그 push 부분은 정리 대상.
+
+---
+
+## 12. 최종 확정 아키텍처 (2026-06-04) — §5~11 종합·대체
+
+여러 차례 논의 끝에 확정. 다이어그램: [`architecture.drawio`](architecture.drawio).
+
+### 핵심 결정
+- **OBS · CF(`obs-to-webhook`) · 별도 브리지 전부 제거.** 이게 마지막 NCP 전용 조각이었음 → 제거로 **NCP 종속 완전 소거**(vendor-neutral 목표 완성). "앱 무변경" 원칙은 포기하고 **앱에 코드 추가**를 택함(가치 교환 수용).
+- **모드 A (기본·상용 표준):** Alloy가 메트릭+로그 **상시 push** → 중앙 VictoriaLogs(**7일 롤링** 보관). 알람 시 **분석서버가 직접 VictoriaLogs를 직전 5분 쿼리(pull)**. 호스트 추가 코드 0, 검색·대시보드 덤.
+- **모드 B (데이터 거주성 제약 고객 예외):** 로그 중앙 미전송. 호스트 **폴러**가 알람 시 `journalctl 5분` → 분석서버로 **inline POST**(아웃바운드, 인바운드 안 엶).
+- **폐쇄망(relay):** relay-server가 로그까지 중계 → 모드 A가 자연스럽게 커버(스트리밍 모델). 모드 B over relay는 HTTP 프록시 필요(후속).
+- **배포: 2서버 / 1 사설 subnet.** [서버1] monitoring_msp 중앙(VictoriaMetrics·VictoriaLogs·vmalert·Alertmanager·Grafana) ↔ [서버2] ai-incident-response 분석. **VictoriaLogs/Metrics는 인증이 없으므로 절대 공인 노출 금지 → 사설 subnet 필수.** 분석서버↔VL 쿼리, Alertmanager→분석서버 webhook 모두 사설 hop. 공인 노출은 에이전트 ingress(monitoring_msp 기존) + 분석 대시보드뿐.
+
+### 최종 흐름
+```
+[고객 호스트] Alloy ──상시 push(메트릭+로그)──► 공인 Ingress(monitoring_msp, relay로 폐쇄망도)
+   ┌──────────── 사설 subnet ────────────┐
+   │ [서버1] VictoriaMetrics / VictoriaLogs(7d) / vmalert / Alertmanager / Grafana │
+   │     vmalert 발화 → Alertmanager ──① webhook(사설)──► [서버2] /webhook/alert     │
+   │ [서버2] /webhook/alert → ② VictoriaLogs 직전5분 쿼리(pull,사설) → ③ claude 분석 │
+   │         → incident DB → 대시보드 + 이메일                                         │
+   └──────────────────────────────────────┘
+   (모드 B: 폴러가 journalctl 5분을 /webhook/alert로 직접 POST)
+```
+
+### 코드 작업 (다음)
+- **신규(서버2 앱)**: `POST /webhook/alert`(Alertmanager 포맷 파싱) + `victorialogs_collector`(host·시각으로 VictoriaLogs 쿼리, 기존 `obs_collector` 자리 대체, 동일 `list[str]` 반환). analyzer·DB·대시보드·이메일은 **그대로**.
+- **레거시화**: `obs_collector`, `cloud-functions/`, `/webhook/alarm`(OBS 경로).
+- **`monitoring/` 스캐폴드 정리**: VictoriaLogs(존속) 외 bridge·OBS·vmalert(monitoring_msp 것 사용)·docker-compose의 중복 서비스 제거 방향. Alloy config(메트릭+로그)는 존속.
+- **PoC = 모드 A e2e** (로컬은 same docker network로 사설 subnet 흉내).
+
+---
+
 ## 부록 A — 검증된 고객 CF 코드 (NCP-native, 레거시 참고용)
 
 `tbit-air-cust-pkg/collect-export` (개인 계정, VPC=NAT경로 private 서브넷, 디폴트 파라미터에 고객 키).

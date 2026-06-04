@@ -4,16 +4,22 @@
 
 ## 개요
 
-NCP Cloud Insight의 알람을 Webhook으로 수신하여,
-관련 로그를 자동 수집하고 AI가 원인을 분석 후 웹 대시보드에서 즉시 확인할 수 있는 중앙 서버 기반 시스템.
+클라우드 인프라 장애 알람을 수신하여 관련 로그를 자동 수집하고,
+AI가 원인을 분석 후 웹 대시보드/이메일로 전달하는 중앙 분석 서버.
+
+> ⚠ **아키텍처 전환 (2026-06-04, vendor-neutral).** NCP-native 수집(Cloud Insight + CLA + OBS + Cloud Function)을
+> **에이전트 기반**으로 전환했습니다. 메트릭/알람/에이전트는 별도 시스템 `monitoring_msp`(Grafana Alloy →
+> VictoriaMetrics + vmalert + Alertmanager)를 재사용하고, 이 레포는 **"Alertmanager 알람 → VictoriaLogs 직전 5분
+> 쿼리 → AI 분석 → 대시보드/이메일"** 을 담당합니다. **OBS·Cloud Function은 제거**(NCP 종속 소거).
+> 정본: [`docs/agent-based-pivot.md`](docs/agent-based-pivot.md) §12 · 다이어그램 [`docs/architecture.drawio`](docs/architecture.drawio).
 
 ## 핵심 기능
 
-- Cloud Insight Webhook 수신 및 HMAC 검증
-- 알람 전후 로그 자동 수집 (NCP Log Analytics API / Mock)
+- monitoring_msp Alertmanager 알람 수신 (`POST /webhook/alert`)
+- 알람 발생 host의 **직전 5분 로그 자동 수집** (중앙 VictoriaLogs 쿼리)
 - AI 원인 분석 및 조치 권고 (Timely GPT `gpt-5.1` → 추후 Claude API)
-- 웹 UI 기반 장애 이력 관리 및 AI 분석 결과 조회
-- Slack 알림 (Phase 2)
+- 웹 UI 기반 장애 이력 관리 및 AI 분석 결과 조회 + 이메일 알림
+- (레거시) Cloud Insight Webhook(`/webhook/alarm`) + OBS-CF 경로 — 폐기 예정
 
 ## 기술 스택
 
@@ -22,7 +28,9 @@ NCP Cloud Insight의 알람을 Webhook으로 수신하여,
 | Backend | Python 3.11 / FastAPI |
 | AI | Timely GPT Native API (`gpt-5.1`) → 추후 Claude API 교체 |
 | DB | SQLite (MVP) → MySQL (프로덕션) |
-| 대상 클라우드 | NCP (Naver Cloud Platform) |
+| 로그 소스 | VictoriaLogs (Grafana Alloy 상시 push, 7일 롤링) |
+| 알람 소스 | monitoring_msp Alertmanager |
+| 대상 클라우드 | 멀티클라우드 (NCP / AWS / KT / 온프렘 — 에이전트 기반) |
 
 ## 디렉토리 구조
 
