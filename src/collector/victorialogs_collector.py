@@ -43,7 +43,9 @@ async def collect(host: str, end=None, window_seconds: int | None = None) -> lis
     window = window_seconds or settings.log_window_seconds
     end_dt = _parse_end(end)
     start_dt = end_dt - timedelta(seconds=window)
-    query = f'{{host={json.dumps(host)}}} _time:[{_rfc3339(start_dt)}, {_rfc3339(end_dt)}]'
+    # host는 필드 필터(host:=)로 매칭 — Alloy의 Loki push는 host를 스트림 필드가 아닌
+    # 일반 필드로 저장하므로 `{host="..."}` 스트림 필터로는 안 잡힌다. (필드 필터는 둘 다 매칭)
+    query = f'host:={json.dumps(host)} _time:[{_rfc3339(start_dt)}, {_rfc3339(end_dt)}]'
     url = settings.victorialogs_url.rstrip("/") + "/select/logsql/query"
 
     logger.info("VictoriaLogs 수집 시작: host=%s, window=%ds", host, window)
