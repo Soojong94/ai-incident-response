@@ -60,10 +60,8 @@
     {% endif %}
     <div style="display:flex; flex-wrap:wrap; gap:14px; font-size:12px; color:var(--text-subtle); padding-top:10px; border-top:1px solid var(--border-soft);">
       <span>📌 패턴: <strong style="color:var(--text); font-family:monospace;">{{ site.resource_pattern or '—' }}</strong></span>
-      <span>🪣 OBS: <strong style="color:var(--text); font-family:monospace;">{{ site.obs_bucket or '—' }}</strong></span>
       <span>👥 수신자: <strong style="color:var(--text);">{{ site.recipients | length }}명</strong></span>
       <span>📐 아키텍처: <strong style="color:var(--text);">{% if site.architecture %}등록됨{% else %}없음{% endif %}</strong></span>
-      <span>🔑 NCP 키: <strong style="color:var(--text);">{% if site.ncp_access_key_enc %}site별{% else %}.env fallback{% endif %}</strong></span>
       <span>⏱ Rate limit: <strong style="color:var(--text);">{{ site.rate_limit_window_seconds or 300 }}s / {{ site.rate_limit_count or 3 }}건</strong></span>
     </div>
   </div>
@@ -135,16 +133,8 @@
       <label>resource_name 글로브 패턴</label>
       <span style="font-family:monospace; font-size:13px;">{{ site.resource_pattern or '— 없음 —' }}</span>
     </div>
-    <div class="meta-item">
-      <label>OBS 버킷</label>
-      <span style="font-family:monospace; font-size:13px;">{{ site.obs_bucket or '— 없음 —' }}</span>
-    </div>
-    <div class="meta-item" style="grid-column:1/-1;">
-      <label>WMS scenario ID</label>
-      <span style="font-family:monospace; font-size:13px;">{{ site.wms_scenario_id or '— 없음 (CF 가이드에 SCENARIO_ID=0 으로 표시됨) —' }}</span>
-    </div>
     <div class="meta-item" style="grid-column:1/-1; font-size:11px; color:var(--text-subtle);">
-      매칭 우선순위: 1) OBS 버킷 정확 일치 → 2) resource_name 패턴 매치. WMS scenario ID는 사이트 매칭엔 안 쓰이고 CF 가이드(/sites/{{ site.id }}/guide) 가 코드에 자동 치환할 때만 사용.
+      장애의 host 이름이 위 글로브 패턴에 맞으면 이 사이트로 분류됩니다. (없으면 그 이름으로 사이트 자동 생성)
     </div>
   </div>
   <!-- EDIT -->
@@ -152,14 +142,6 @@
     <div class="meta-item">
       <label>resource_name 글로브 패턴</label>
       <input id="s-pattern" type="text" value="{{ site.resource_pattern or '' }}" placeholder="예: team1-*" style="width:100%; font-family:monospace;">
-    </div>
-    <div class="meta-item">
-      <label>OBS 버킷</label>
-      <input id="s-bucket" type="text" value="{{ site.obs_bucket or '' }}" placeholder="예: team1-demo" style="width:100%; font-family:monospace;">
-    </div>
-    <div class="meta-item" style="grid-column:1/-1;">
-      <label>WMS scenario ID <span style="color:var(--text-subtle); font-weight:normal;">— NCP WMS 시나리오 생성 시 발급되는 숫자</span></label>
-      <input id="k-wms" type="text" value="{{ site.wms_scenario_id or '' }}" placeholder="예: 9799" style="width:100%; font-family:monospace;">
     </div>
   </div>
 </div>
@@ -239,56 +221,6 @@
   </div>
 </div>
 
-<!-- NCP API 키 (자격증명) -->
-<div class="card">
-  <h2>NCP API 키
-    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
-      OBS 객체 다운로드용 자격증명 — Fernet 암호화 저장. 빈 값이면 .env fallback
-    </span>
-  </h2>
-
-  <!-- VIEW -->
-  <div class="view-only meta-grid">
-    <div class="meta-item">
-      <label>NCP Access Key</label>
-      {% if site.ncp_access_key_enc %}
-      <span style="font-family:monospace; font-size:13px;">●●●●●●●● 등록됨</span>
-      <span style="color:#68d391; font-size:11px; margin-left:4px;">●</span>
-      {% else %}
-      <span style="color:var(--text-subtle); font-size:13px;">미등록 (.env 키 사용)</span>
-      {% endif %}
-    </div>
-    <div class="meta-item">
-      <label>NCP Secret Key</label>
-      {% if site.ncp_secret_key_enc %}
-      <span style="font-family:monospace; font-size:13px;">●●●●●●●● 등록됨</span>
-      <span style="color:#68d391; font-size:11px; margin-left:4px;">●</span>
-      {% else %}
-      <span style="color:var(--text-subtle); font-size:13px;">미등록</span>
-      {% endif %}
-    </div>
-    <div class="meta-item" style="grid-column:1/-1; font-size:11px; color:var(--text-subtle);">
-      OBS 는 IAM 키로 접근 불가 — <strong>루트 계정 키</strong>를 발급해서 입력해야 합니다. (계정 및 보안 관리 → 보안관리 → 접근관리)
-    </div>
-  </div>
-
-  <!-- EDIT -->
-  <div class="edit-only meta-grid">
-    <div class="meta-item">
-      <label>NCP Access Key <span style="color:var(--text-subtle); font-weight:normal;">— 새 값 입력 시 갱신, 빈 칸은 미변경</span></label>
-      <input id="k-ncp-access" type="password" placeholder="입력 시 암호화 저장" autocomplete="new-password" style="width:100%; font-family:monospace;">
-    </div>
-    <div class="meta-item">
-      <label>NCP Secret Key</label>
-      <input id="k-ncp-secret" type="password" placeholder="입력 시 암호화 저장" autocomplete="new-password" style="width:100%; font-family:monospace;">
-    </div>
-    {% if site.ncp_access_key_enc or site.ncp_secret_key_enc %}
-    <div class="meta-item" style="grid-column:1/-1;">
-      <button type="button" class="icon-btn danger" onclick="clearSiteKeys()">NCP 키 전체 삭제 (.env fallback으로 복귀)</button>
-    </div>
-    {% endif %}
-  </div>
-</div>
 
 <!-- AI 메모 (누적 학습 컨텍스트) -->
 <div class="card">
@@ -426,8 +358,6 @@ async function saveSite() {
   const name = document.getElementById('s-name').value.trim();
   if (!name) { alert('사이트 이름은 필수입니다'); return; }
 
-  // 1) site 기본 + 매칭 규칙 + 아키텍처 + rate-limit + 평문 식별자 (WMS) 한 번에
-  const wmsEl = document.getElementById('k-wms');
   const rlWin = document.getElementById('rl-window');
   const rlCnt = document.getElementById('rl-count');
   const rlDis = document.getElementById('rl-disabled');
@@ -436,10 +366,8 @@ async function saveSite() {
     name,
     description: document.getElementById('s-desc').value.trim(),
     resource_pattern: document.getElementById('s-pattern').value.trim(),
-    obs_bucket: document.getElementById('s-bucket').value.trim(),
     architecture: document.getElementById('s-arch').value,
     enabled: document.getElementById('s-enabled').checked,
-    wms_scenario_id: wmsEl ? wmsEl.value.trim() : '',
     rate_limit_window_seconds: rlWin ? parseInt(rlWin.value, 10) : undefined,
     rate_limit_count: rlCnt ? parseInt(rlCnt.value, 10) : undefined,
     rate_limit_disabled: rlDis ? rlDis.checked : undefined,
@@ -450,20 +378,6 @@ async function saveSite() {
     body: JSON.stringify(payload),
   });
   if (!r1.ok) { alert('저장 실패: ' + await r1.text()); return; }
-
-  // 2) NCP 키 — 입력된 값만 PUT (빈 칸은 변경 없음). 둘 다 빈 칸이면 호출 skip.
-  const accEl = document.getElementById('k-ncp-access');
-  const secEl = document.getElementById('k-ncp-secret');
-  const access = accEl ? accEl.value : '';
-  const secret = secEl ? secEl.value : '';
-  if (access || secret) {
-    const r2 = await fetch(`/api/sites/${SITE_ID}/keys`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ncp_access_key: access, ncp_secret_key: secret }),
-    });
-    if (!r2.ok) { alert('키 저장 실패: ' + await r2.text()); return; }
-  }
   location.reload();
 }
 async function deleteSite(id) {

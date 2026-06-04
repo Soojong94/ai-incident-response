@@ -24,12 +24,10 @@ from src.db.crud import (
     recent_reset_for_user,
     list_site_notes, add_site_note, update_site_note, delete_site_note,
     get_feedback_for_incident, upsert_feedback,
-    update_site_keys, clear_site_keys,
     daily_incident_counts, severity_distribution, status_distribution,
     top_sites_by_incident, notification_success_rate, avg_analysis_duration_seconds,
     list_notifications, count_notifications,
 )
-from src.crypto import decrypt as decrypt_secret, mask as mask_secret
 from src.auth import (
     ensure_initial_admin, authenticate, login_user, logout_user,
     current_user, require_user, require_admin, hash_password, verify_password,
@@ -643,15 +641,10 @@ def _site_to_dict(s, include_recipients: bool = False) -> dict:
         "name": s.name,
         "description": s.description,
         "resource_pattern": s.resource_pattern,
-        "obs_bucket": s.obs_bucket,
         "architecture": s.architecture,
         "has_architecture": bool(s.architecture),
         "auto_created": s.auto_created,
         "enabled": s.enabled,
-        "wms_scenario_id": s.wms_scenario_id,
-        # 키는 마스킹된 값만 노출 — 평문은 절대 응답에 안 보냄
-        "ncp_access_key_masked": mask_secret(decrypt_secret(s.ncp_access_key_enc)) if s.ncp_access_key_enc else "",
-        "has_ncp_keys": bool(s.ncp_access_key_enc and s.ncp_secret_key_enc),
         "recipient_count": len(s.recipients) if s.recipients is not None else 0,
     }
     if include_recipients:
@@ -711,30 +704,6 @@ def api_delete_site(site_id: int, db: Session = Depends(get_db), _admin=Depends(
     if not delete_site(db, site_id):
         raise HTTPException(status_code=404, detail="Site not found")
     return {"deleted": site_id}
-
-
-# ── Site API keys (encrypted) ───────────────────────────────────────────────
-
-@app.put("/api/sites/{site_id}/keys")
-async def api_update_site_keys(site_id: int, request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
-    """site의 NCP 키를 저장 (자동 암호화). 빈 값은 변경 안 함."""
-    data = await request.json()
-    access = (data.get("ncp_access_key") or "").strip() or None
-    secret = (data.get("ncp_secret_key") or "").strip() or None
-    if access is None and secret is None:
-        raise HTTPException(status_code=400, detail="ncp_access_key 또는 ncp_secret_key 중 하나는 입력해야 합니다")
-    site = update_site_keys(db, site_id, access, secret)
-    if not site:
-        raise HTTPException(status_code=404, detail="Site not found")
-    return _site_to_dict(site)
-
-
-@app.delete("/api/sites/{site_id}/keys")
-def api_clear_site_keys(site_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
-    site = clear_site_keys(db, site_id)
-    if not site:
-        raise HTTPException(status_code=404, detail="Site not found")
-    return _site_to_dict(site)
 
 
 # ── Recipients API (사이트 종속) ─────────────────────────────────────────────
@@ -957,10 +926,6 @@ def api_incident_detail(incident_id: int, db: Session = Depends(get_db)) -> Any:
         "alarm_time": incident.alarm_time.isoformat() if incident.alarm_time else None,
         "status": incident.status,
         "severity": incident.severity,
-        "obs_file_url": (
-            f"https://kr.object.ncloudstorage.com/{incident.obs_bucket}/{incident.obs_object_key}"
-            if incident.obs_object_key else None
-        ),
         "logs": [{"content": l.log_content, "source": l.source} for l in incident.logs],
         "analysis": {
             "cause_category": analysis.cause_category,

@@ -1,52 +1,71 @@
 {% extends "base.html" %}
-{% block title %}에이전트 설치 가이드 — AI 장애 대응{% endblock %}
+{% block title %}사용 가이드 — AI 장애 대응{% endblock %}
 {% block content %}
 <style>
-  .g-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 18px 22px; margin-bottom: 16px; }
-  .g-card h2 { font-size: 16px; color: var(--text); margin-bottom: 10px; }
-  .g-card h3 { font-size: 13px; color: var(--text-subtle); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
-  .g-card p, .g-card li { color: var(--text-muted); font-size: 14px; line-height: 1.7; }
-  .g-card pre { background: #1a202c; color: #e2e8f0; padding: 12px 14px; border-radius: 6px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
-  .g-step { display:inline-block; background: var(--accent, #d69e2e); color:#1a202c; font-weight:800; border-radius: 50%; width: 22px; height: 22px; text-align:center; line-height:22px; margin-right:8px; }
-  .g-flow { background: #1a202c; color:#cbd5e0; padding: 14px; border-radius: 6px; font-family: monospace; font-size: 12.5px; white-space: pre; overflow-x:auto; }
-  .g-note { border-left: 3px solid var(--accent, #d69e2e); padding: 6px 12px; margin: 8px 0; color: var(--text-muted); font-size: 13px; background: rgba(214,158,46,.07); }
+  .g-wrap { max-width: 940px; }
+  .g-toc { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin-bottom: 18px; }
+  .g-toc a { color: var(--text); text-decoration: none; margin-right: 14px; font-size: 13px; }
+  .g-toc a:hover { text-decoration: underline; }
+  .g-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 18px; }
+  .g-card h2 { font-size: 18px; color: var(--text); margin-bottom: 12px; }
+  .g-card h3 { font-size: 13px; color: var(--text-subtle); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .g-card p, .g-card li { color: var(--text-muted); font-size: 14px; line-height: 1.75; }
+  .g-card strong { color: var(--text); }
+  .g-card pre { background: #1a202c; color: #e2e8f0; padding: 12px 14px; border-radius: 6px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; margin: 6px 0; }
+  .g-step { display:inline-flex; background: #d69e2e; color:#1a202c; font-weight:800; border-radius: 50%; width: 24px; height: 24px; align-items:center; justify-content:center; margin-right: 8px; font-size: 13px; }
+  .g-flow { background: #1a202c; color:#cbd5e0; padding: 14px; border-radius: 6px; font-family: monospace; font-size: 12.5px; white-space: pre; overflow-x:auto; margin: 8px 0; }
+  .g-note { border-left: 3px solid #d69e2e; padding: 8px 14px; margin: 10px 0; color: var(--text-muted); font-size: 13px; background: rgba(214,158,46,.08); border-radius: 0 4px 4px 0; }
+  .g-tag { display:inline-block; background: var(--card-bg-alt); border:1px solid var(--border); border-radius: 4px; padding: 1px 7px; font-size: 12px; color: var(--text-muted); font-family: monospace; }
 </style>
 
-<div style="max-width: 920px;">
-  <h1 style="font-size:22px; margin-bottom:6px;">에이전트(Grafana Alloy) 설치 가이드</h1>
-  <p style="color:var(--text-muted); margin-bottom:18px;">모니터링 대상 서버에 <strong>Alloy 하나만</strong> 설치하면 됩니다. 메트릭·로그를 중앙으로 보내고,
-  임계 초과 시 <strong>자동으로 직전 5분 로그를 수집해 AI가 분석</strong>합니다. (NAT·Cloud Function 불필요, 서버 아웃바운드만)</p>
+<div class="g-wrap">
+  <h1 style="font-size:24px; margin-bottom:6px;">📘 사용 가이드</h1>
+  <p style="color:var(--text-muted); margin-bottom:16px;">서버에 에이전트(Alloy)를 설치해 장애를 자동으로 감지·분석하는 방법과, 이 대시보드 사용법을 안내합니다.</p>
 
-  <div class="g-card">
-    <h2>동작 흐름</h2>
-    <div class="g-flow">[대상 서버] Alloy ──상시 push(메트릭+로그)──► 중앙(VictoriaMetrics / VictoriaLogs)
-                                         │
-              vmalert(CPU&gt;80% 5분 등) 발화 → Alertmanager
-                                         │ webhook
-                                         ▼
-              분석 서버 /webhook/alert → 직전 5분 로그 pull → AI 분석 → 이 대시보드 + 이메일</div>
-    <div class="g-note">메트릭은 임계 판단용으로만 중앙 저장(Grafana 화면은 선택). 로그는 <strong>발화 시점에만</strong> 분석에 사용됩니다.</div>
+  <div class="g-toc">
+    <strong style="font-size:12px; color:var(--text-subtle);">바로가기</strong>&nbsp;&nbsp;
+    <a href="#how">① 동작 원리</a>
+    <a href="#add">② 서버 추가(일반)</a>
+    <a href="#closed">③ 폐쇄망 서버</a>
+    <a href="#site">④ 사이트 사용법</a>
+    <a href="#incident">⑤ 장애 확인</a>
+    <a href="#faq">⑥ 자주 묻는 질문</a>
   </div>
 
-  <div class="g-card">
-    <h2><span class="g-step">1</span>Alloy 설치</h2>
-    <h3>Ubuntu / Debian</h3>
+  <!-- ① -->
+  <div class="g-card" id="how">
+    <h2>① 동작 원리 — 한눈에</h2>
+    <p>대상 서버에 <strong>Grafana Alloy</strong> 하나만 설치하면 됩니다. 메트릭(CPU/메모리/디스크)과 로그를 중앙으로 계속 보내고,
+    임계값을 넘으면 <strong>그 순간의 로그를 모아 AI가 원인을 분석</strong>해 이 대시보드와 이메일로 알려줍니다.</p>
+    <div class="g-flow">[대상 서버] Alloy ──상시 전송(메트릭+로그)──► 중앙 서버
+                                          │
+              CPU 80% 5분 초과 등 → 자동 발화
+                                          ▼
+        직전 5분 로그 수집 → AI 분석 → 이 대시보드 + 이메일</div>
+    <div class="g-note">기존 방식(클라우드별 설정·NAT·Cloud Function)이 <strong>전부 필요 없어졌습니다.</strong> 서버에서 인터넷으로 나가는 길만 있으면 됩니다. AWS·NCP·KT·온프렘 어디든 동일.</div>
+  </div>
+
+  <!-- ② -->
+  <div class="g-card" id="add">
+    <h2>② 새 서버 추가하기 (인터넷 되는 일반 서버)</h2>
+    <p>아래 3단계면 끝입니다. 서버마다 다른 건 <strong>이름(<span class="g-tag">SERVER_NAME</span>) 한 곳</strong>뿐입니다.</p>
+
+    <h3><span class="g-step">1</span>Alloy 설치</h3>
+    <p><strong>Ubuntu / Debian</strong></p>
     <pre>sudo apt-get install -y curl unzip
 curl -sL -o alloy.zip https://github.com/grafana/alloy/releases/latest/download/alloy-linux-amd64.zip
 sudo unzip -o alloy.zip -d /usr/local/bin/ && sudo chmod +x /usr/local/bin/alloy-linux-amd64</pre>
-    <h3>Rocky / RHEL 계열</h3>
-    <pre>sudo dnf install -y unzip   # curl은 기본 제공(curl-minimal)
+    <p><strong>Rocky / RHEL 계열</strong> (curl은 기본 제공)</p>
+    <pre>sudo dnf install -y unzip
 curl -sL -o alloy.zip https://github.com/grafana/alloy/releases/latest/download/alloy-linux-amd64.zip
 sudo unzip -o alloy.zip -d /usr/local/bin/ && sudo chmod +x /usr/local/bin/alloy-linux-amd64</pre>
-    <h3>Windows</h3>
-    <pre>https://github.com/grafana/alloy/releases/latest → alloy-windows-amd64.exe.zip 다운로드 후 압축 해제</pre>
-  </div>
+    <p><strong>Windows</strong>: <a href="https://github.com/grafana/alloy/releases/latest" target="_blank" rel="noopener">릴리스 페이지</a>에서 <span class="g-tag">alloy-windows-amd64.exe.zip</span> 받아 압축 해제.</p>
 
-  <div class="g-card">
-    <h2><span class="g-step">2</span>config.alloy 작성</h2>
-    <p>아래에서 <code>SERVER_NAME</code>(이 서버 식별자)과 중앙 주소만 채우세요. <strong>이 이름이 대시보드 사이트명·알람 호스트와 동일</strong>해야 합니다.</p>
-    <pre>// ── 메트릭 ──
-prometheus.exporter.unix "n" { }                 // Windows: prometheus.exporter.windows
+    <h3><span class="g-step">2</span>config.alloy 작성</h3>
+    <p>아래를 <span class="g-tag">config.alloy</span>로 저장하고 <strong>SERVER_NAME</strong>과 <strong>중앙 주소</strong>만 바꾸세요.
+    이 이름이 그대로 <strong>대시보드의 사이트 이름·장애 호스트</strong>가 됩니다.</p>
+    <pre>// ── 메트릭 (Windows는 prometheus.exporter.windows) ──
+prometheus.exporter.unix "n" { }
 prometheus.scrape "n" {
   targets = prometheus.exporter.unix.n.targets
   forward_to = [prometheus.relabel.h.receiver]
@@ -54,13 +73,13 @@ prometheus.scrape "n" {
 }
 prometheus.relabel "h" {
   forward_to = [prometheus.remote_write.c.receiver]
-  rule { target_label = "host"  replacement = "SERVER_NAME" }
+  rule { target_label = "host"  replacement = "SERVER_NAME" }   // ← 서버 이름
 }
 prometheus.remote_write "c" {
-  endpoint { url = "http://<중앙IP>:8428/api/v1/write" }
+  endpoint { url = "http://&lt;중앙IP&gt;:8428/api/v1/write" }       // ← 중앙 주소
 }
 
-// ── 로그 (journald + /var/log, 또는 앱 로그 파일) ──
+// ── 로그 (journald + /var/log 전체. 앱 경로 따로 안 받아도 됨) ──
 local.file_match "f" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
 loki.source.file "f" { targets = local.file_match.f.targets  forward_to = [loki.process.h.receiver] }
 loki.process "h" {
@@ -68,38 +87,68 @@ loki.process "h" {
   stage.static_labels { values = { host = "SERVER_NAME", job = "syslog" } }
 }
 loki.write "c" {
-  endpoint { url = "http://<중앙IP>:9428/insert/loki/api/v1/push" }
+  endpoint { url = "http://&lt;중앙IP&gt;:9428/insert/loki/api/v1/push" }
 }</pre>
-    <div class="g-note">로그는 앱 경로를 일일이 받지 않습니다 — <strong>journald + /var/log</strong>(리눅스) / <strong>이벤트로그</strong>(윈도우)만 잡으면 됩니다. 비표준 경로 앱만 path 추가.</div>
+
+    <h3><span class="g-step">3</span>실행 + 방화벽</h3>
+    <pre>alloy-linux-amd64 run config.alloy --storage.path /var/lib/alloy</pre>
+    <p>중앙 방화벽(ACG)에 <strong>이 서버 IP</strong>로 <span class="g-tag">8428</span>(메트릭)·<span class="g-tag">9428</span>(로그) 인바운드를 한 번 열어주면 됩니다.
+    서버에 별도 등록은 필요 없습니다 — <strong>보내기 시작하면 중앙이 바로 받습니다.</strong></p>
+    <div class="g-note">운영에선 systemd 서비스로 등록하세요. 설치 스크립트로 SERVER_NAME만 받아 자동화하면 서버 수가 늘어도 동일하게 찍어낼 수 있습니다.</div>
   </div>
 
-  <div class="g-card">
-    <h2><span class="g-step">3</span>실행</h2>
-    <pre>alloy-linux-amd64 run config.alloy --storage.path /var/lib/alloy
-# (운영: systemd 서비스로 등록 권장)</pre>
-    <h3>중앙 방화벽(ACG)</h3>
-    <p>중앙의 <code>8428</code>(메트릭)·<code>9428</code>(로그)에 <strong>이 서버 IP만</strong> 인바운드 허용. (VictoriaMetrics/Logs는 무인증 → 공인 전체 노출 금지)</p>
+  <!-- ③ -->
+  <div class="g-card" id="closed">
+    <h2>③ 폐쇄망 서버 (인터넷이 안 되는 경우)</h2>
+    <p>인터넷 아웃바운드가 막힌 서버는 중앙에 직접 못 보냅니다. 고객망 안에 <strong>인터넷 되는 서버 1대를 "중계(relay) 서버"</strong>로 세우고, 폐쇄 서버들은 그쪽으로만 보냅니다.</p>
+    <div class="g-flow">[폐쇄 서버] Alloy ──내부망──► [중계 서버] ──인터넷──► 중앙</div>
+    <h3>중계 서버 (인터넷 되는 1대)</h3>
+    <p><span class="g-tag">monitoring/alloy/relay-server.alloy</span> 사용 — 내부에서 메트릭(:9999)·로그(:9998)를 받아 중앙(8428/9428)으로 넘깁니다. (이 서버 자신도 일반 서버처럼 모니터링하려면 ②의 수집 블록을 함께 넣으면 됩니다 → 그러면 "일반+중계 겸용")</p>
+    <h3>폐쇄 서버</h3>
+    <p><span class="g-tag">monitoring/alloy/relay-agent.alloy</span> 사용 — ②와 똑같되 전송 대상만 <strong>중계 서버의 내부 IP</strong>(<span class="g-tag">:9999</span>/<span class="g-tag">:9998</span>)로 지정.</p>
+    <div class="g-note">중앙 방화벽은 <strong>중계 서버 IP만</strong> 열면 됩니다. 폐쇄 서버는 IP 등록 불필요. 즉 에이전트는 결국 <strong>두 종류</strong>예요 — ⓐ 중앙으로 직접 보내는 서버(겸용으로 중계도 가능) / ⓑ 중계 서버로 보내는 폐쇄 서버.</div>
   </div>
 
-  <div class="g-card">
-    <h2>폐쇄망(인터넷 불가) 서버 — relay 경유</h2>
-    <p>아웃바운드 인터넷이 막힌 서버는 중앙에 직접 못 보냅니다. 고객망 안에 <strong>인터넷 되는 게이트웨이 1대(relay-server)</strong>를
-    두고, 폐쇄 서버들은 그쪽으로만 보냅니다.</p>
-    <div class="g-flow">[폐쇄 서버] Alloy(relay-agent) ──내부망──► [relay-server] ──아웃바운드──► 중앙</div>
+  <!-- ④ -->
+  <div class="g-card" id="site">
+    <h2>④ 사이트 사용법 (<a href="/sites">사이트 관리</a>)</h2>
+    <p><strong>사이트</strong>는 서버(들)를 묶는 단위입니다. 누구에게 알림을 보낼지, 어떤 맥락으로 분석할지를 여기서 정합니다.</p>
+    <h3>자동 생성</h3>
+    <p>새 서버에서 첫 장애가 들어오면 그 이름으로 <strong>사이트가 자동 생성</strong>됩니다. 미리 만들 필요는 없지만, <strong>이메일을 받으려면 수신자를 미리 등록</strong>하는 걸 권장합니다.</p>
+    <h3>① 수신자 등록 (이메일/Slack)</h3>
+    <p>사이트 상세에서 수신자를 추가하고, <strong>심각도별 수신 여부</strong>(Critical/High/Medium/Low)를 켭니다. 분석이 끝나면 해당 심각도를 받기로 한 사람에게만 발송됩니다.</p>
+    <h3>② 매칭 규칙</h3>
+    <p>여러 서버를 한 사이트로 묶으려면 <strong>resource 패턴</strong>(글로브, 예: <span class="g-tag">web-prod-*</span>)을 지정하세요. 장애의 호스트 이름이 패턴에 맞으면 그 사이트로 분류됩니다.</p>
+    <h3>③ 알림 폭주 방지 (rate-limit)</h3>
+    <p>같은 사이트에서 짧은 시간에 장애가 쏟아지면 일정 횟수 초과분은 분석·알림을 자동으로 건너뜁니다(기본 5분 3건). 장애 대응 중 시끄럽지 않게 해줍니다. 비상 시 끌 수도 있습니다.</p>
+    <h3>④ 인프라 구조 메모 → 분석 품질↑</h3>
+    <p>사이트에 <strong>인프라 구조</strong>(예: "nginx→was 2대→MySQL, Redis 캐시")를 적어두면 AI가 분석할 때 그 맥락을 참고해 <strong>더 정확</strong>해집니다.</p>
+    <h3>⑤ 사이트 메모 + 학습</h3>
+    <p>운영 메모를 남길 수 있고, AI가 반복되는 원인을 자동으로 누적합니다. 분석 결과에 👍을 누르면 <strong>검증된 메모로 승격</strong>되어 다음 분석에 활용됩니다.</p>
+  </div>
+
+  <!-- ⑤ -->
+  <div class="g-card" id="incident">
+    <h2>⑤ 장애 확인하기</h2>
     <ul>
-      <li><strong>relay-server</strong>: 내부 수신(메트릭 :9999 / 로그 :9998) → 중앙(8428/9428)로 중계. config: <code>monitoring/alloy/relay-server.alloy</code></li>
-      <li><strong>relay-agent</strong>(폐쇄 서버): 전송 대상만 relay-server 내부 IP로. config: <code>monitoring/alloy/relay-agent.alloy</code></li>
-      <li>중앙 ACG는 <strong>relay-server IP만</strong> 8428/9428 허용하면 됨(폐쇄 서버는 IP 등록 불필요).</li>
+      <li><strong><a href="/">장애 목록</a></strong>: 발생 서버·심각도·AI 판단 원인·상태를 한눈에. 검색/필터 가능.</li>
+      <li><strong>장애 상세</strong>: 클릭하면 수집된 <strong>실제 로그</strong>와 AI 분석 전문(원인 분류·상세·영향 범위·즉시 조치·재발 방지)을 봅니다.</li>
+      <li><strong>피드백</strong>: 분석이 정확하면 👍 — 사이트 메모로 승격되어 학습됩니다.</li>
+      <li>상태: <span class="g-tag">processing</span>(분석 중) → <span class="g-tag">analyzed</span>(완료) / <span class="g-tag">ai_failed</span>(분석 실패) / <span class="g-tag">suppressed</span>(폭주 억제).</li>
     </ul>
   </div>
 
-  <div class="g-card">
-    <h2>확인</h2>
-    <ul>
-      <li>설치 후 몇 분 내 메트릭/로그가 중앙에 쌓입니다.</li>
-      <li>CPU 80% 5분 초과 등 임계 발생 시 <strong>자동으로</strong> 이 대시보드에 장애가 등록되고 AI 분석·이메일이 발송됩니다.</li>
-      <li>사이트별 수신자·임계는 <a href="/sites">사이트 관리</a>에서 설정합니다.</li>
-    </ul>
+  <!-- ⑥ -->
+  <div class="g-card" id="faq">
+    <h2>⑥ 자주 묻는 질문</h2>
+    <h3>로그가 중앙에 계속 쌓이나요?</h3>
+    <p>네, 짧게(기본 7일) 보관하는 롤링 버퍼입니다. 장애 시 그중 직전 5분만 분석에 씁니다. 영구 보관은 아닙니다.</p>
+    <h3>Grafana 화면이 필요한가요?</h3>
+    <p>아니요. 메트릭은 임계 판단용으로만 저장하고, 사람이 보는 화면은 <strong>이 대시보드</strong>입니다.</p>
+    <h3>서버마다 설정을 다 해야 하나요?</h3>
+    <p>config는 서버마다 있어야 하지만 <strong>이름 한 줄만 다릅니다.</strong> 설치 스크립트로 자동화하세요.</p>
+    <h3>새 서버를 중앙에 먼저 등록해야 하나요?</h3>
+    <p>아니요. 보내기 시작하면 바로 받습니다. 방화벽(ACG)에 IP만 열면 됩니다.</p>
   </div>
 </div>
 {% endblock %}

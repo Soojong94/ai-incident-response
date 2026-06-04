@@ -81,17 +81,13 @@
       <label>resource_name 글로브 패턴</label>
       <input id="s-pattern" type="text" placeholder="예: team1-*, web-prod-*" style="width:100%;">
     </div>
-    <div class="meta-item">
-      <label>OBS 버킷 (정확 매치)</label>
-      <input id="s-bucket" type="text" placeholder="예: team1-demo" style="width:100%;">
-    </div>
     <div class="meta-item" style="grid-column:1/-1;">
       <label>아키텍처 (Markdown — AI 분석 시 context로 전달)</label>
       <textarea id="s-arch" rows="6" placeholder="예:&#10;- 웹 계층: nginx 1.24 (port 80, sticky session)&#10;- 앱 계층: Tomcat 9 (JVM 4GB, 4 instances)&#10;- DB: MySQL 8.0 (master/slave, pool 50)" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
     </div>
   </div>
   <p style="font-size:12px; color:var(--text-subtle); margin-bottom:12px;">
-    💡 인시던트가 들어올 때 OBS 버킷 → resource 패턴 순서로 매칭. 매칭되면 이 사이트의 수신자에게 발송.
+    💡 인시던트의 host 이름이 resource 패턴(글로브)에 맞으면 이 사이트로 분류되어 수신자에게 발송됩니다.
     아키텍처는 AI 분석 prompt에 포함되어 더 정확한 원인 추론을 돕습니다.
   </p>
   <button onclick="submitSite()" class="refresh-btn" style="margin-left:0;">저장</button>
@@ -113,11 +109,8 @@
     </h3>
     <div class="desc">{{ site.description or '— 설명 없음 —' }}</div>
     <div style="font-size:11px; color:var(--text-subtle); display:flex; gap:8px; flex-wrap:wrap; row-gap:4px;">
-      {% if site.resource_pattern %}<span title="매칭 패턴">📌 <span style="font-family:monospace;">{{ site.resource_pattern }}</span></span>{% endif %}
-      {% if site.obs_bucket %}<span title="OBS 버킷">🪣 <span style="font-family:monospace;">{{ site.obs_bucket }}</span></span>{% endif %}
-      {% if not site.resource_pattern and not site.obs_bucket %}<span style="color:var(--text-faint);">매칭 규칙 없음</span>{% endif %}
+      {% if site.resource_pattern %}<span title="매칭 패턴">📌 <span style="font-family:monospace;">{{ site.resource_pattern }}</span></span>{% else %}<span style="color:var(--text-faint);">매칭 패턴 없음</span>{% endif %}
       {% if site.architecture %}<span title="AI 분석에 활용됨">📐 아키텍처</span>{% endif %}
-      {% if site.ncp_access_key_enc %}<span title="이 사이트 전용 NCP 키 등록됨">🔑 키</span>{% endif %}
       <span title="분석 rate-limit (윈도우 / 임계값)">⏱ {{ site.rate_limit_window_seconds or 300 }}s / {{ site.rate_limit_count or 3 }}건</span>
     </div>
     <div class="meta">
@@ -180,7 +173,6 @@ async function editSite(s) {
   document.getElementById('s-name').value = s.name;
   document.getElementById('s-desc').value = s.description || '';
   document.getElementById('s-pattern').value = s.resource_pattern || '';
-  document.getElementById('s-bucket').value = s.obs_bucket || '';
   // 카드에 전달된 데이터엔 architecture가 빠져있을 수 있어 fetch로 보강
   try {
     const resp = await fetch('/api/sites');
@@ -206,7 +198,6 @@ async function submitSite() {
     name,
     description: document.getElementById('s-desc').value.trim(),
     resource_pattern: document.getElementById('s-pattern').value.trim(),
-    obs_bucket: document.getElementById('s-bucket').value.trim(),
     architecture: document.getElementById('s-arch').value,
     enabled: document.getElementById('s-enabled').checked,
   };

@@ -12,7 +12,7 @@ from src.db.crud import (
     get_recipients_for_severity, record_notification, get_incident,
     find_similar_ai_note, add_site_note, increment_note_occurrence,
     get_site_notes_for_prompt, list_cluster_incidents,
-    get_site_ncp_keys, count_recent_incidents_for_site,
+    count_recent_incidents_for_site,
     get_recent_analyses_for_resource,
 )
 from src.db.database import get_db as _get_db

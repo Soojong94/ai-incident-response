@@ -6,6 +6,22 @@
 //   CENTRAL_VM_URL = http://<중앙>:8428/api/v1/write
 //   CENTRAL_VL_URL = http://<중앙>:9428/insert/loki/api/v1/push
 
+// ── 이 서버 자신도 모니터링 (일반 서버 겸용) ──
+//   즉 에이전트 종류는 결국 2가지: ⓐ 중앙으로 보내는 서버(이 파일=중계 겸용 가능) / ⓑ 폐쇄 서버(relay-agent)
+prometheus.exporter.unix "self" { }
+prometheus.scrape "self" {
+  targets         = prometheus.exporter.unix.self.targets
+  forward_to      = [prometheus.relabel.self.receiver]
+  scrape_interval = "15s"
+}
+prometheus.relabel "self" {
+  forward_to = [prometheus.remote_write.central.receiver]
+  rule {
+    target_label = "host"
+    replacement  = sys.env("RESOURCE_NAME")   // 이 중계 서버 자신의 이름
+  }
+}
+
 // ── 메트릭 수신 → 중앙 전달 ──
 prometheus.receive_http "in" {
   http {

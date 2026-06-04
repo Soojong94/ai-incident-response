@@ -64,7 +64,7 @@ async function reanalyze(id) {
   <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
     <div>
       <h3>원인 분류</h3>
-      <p style="font-size:15px; color:#f6ad55; font-weight:600;">{{ analysis.cause_category }}</p>
+      <p style="font-size:15px; color:#dd6b20; font-weight:700;">{{ analysis.cause_category }}</p>
     </div>
     <div>
       <h3>심각도</h3>
@@ -74,12 +74,12 @@ async function reanalyze(id) {
 
   <div style="margin-bottom:16px;">
     <h3>원인 상세</h3>
-    <div class="md-render" style="font-size:14px; line-height:1.7; color:#cbd5e0;" data-md="{{ analysis.cause_detail | e }}"></div>
+    <div class="md-render" style="font-size:14px; line-height:1.7; color:var(--text);" data-md="{{ analysis.cause_detail | e }}"></div>
   </div>
 
   <div style="margin-bottom:16px;">
     <h3>영향 범위</h3>
-    <div class="md-render" style="font-size:14px; line-height:1.6; color:#cbd5e0;" data-md="{{ analysis.impact_scope | e }}"></div>
+    <div class="md-render" style="font-size:14px; line-height:1.6; color:var(--text);" data-md="{{ analysis.impact_scope | e }}"></div>
   </div>
 
   <div style="margin-bottom:16px;">
@@ -93,7 +93,7 @@ async function reanalyze(id) {
 
   <div>
     <h3>재발 방지 권고</h3>
-    <div class="md-render" style="font-size:14px; line-height:1.7; color:#cbd5e0;" data-md="{{ analysis.prevention | e }}"></div>
+    <div class="md-render" style="font-size:14px; line-height:1.7; color:var(--text);" data-md="{{ analysis.prevention | e }}"></div>
   </div>
 
   <!-- 분석 피드백 -->

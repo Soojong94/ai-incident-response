@@ -15,14 +15,6 @@ class Settings(BaseSettings):
     # Webhook HMAC (optional)
     webhook_secret: str = ""
 
-    # NCP
-    ncp_access_key: str = ""
-    ncp_secret_key: str = ""
-    ncp_region: str = "KR"
-
-    # NCP Object Storage (레거시 — OBS/CF 경로)
-    obs_bucket: str = "team1-demo"
-
     # VictoriaLogs (에이전트 기반 — 알람 시 host 직전 N분 로그 pull)
     # 운영: 같은 사설 subnet의 monitoring_msp VictoriaLogs 사설 IP. 무인증이므로 공인 노출 금지.
     victorialogs_url: str = "http://localhost:9428"

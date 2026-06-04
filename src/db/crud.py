@@ -43,28 +43,19 @@ def _parse_alarm(alarm_data: dict) -> dict:
         "threshold_value": str(get("threshold", "threshold_value") or ""),
         "current_value": str(get("currentValue", "current_value") or ""),
         "alarm_time": alarm_time,
-        "obs_bucket": get("obs_bucket", "obsBucket") or "",
-        "obs_object_key": get("obs_object_key", "obsObjectKey") or "",
     }
 
 
-def _match_or_create_site(db: Session, resource_name: str, obs_bucket: str | None) -> Site | None:
-    """resource_name / obs_bucket 으로 매칭 → 없으면 자동 생성."""
+def _match_or_create_site(db: Session, resource_name: str) -> Site | None:
+    """resource_name(host) 글로브 패턴으로 매칭 → 없으면 자동 생성."""
+    if not resource_name:
+        return None
     sites = db.query(Site).order_by(Site.id.asc()).all()
-    # 1차: obs_bucket 정확 일치
-    if obs_bucket:
-        for s in sites:
-            if s.obs_bucket and s.obs_bucket == obs_bucket:
-                return s
-    # 2차: resource_name이 글로브 패턴에 매치
-    if resource_name:
-        for s in sites:
-            if s.resource_pattern and fnmatch.fnmatchcase(resource_name.lower(), s.resource_pattern.lower()):
-                return s
-    # 매칭 실패 → 자동 생성 (admin이 나중에 이름/패턴 다듬을 수 있게 auto_created=True)
-    if not resource_name and not obs_bucket:
-        return None  # 너무 빈약하면 안 만듦
-    base_name = resource_name or f"obs:{obs_bucket}"
+    for s in sites:
+        if s.resource_pattern and fnmatch.fnmatchcase(resource_name.lower(), s.resource_pattern.lower()):
+            return s
+    # 매칭 실패 → 자동 생성 (admin이 나중에 이름/패턴/수신자를 다듬을 수 있게 auto_created=True)
+    base_name = resource_name
     name = base_name
     suffix = 1
     while db.query(Site).filter(Site.name == name).first():
@@ -74,14 +65,13 @@ def _match_or_create_site(db: Session, resource_name: str, obs_bucket: str | Non
         name=name,
         description="알람 페이로드로 자동 생성됨 — 이름/패턴/수신자를 다듬어 주세요.",
         resource_pattern=resource_name or None,
-        obs_bucket=obs_bucket or None,
         auto_created=True,
         enabled=True,
     )
     db.add(site)
     db.commit()
     db.refresh(site)
-    logger.info("사이트 자동 생성: %s (resource=%s, bucket=%s)", site.name, resource_name, obs_bucket)
+    logger.info("사이트 자동 생성: %s (resource=%s)", site.name, resource_name)
     return site
 
 
@@ -107,7 +97,7 @@ def _find_or_create_cluster_id(db: Session, site_id: int | None) -> str:
 
 def create_incident(db: Session, alarm_data: dict) -> Incident:
     parsed = _parse_alarm(alarm_data)
-    site = _match_or_create_site(db, parsed["resource_name"], parsed.get("obs_bucket"))
+    site = _match_or_create_site(db, parsed["resource_name"])
     site_id = site.id if site else None
     cluster_id = _find_or_create_cluster_id(db, site_id)
     incident = Incident(
@@ -656,7 +646,6 @@ def create_site(db: Session, data: dict) -> Site:
         name=data.get("name", ""),
         description=data.get("description") or None,
         resource_pattern=data.get("resource_pattern") or None,
-        obs_bucket=data.get("obs_bucket") or None,
         architecture=data.get("architecture") or None,
         enabled=bool(data.get("enabled", True)),
     )
@@ -676,13 +665,8 @@ def update_site(db: Session, site_id: int, data: dict) -> Site | None:
         site.description = data["description"] or None
     if "resource_pattern" in data:
         site.resource_pattern = data["resource_pattern"] or None
-    if "obs_bucket" in data:
-        site.obs_bucket = data["obs_bucket"] or None
     if "architecture" in data:
         site.architecture = data["architecture"] or None
-    if "wms_scenario_id" in data:
-        site.wms_scenario_id = (data["wms_scenario_id"] or "").strip() or None
-    # API 키 — 별도 endpoint로 처리 (update_site_keys). 여기서는 안 받음.
     if "rate_limit_window_seconds" in data:
         try:
             v = int(data["rate_limit_window_seconds"])
@@ -703,49 +687,6 @@ def update_site(db: Session, site_id: int, data: dict) -> Site | None:
     db.commit()
     db.refresh(site)
     return site
-
-
-def update_site_keys(db: Session, site_id: int, ncp_access: str | None, ncp_secret: str | None) -> Site | None:
-    """site의 NCP 키만 별도로 갱신 (암호화 후 저장). None 또는 빈 문자열은 변경하지 않음."""
-    from src.crypto import encrypt
-    site = get_site(db, site_id)
-    if not site:
-        return None
-    if ncp_access is not None and ncp_access.strip():
-        site.ncp_access_key_enc = encrypt(ncp_access.strip())
-    if ncp_secret is not None and ncp_secret.strip():
-        site.ncp_secret_key_enc = encrypt(ncp_secret.strip())
-    site.updated_at = datetime.now()
-    db.commit()
-    db.refresh(site)
-    return site
-
-
-def clear_site_keys(db: Session, site_id: int) -> Site | None:
-    """site의 NCP 키 삭제 (clear). .env fallback으로 동작."""
-    site = get_site(db, site_id)
-    if not site:
-        return None
-    site.ncp_access_key_enc = None
-    site.ncp_secret_key_enc = None
-    site.updated_at = datetime.now()
-    db.commit()
-    db.refresh(site)
-    return site
-
-
-def get_site_ncp_keys(db: Session, site_id: int) -> tuple[str, str]:
-    """site에 키가 등록돼 있으면 복호화해 반환, 없으면 .env fallback.
-    OBS/CLA 호출 직전에 사용."""
-    from src.crypto import decrypt
-    from src.config import settings as _s
-    site = get_site(db, site_id)
-    if site and site.ncp_access_key_enc and site.ncp_secret_key_enc:
-        access = decrypt(site.ncp_access_key_enc)
-        secret = decrypt(site.ncp_secret_key_enc)
-        if access and secret:
-            return access, secret
-    return _s.ncp_access_key, _s.ncp_secret_key
 
 
 def delete_site(db: Session, site_id: int) -> bool:
