@@ -10,7 +10,7 @@
   .sev-toggle { display:inline-flex; gap:4px; }
   .sev-toggle label { font-size:11px; padding:2px 6px; border:1px solid var(--border); border-radius:3px; cursor:pointer; user-select:none; }
   .sev-toggle input { display:none; }
-  .sev-toggle input:checked + span.sev-Critical { background:#742a2a; color:#fed7d7; }
+  .sev-toggle input:checked + span.sev-Critical { background:#475569; color:#ffffff; }
   .sev-toggle input:checked + span.sev-High     { background:#7b341e; color:#fbd38d; }
   .sev-toggle input:checked + span.sev-Medium   { background:#5f370e; color:#f6e05e; }
   .sev-toggle input:checked + span.sev-Low      { background:#276749; color:#c6f6d5; }
@@ -36,12 +36,12 @@
     <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
       <h2 style="font-size:18px; color:var(--text); margin:0;">{{ site.name }}</h2>
       {% if site.enabled %}
-        <span style="font-size:11px; padding:2px 8px; background:#276749; color:#c6f6d5; border-radius:3px;">활성</span>
+        <span style="font-size:11px; padding:2px 8px; background:#2563eb; color:#ffffff; border-radius:3px;">활성</span>
       {% else %}
         <span style="font-size:11px; padding:2px 8px; background:#4a5568; color:#cbd5e0; border-radius:3px;">비활성</span>
       {% endif %}
       {% if site.auto_created %}<span style="font-size:11px; padding:2px 8px; background:#5f370e; color:#fbd38d; border-radius:3px;">auto</span>{% endif %}
-      {% if site.rate_limit_disabled %}<span style="font-size:11px; padding:2px 8px; background:#742a2a; color:#fed7d7; border-radius:3px;">🚨 비상모드</span>{% endif %}
+      {% if site.rate_limit_disabled %}<span style="font-size:11px; padding:2px 8px; background:#475569; color:#ffffff; border-radius:3px;">🚨 비상모드</span>{% endif %}
       <div style="margin-left:auto; display:flex; gap:6px;">
         <a href="/?site_id={{ site.id }}" class="nav-btn nav-btn-danger" style="font-size:12px; padding:5px 12px;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -237,7 +237,7 @@
   <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
     {% for n in notes %}
     <div style="display:flex; align-items:flex-start; gap:8px; padding:8px 10px; background:var(--card-bg-alt); border:1px solid {% if n.pinned %}var(--accent){% else %}var(--border){% endif %}; border-radius:6px;">
-      <span style="font-size:11px; padding:2px 6px; border-radius:3px; flex-shrink:0; {% if n.author == 'ai' %}background:#2b6cb0; color:#bee3f8;{% else %}background:#5f370e; color:#f6e05e;{% endif %}">
+      <span style="font-size:11px; padding:2px 6px; border-radius:3px; flex-shrink:0; {% if n.author == 'ai' %}background:#dbeafe; color:#1e40af;{% else %}background:#e2e8f0; color:#475569;{% endif %}">
         {{ n.author }}{% if n.pinned %} ★{% endif %}
       </span>
       <span style="flex:1; font-size:13px; color:var(--text); word-break:break-word;">{{ n.content }}</span>

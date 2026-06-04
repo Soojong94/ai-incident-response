@@ -207,7 +207,7 @@ size={{ size }}
         {% if inc.severity %}<span class="sev-{{ inc.severity }}">{{ inc.severity }}</span>{% else %}-{% endif %}
       </td>
       <td><span class="badge badge-{{ inc.status }}">{{ inc.status }}</span></td>
-      <td><button onclick="deleteIncident({{ inc.id }})" style="background:#e53e3e; color:#fff; border:none; padding:3px 10px; border-radius:4px; cursor:pointer; font-size:12px;">삭제</button></td>
+      <td><button onclick="deleteIncident({{ inc.id }})" style="background:#475569; color:#fff; border:none; padding:3px 10px; border-radius:5px; cursor:pointer; font-size:12px;">삭제</button></td>
     </tr>
     {% endfor %}
   </tbody>

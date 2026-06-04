@@ -6,7 +6,7 @@
   <title>AI 장애 대응</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
-  <meta name="theme-color" content="#d69e2e">
+  <meta name="theme-color" content="#2563eb">
   <script>
     // 페이지 깜빡임 방지 — body 렌더 전에 테마 적용
     (function() {
@@ -18,45 +18,46 @@
   </script>
   <style>
     /* ── Theme variables ────────────────────────────────────────────── */
-    :root, [data-theme="dark"] {
-      --bg:           #0f1117;
-      --nav-bg:       #1a1d2e;
-      --card-bg:      #1a1d2e;
-      --card-bg-alt:  #0f1117;
-      --border:       #3f4d63;
-      --border-soft:  #2d3748;
-      --text:         #e2e8f0;
-      --text-muted:   #a0aec0;
-      --text-subtle:  #718096;
-      --text-faint:   #4a5568;
-      --link:         #63b3ed;
-      --input-bg:     #0f1117;
-      --code-bg:      #2d3748;
-      --row-hover:    #1a1d2e;
-      --primary:      #2b6cb0;
-      --primary-hover:#2c5282;
-      --danger:       #e53e3e;
-      --accent:       #f6ad55;
+    /* 흰색 + 파랑 + 중립 회색만. 기본(:root) = 흰색 테마 */
+    :root, [data-theme="light"] {
+      --bg:           #ffffff;
+      --nav-bg:       #f1f5f9;
+      --card-bg:      #ffffff;
+      --card-bg-alt:  #f8fafc;
+      --border:       #cbd5e1;
+      --border-soft:  #e2e8f0;
+      --text:         #0f172a;
+      --text-muted:   #475569;
+      --text-subtle:  #64748b;
+      --text-faint:   #94a3b8;
+      --link:         #2563eb;
+      --input-bg:     #ffffff;
+      --code-bg:      #eff6ff;
+      --row-hover:    #f1f5f9;
+      --primary:      #2563eb;
+      --primary-hover:#1d4ed8;
+      --danger:       #1d4ed8;
+      --accent:       #2563eb;
     }
-    [data-theme="light"] {
-      --bg:           #e2e5ea;
-      --nav-bg:       #eef0f4;
-      --card-bg:      #eaecf0;
-      --card-bg-alt:  #dde1e6;
-      --border:       #a3acba;
-      --border-soft:  #c4cad3;
-      --text:         #2d3748;
-      --text-muted:   #4a5568;
-      --text-subtle:  #6b7280;
-      --text-faint:   #9ca3af;
-      --link:         #2c5282;
-      --input-bg:     #f5f7fa;
-      --code-bg:      #d6dae0;
-      --row-hover:    #dde1e6;
-      --primary:      #2b6cb0;
-      --primary-hover:#2c5282;
-      --danger:       #c53030;
-      --accent:       #b7791f;
+    [data-theme="dark"] {
+      --bg:           #0b1220;
+      --nav-bg:       #0f172a;
+      --card-bg:      #0f172a;
+      --card-bg-alt:  #0b1220;
+      --border:       #334155;
+      --border-soft:  #1e293b;
+      --text:         #e2e8f0;
+      --text-muted:   #94a3b8;
+      --text-subtle:  #64748b;
+      --text-faint:   #475569;
+      --link:         #60a5fa;
+      --input-bg:     #0b1220;
+      --code-bg:      #1e293b;
+      --row-hover:    #1e293b;
+      --primary:      #2563eb;
+      --primary-hover:#1d4ed8;
+      --danger:       #60a5fa;
+      --accent:       #60a5fa;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -77,19 +78,19 @@
       display: inline-block; padding: 2px 8px; border-radius: 4px;
       font-size: 12px; font-weight: 600;
     }
-    .badge-processing  { background: #2b6cb0; color: #bee3f8; }
-    .badge-analyzed    { background: #276749; color: #c6f6d5; }
-    .badge-ai_failed   { background: #742a2a; color: #fed7d7; }
-    .badge-suppressed  { background: #4a5568; color: #cbd5e0; }
+    .badge-processing  { background: #dbeafe; color: #1e40af; }
+    .badge-analyzed    { background: #2563eb; color: #ffffff; }
+    .badge-ai_failed   { background: #475569; color: #ffffff; }
+    .badge-suppressed  { background: #e2e8f0; color: #475569; }
 
-    .sev-Critical { color: #e53e3e; font-weight: 700; }
-    .sev-High     { color: #dd6b20; font-weight: 700; }
-    .sev-Medium   { color: #d69e2e; }
-    .sev-Low      { color: #38a169; }
-    [data-theme="dark"] .sev-Critical { color: #fc8181; }
-    [data-theme="dark"] .sev-High     { color: #f6ad55; }
-    [data-theme="dark"] .sev-Medium   { color: #f6e05e; }
-    [data-theme="dark"] .sev-Low      { color: #68d391; }
+    .sev-Critical { color: #1e3a8a; font-weight: 800; }
+    .sev-High     { color: #1d4ed8; font-weight: 700; }
+    .sev-Medium   { color: #3b82f6; font-weight: 600; }
+    .sev-Low      { color: #64748b; }
+    [data-theme="dark"] .sev-Critical { color: #93c5fd; font-weight: 800; }
+    [data-theme="dark"] .sev-High     { color: #60a5fa; }
+    [data-theme="dark"] .sev-Medium   { color: #3b82f6; }
+    [data-theme="dark"] .sev-Low      { color: #94a3b8; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 16px; }
     th { background: var(--card-bg); color: var(--text-muted); font-size: 12px; text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); }
@@ -129,14 +130,12 @@
     }
     .nav-btn-primary  { background: var(--primary); color: white; border-color: var(--primary); }
     .nav-btn-primary:hover  { background: var(--primary-hover); border-color: var(--primary-hover); text-decoration: none; }
-    .nav-btn-accent   { background: #d69e2e; color: #1a202c; border-color: #d69e2e; font-weight: 600; }
-    .nav-btn-accent:hover { background: #b7791f; border-color: #b7791f; text-decoration: none; color: #fff; }
+    .nav-btn-accent   { background: #2563eb; color: #ffffff; border-color: #2563eb; font-weight: 600; }
+    .nav-btn-accent:hover { background: #1d4ed8; border-color: #1d4ed8; text-decoration: none; color: #fff; }
     .nav-btn-outline  { background: transparent; color: var(--text); border-color: var(--border); }
-    .nav-btn-outline:hover { background: var(--row-hover); border-color: var(--text-subtle); text-decoration: none; }
-    .nav-btn-danger   { background: #c53030; color: white; border-color: #c53030; font-weight: 600; }
-    .nav-btn-danger:hover { background: #9b2c2c; border-color: #9b2c2c; color: white; text-decoration: none; }
-    [data-theme="dark"] .nav-btn-danger { background: #e53e3e; border-color: #e53e3e; }
-    [data-theme="dark"] .nav-btn-danger:hover { background: #c53030; border-color: #c53030; }
+    .nav-btn-outline:hover { background: var(--row-hover); border-color: var(--primary); text-decoration: none; }
+    .nav-btn-danger   { background: #1d4ed8; color: white; border-color: #1d4ed8; font-weight: 600; }
+    .nav-btn-danger:hover { background: #1e40af; border-color: #1e40af; color: white; text-decoration: none; }
 
     .brand {
       display: inline-flex; align-items: center; gap: 10px;
@@ -146,13 +145,13 @@
     .brand .logo {
       display: inline-flex; align-items: center; justify-content: center;
       width: 32px; height: 32px; border-radius: 8px;
-      background: linear-gradient(135deg, #d69e2e 0%, #c05621 100%);
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
       color: #1a202c;
     }
     [data-theme="dark"] .brand .logo { color: #1a1d2e; }
     .brand .title {
       font-size: 16px; font-weight: 700; letter-spacing: -0.01em;
-      background: linear-gradient(135deg, #d69e2e 0%, #c05621 100%);
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
 
@@ -161,8 +160,7 @@
       padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-family: inherit;
     }
     .icon-btn:hover { background: var(--row-hover); color: var(--text); }
-    .icon-btn.danger:hover { background: #742a2a; color: #fed7d7; border-color: #742a2a; }
-    [data-theme="light"] .icon-btn.danger:hover { background: #fed7d7; color: #742a2a; border-color: #fc8181; }
+    .icon-btn.danger:hover { background: #2563eb; color: #ffffff; border-color: #2563eb; }
 
     .empty { text-align: center; padding: 60px; color: var(--text-faint); }
 
@@ -210,7 +208,7 @@
       <span class="logo">
         <svg width="22" height="22" viewBox="0 0 32 32">
           <path d="M16 4.2 L6.5 7.2 v8.3 c0 5.5 3.6 9.2 9.5 11.3 c5.9-2.1 9.5-5.8 9.5-11.3 V7.2 z" fill="currentColor"/>
-          <text x="16" y="20.3" font-family="Arial Black, system-ui, sans-serif" font-size="10.5" font-weight="900" fill="#d69e2e" text-anchor="middle" letter-spacing="-0.5">AI</text>
+          <text x="16" y="20.3" font-family="Arial Black, system-ui, sans-serif" font-size="10.5" font-weight="900" fill="#2563eb" text-anchor="middle" letter-spacing="-0.5">AI</text>
         </svg>
       </span>
       <span class="title">AI 장애 대응</span>
@@ -267,7 +265,7 @@
       <button class="nav-btn nav-btn-outline" onclick="toggleUserMenu()" id="user-menu-btn" style="gap:8px;">
         <span style="display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--primary); color:#fff; align-items:center; justify-content:center; font-size:11px; font-weight:700;">{{ (current_user.name or current_user.email)[0] | upper }}</span>
         <span>{{ current_user.name or current_user.email }}</span>
-        {% if current_user.role == 'admin' %}<span style="font-size:10px; padding:1px 5px; background:#742a2a; color:#fed7d7; border-radius:2px;">admin</span>{% endif %}
+        {% if current_user.role == 'admin' %}<span style="font-size:10px; padding:1px 5px; background:#475569; color:#ffffff; border-radius:2px;">admin</span>{% endif %}
       </button>
       <div id="user-menu" style="display:none; position:absolute; right:0; top:100%; margin-top:6px; background:var(--card-bg); border:1px solid var(--border); border-radius:6px; min-width:200px; box-shadow:0 6px 20px -8px rgba(0,0,0,0.4); z-index:50;">
         <div style="padding:10px 14px; border-bottom:1px solid var(--border-soft); font-size:12px; color:var(--text-subtle);">
@@ -286,9 +284,9 @@
   {% if current_user %}
   <style>
     .help-fab { position: fixed; right: 22px; bottom: 22px; z-index: 900; display: flex; align-items: center; gap: 8px;
-      padding: 12px 18px; border-radius: 999px; background: #d69e2e; color: #1a202c; font-weight: 800; font-size: 14px;
-      box-shadow: 0 4px 16px rgba(0,0,0,.32); text-decoration: none; transition: filter .12s, transform .12s; }
-    .help-fab:hover { filter: brightness(1.08); transform: translateY(-1px); text-decoration: none; color: #1a202c; }
+      padding: 12px 18px; border-radius: 999px; background: #2563eb; color: #ffffff; font-weight: 800; font-size: 14px;
+      box-shadow: 0 4px 16px rgba(37,99,235,.32); text-decoration: none; transition: filter .12s, transform .12s; }
+    .help-fab:hover { filter: brightness(1.08); transform: translateY(-1px); text-decoration: none; color: #ffffff; }
   </style>
   <a href="/guide" class="help-fab" title="에이전트 설치 & 사이트 사용 가이드">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -302,7 +300,7 @@
 <script>
   // 테마 토글 ─────────────────────────────────────────────────────────
   function currentTheme() {
-    return document.documentElement.getAttribute('data-theme') || 'dark';
+    return document.documentElement.getAttribute('data-theme') || 'light';
   }
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);

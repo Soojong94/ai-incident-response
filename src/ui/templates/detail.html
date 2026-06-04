@@ -64,7 +64,7 @@ async function reanalyze(id) {
   <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
     <div>
       <h3>원인 분류</h3>
-      <p style="font-size:15px; color:#dd6b20; font-weight:700;">{{ analysis.cause_category }}</p>
+      <p style="font-size:15px; color:#1d4ed8; font-weight:700;">{{ analysis.cause_category }}</p>
     </div>
     <div>
       <h3>심각도</h3>
@@ -105,12 +105,12 @@ async function reanalyze(id) {
     <div style="display:flex; gap:8px; align-items:center;">
       <button id="fb-up" class="icon-btn{% if feedback and feedback.rating == 'up' %} active{% endif %}"
               onclick="setFeedback('up')"
-              style="{% if feedback and feedback.rating == 'up' %}background:#276749; color:#c6f6d5; border-color:#276749;{% endif %}">
+              style="{% if feedback and feedback.rating == 'up' %}background:#2563eb; color:#ffffff; border-color:#2563eb;{% endif %}">
         👍 정확함
       </button>
       <button id="fb-down" class="icon-btn{% if feedback and feedback.rating == 'down' %} active{% endif %}"
               onclick="setFeedback('down')"
-              style="{% if feedback and feedback.rating == 'down' %}background:#742a2a; color:#fed7d7; border-color:#742a2a;{% endif %}">
+              style="{% if feedback and feedback.rating == 'down' %}background:#475569; color:#ffffff; border-color:#475569;{% endif %}">
         👎 부정확
       </button>
       <input id="fb-comment" type="text" placeholder="짧은 메모 (선택)" value="{{ feedback.comment if feedback and feedback.comment else '' }}" style="flex:1; max-width:400px; padding:5px 10px;">
@@ -152,8 +152,8 @@ async function saveFeedbackComment() {
 <script>setTimeout(() => location.reload(), 5000);</script>
 
 {% elif incident.status == 'ai_failed' %}
-<div class="card" style="border-color:#742a2a;">
-  <h2 style="color:#fc8181;">AI 분석 실패</h2>
+<div class="card" style="border-color:#475569;">
+  <h2 style="color:#475569;">AI 분석 실패</h2>
   <p style="color:#718096;">자동 분석에 실패했습니다. 수동으로 로그를 확인해 주세요.</p>
 </div>
 {% endif %}
@@ -214,9 +214,9 @@ async function saveFeedbackComment() {
         <td style="font-size:13px;">{{ n.recipient_label }}</td>
         <td>
           {% if n.status == 'sent' %}
-            <span style="color:#68d391; font-size:12px;">● sent</span>
+            <span style="color:#2563eb; font-size:12px;">● sent</span>
           {% else %}
-            <span style="color:#fc8181; font-size:12px;">● failed</span>
+            <span style="color:#64748b; font-size:12px;">● failed</span>
           {% endif %}
         </td>
         <td style="font-size:12px; color:var(--text-subtle);">{{ n.sent_at.strftime('%Y-%m-%d %H:%M:%S') if n.sent_at else '-' }}</td>
