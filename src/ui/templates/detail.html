@@ -48,17 +48,6 @@ async function reanalyze(id) {
     <div class="meta-item"><label>임계값</label><span>{{ incident.threshold_value or '-' }}</span></div>
     <div class="meta-item"><label>발생시간</label><span>{{ incident.alarm_time.strftime('%Y-%m-%d %H:%M:%S') if incident.alarm_time else '-' }}</span></div>
     <div class="meta-item"><label>등록시간</label><span>{{ incident.created_at.strftime('%Y-%m-%d %H:%M:%S') if incident.created_at else '-' }}</span></div>
-    {% if incident.obs_object_key %}
-    <div class="meta-item" style="grid-column:1/-1;">
-      <label>원본 로그 파일</label>
-      <span>
-        <a href="/api/incidents/{{ incident.id }}/logs/raw"
-           style="color:#63b3ed; text-decoration:underline;">
-          {{ incident.obs_object_key }}
-        </a>
-      </span>
-    </div>
-    {% endif %}
   </div>
 </div>
 
