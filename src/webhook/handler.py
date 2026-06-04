@@ -36,6 +36,49 @@ async def receive_alarm(request: Request, payload: dict, db) -> dict:
     return {"incident_id": incident.id, "status": incident.status}
 
 
+def parse_alertmanager_payload(payload) -> list[dict]:
+    """monitoring_msp Alertmanager webhook(v4, {alerts:[...]}) 또는 vmalert 직접(list[alert])을
+    내부 alarm_data 리스트로 변환. firing + host 라벨이 있는 알람만 채택.
+
+    내부 alarm_data 는 `create_incident`/`_parse_alarm` 가 기대하는 키 + 에이전트 기반 마커
+    (`vl_host`, `vl_query_end`)를 담는다 → run_pipeline 이 VictoriaLogs 로 로그를 수집한다.
+    """
+    if isinstance(payload, list):
+        alerts = payload
+    elif isinstance(payload, dict):
+        alerts = payload.get("alerts", [])
+    else:
+        alerts = []
+
+    out: list[dict] = []
+    for a in alerts:
+        if not isinstance(a, dict):
+            continue
+        if a.get("status") == "resolved":
+            continue
+        labels = a.get("labels", {}) or {}
+        annotations = a.get("annotations", {}) or {}
+        # 일관성 키: server_name(= 대시보드 사이트 ID) 우선, host/instance fallback
+        host = labels.get("server_name") or labels.get("host") or labels.get("instance")
+        if not host:
+            logger.warning("host 라벨 없는 알람 skip: labels=%s", labels)
+            continue
+        starts_at = a.get("startsAt") or ""
+        out.append({
+            "alarmName": labels.get("alertname") or "Alert",
+            "resourceName": host,
+            "metricType": labels.get("alertname") or labels.get("metric") or "Unknown",
+            "currentValue": str(labels.get("value") or annotations.get("value") or ""),
+            "alarmTime": starts_at,
+            # ── 에이전트 기반 마커 ──
+            "source": "alertmanager",
+            "vl_host": host,
+            "vl_query_end": starts_at,
+            "annotations": annotations,
+        })
+    return out
+
+
 async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
     """Background task: collect logs → analyze → store result.
     sites의 rate-limit을 먼저 검사해서 임계값 초과 시 분석 자체를 차단(suppressed).
@@ -70,30 +113,42 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
         logs: list[str] = []
         log_source = "none"
 
-        obs_key = alarm_data.get("obs_object_key") or alarm_data.get("obsObjectKey")
-        obs_bucket = alarm_data.get("obs_bucket") or alarm_data.get("obsBucket") or settings.obs_bucket
-
-        # 해당 incident의 site에 NCP 키가 있으면 그걸 사용, 없으면 .env fallback
-        _tmp_inc = get_incident(db, incident_id)
-        site_id_for_keys = _tmp_inc.site_id if _tmp_inc else None
-        ncp_access, ncp_secret = (
-            get_site_ncp_keys(db, site_id_for_keys) if site_id_for_keys else
-            (settings.ncp_access_key, settings.ncp_secret_key)
-        )
-
-        if obs_key and ncp_access and ncp_secret:
+        if alarm_data.get("vl_host"):
+            # ── 에이전트 기반 — 중앙 VictoriaLogs에서 host 직전 N분 로그 pull ──
+            from src.collector import victorialogs_collector
             try:
-                logs = await obs_collector.collect(obs_bucket, obs_key, access_key=ncp_access, secret_key=ncp_secret)
-                log_source = "obs"
+                logs = await victorialogs_collector.collect(
+                    alarm_data["vl_host"], alarm_data.get("vl_query_end"),
+                )
+                log_source = "victorialogs"
             except Exception as e:
-                logger.warning("OBS log collection failed (%s) — CLA로 재시도", e)
+                logger.warning("VictoriaLogs 로그 수집 실패 (%s)", e)
+        else:
+            # ── (레거시) NCP-native — OBS 다운로드 → CLA fallback ──
+            obs_key = alarm_data.get("obs_object_key") or alarm_data.get("obsObjectKey")
+            obs_bucket = alarm_data.get("obs_bucket") or alarm_data.get("obsBucket") or settings.obs_bucket
 
-        if not logs and ncp_access and ncp_secret:
-            try:
-                logs = await ncp_collector.collect(alarm_data)
-                log_source = "ncp_api"
-            except Exception as e:
-                logger.warning("NCP log collection failed (%s)", e)
+            # 해당 incident의 site에 NCP 키가 있으면 그걸 사용, 없으면 .env fallback
+            _tmp_inc = get_incident(db, incident_id)
+            site_id_for_keys = _tmp_inc.site_id if _tmp_inc else None
+            ncp_access, ncp_secret = (
+                get_site_ncp_keys(db, site_id_for_keys) if site_id_for_keys else
+                (settings.ncp_access_key, settings.ncp_secret_key)
+            )
+
+            if obs_key and ncp_access and ncp_secret:
+                try:
+                    logs = await obs_collector.collect(obs_bucket, obs_key, access_key=ncp_access, secret_key=ncp_secret)
+                    log_source = "obs"
+                except Exception as e:
+                    logger.warning("OBS log collection failed (%s) — CLA로 재시도", e)
+
+            if not logs and ncp_access and ncp_secret:
+                try:
+                    logs = await ncp_collector.collect(alarm_data)
+                    log_source = "ncp_api"
+                except Exception as e:
+                    logger.warning("NCP log collection failed (%s)", e)
 
         if not logs:
             logger.info("incident %d — 로그 수집 실패. 알람 정보만으로 분석 진행", incident_id)

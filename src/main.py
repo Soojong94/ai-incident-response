@@ -35,7 +35,7 @@ from src.auth import (
     current_user, require_user, require_admin, hash_password, verify_password,
     check_security_config,
 )
-from src.webhook.handler import receive_alarm, run_pipeline
+from src.webhook.handler import receive_alarm, run_pipeline, parse_alertmanager_payload
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 logger = logging.getLogger(__name__)
@@ -369,6 +369,24 @@ async def webhook_alarm(request: Request, background_tasks: BackgroundTasks, db:
     incident_id = result["incident_id"]
     background_tasks.add_task(run_pipeline, incident_id, payload)
     return {"status": "accepted", "incident_id": incident_id}
+
+
+@app.post("/webhook/alert", status_code=202)
+async def webhook_alert(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """(정본·에이전트 기반) monitoring_msp Alertmanager(또는 vmalert) 알람 수신.
+    firing 알람마다 incident 생성 → run_pipeline 이 VictoriaLogs에서 host 직전 5분 로그를 pull 해 AI 분석.
+    OBS/CF 경유 없음 (사설 subnet 내 직접 처리)."""
+    payload = await request.json()
+    alarms = parse_alertmanager_payload(payload)
+    if not alarms:
+        return {"status": "ignored", "reason": "no firing alerts with host label", "incident_ids": []}
+    incident_ids = []
+    for alarm_data in alarms:
+        incident = create_incident(db, alarm_data)
+        background_tasks.add_task(run_pipeline, incident.id, alarm_data)
+        incident_ids.append(incident.id)
+    logger.info("webhook/alert — %d개 incident 생성: %s", len(incident_ids), incident_ids)
+    return {"status": "accepted", "incident_ids": incident_ids}
 
 
 # ── 수동 재분석 (admin) ─────────────────────────────────────────────────────

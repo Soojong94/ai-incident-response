@@ -22,3 +22,8 @@ server.log
 server_err.log
 server_err_new.log
 server_out.log
+
+# draw.io 에디터 백업/잠금 파일
+*.bkp
+.$*
+~$*
