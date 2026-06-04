@@ -1,116 +1,72 @@
-<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
-  <diagram id="air-arch" name="에이전트 기반 장애대응 아키텍처">
-    <mxGraphModel dx="1426" dy="841" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="760" background="none" math="0" shadow="0">
+<mxfile host="app.diagrams.net" version="24.0.0">
+  <diagram id="air-arch" name="에이전트 기반 장애대응 — 올인원">
+    <mxGraphModel dx="1200" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="800" background="none" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title" parent="1" style="text;html=1;align=left;fontSize=18;fontStyle=1;" value="AI 장애대응 — 에이전트 기반 아키텍처 (확정 2026-06-04)" vertex="1">
-          <mxGeometry height="30" width="700" x="40" y="20" as="geometry" />
+
+        <mxCell id="title" value="AI 장애대응 — 에이전트 기반 올인원 (확정 2026-06-04, 라이브 실증)" style="text;html=1;align=left;fontSize=18;fontStyle=1;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="820" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="custLabel" parent="1" style="text;html=1;align=left;fontSize=12;fontStyle=2;fontColor=#555555;" value="고객 호스트 (멀티클라우드: NCP / AWS / KT / 온프렘)" vertex="1">
-          <mxGeometry height="20" width="260" x="40" y="90" as="geometry" />
+
+        <!-- 고객/테스트 호스트 -->
+        <mxCell id="custLabel" value="모니터링 대상 호스트 (멀티클라우드: NCP/AWS/KT/온프렘, 윈도우/리눅스)" style="text;html=1;align=left;fontSize=12;fontStyle=2;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="40" y="95" width="320" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="hostA" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="서버 A — 인터넷 가능&#xa;Grafana Alloy (direct)&#xa;메트릭 + 로그 상시 push" vertex="1">
-          <mxGeometry height="80" width="220" x="40" y="120" as="geometry" />
+        <mxCell id="hostA" value="서버 A (인터넷 가능)&#10;Grafana Alloy (direct)&#10;메트릭 + 로그 상시 push" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="125" width="230" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="hostB" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="서버 B — 폐쇄망&#xa;Alloy (relay-agent)&#xa;메트릭 + 로그" vertex="1">
-          <mxGeometry height="80" width="220" x="40" y="225" as="geometry" />
+        <mxCell id="hostB" value="서버 B (폐쇄망)&#10;Alloy (relay-agent) → relay-server&#10;메트릭 + 로그" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="40" y="225" width="230" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="relay" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="relay-server&#xa;고객망 게이트웨이&#xa;(메트릭+로그 중계)" vertex="1">
-          <mxGeometry height="70" width="220" x="40" y="330" as="geometry" />
+
+        <!-- 올인원 박스 -->
+        <mxCell id="box" value="tbit-air-pub — 올인원 단일 서버 (docker compose, 전부 localhost 통신 / 향후 k8s 멀티 pod)" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=none;strokeColor=#9673a6;dashed=1;fontStyle=1;fontColor=#6c3483;" vertex="1" parent="1">
+          <mxGeometry x="360" y="90" width="760" height="560" as="geometry" />
         </mxCell>
-        <mxCell id="pollerB" parent="1" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=2;fontColor=#000000;" value="모드 B (데이터 거주성 제약 고객)&#xa;호스트 폴러: 로그 중앙 미전송&#xa;알람 시 journalctl 5분 → inline POST" vertex="1">
-          <mxGeometry height="80" width="220" x="40" y="430" as="geometry" />
+
+        <!-- ingress -->
+        <mxCell id="nginx" value="nginx (공인 80/443)&#10;/ → 분석 대시보드&#10;LE TLS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="380" y="130" width="180" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="ingress" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontColor=#000000;" value="공인 Ingress&#xa;nginx (basic-auth / TLS)&#xa;monitoring_msp&#xa;:9999 / HTTPS" vertex="1">
-          <mxGeometry height="110" width="170" x="330" y="190" as="geometry" />
+        <mxCell id="ingest" value="에이전트 인입 (ACG 소스IP 제한)&#10;VictoriaMetrics :8428 (메트릭)&#10;VictoriaLogs :9428 (로그)&#10;⚠ 무인증 → 사설/IP제한" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="380" y="240" width="230" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="subnet" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=none;strokeColor=#9673a6;dashed=1;fontStyle=1;fontColor=#6c3483;" value="사설 subnet (VPC) — VictoriaLogs/Metrics 비공개" vertex="1">
-          <mxGeometry height="620" width="700" x="560" y="80" as="geometry" />
+
+        <!-- 저장소 -->
+        <mxCell id="vm" value="VictoriaMetrics (메트릭 TSDB, 3개월)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="650" y="240" width="250" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="srv1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;[서버1] monitoring_msp 중앙 — 메트릭 · 알람 · 로그 보관&lt;/font&gt;" vertex="1">
-          <mxGeometry height="380" width="300" x="585" y="120" as="geometry" />
+        <mxCell id="vl" value="VictoriaLogs (로그, 7일 롤링)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="650" y="300" width="250" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="vm" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="VictoriaMetrics (메트릭 TSDB)" vertex="1">
-          <mxGeometry height="40" width="260" x="605" y="160" as="geometry" />
+
+        <!-- 알람 -->
+        <mxCell id="vmalert" value="vmalert (host.rules: CPU&gt;80%/Mem/Disk/Down)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="650" y="370" width="250" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="vl" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="VictoriaLogs (로그, 7일 롤링 보관)" vertex="1">
-          <mxGeometry height="40" width="260" x="605" y="215" as="geometry" />
+        <mxCell id="am" value="Alertmanager (dedup/그룹핑 → webhook)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="650" y="430" width="250" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="vmalert" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="vmalert (CPU&amp;gt;80% 5분 룰 평가)" vertex="1">
-          <mxGeometry height="40" width="260" x="605" y="270" as="geometry" />
+
+        <!-- 분석앱 -->
+        <mxCell id="app" value="분석앱 (FastAPI)&#10;POST /webhook/alert&#10;→ victorialogs_collector(host 직전5분 pull)&#10;→ claude 분석 → incident DB&#10;→ 웹 대시보드 + 이메일" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="940" y="240" width="160" height="230" as="geometry" />
         </mxCell>
-        <mxCell id="am" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="Alertmanager (발화 → webhook)" vertex="1">
-          <mxGeometry height="40" width="260" x="605" y="325" as="geometry" />
-        </mxCell>
-        <mxCell id="grafana" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontColor=#000000;" value="Grafana (메트릭 대시보드)" vertex="1">
-          <mxGeometry height="40" width="260" x="605" y="430" as="geometry" />
-        </mxCell>
-        <mxCell id="srv2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;[서버2] ai-incident-response — AI 분석&lt;/font&gt;" vertex="1">
-          <mxGeometry height="440" width="320" x="915" y="120" as="geometry" />
-        </mxCell>
-        <mxCell id="hook" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="POST /webhook/alert (Alertmanager 포맷)" vertex="1">
-          <mxGeometry height="40" width="280" x="935" y="160" as="geometry" />
-        </mxCell>
-        <mxCell id="collector" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="victorialogs_collector&#xa;(host 직전 5분 쿼리 → list[str])" vertex="1">
-          <mxGeometry height="50" width="280" x="935" y="220" as="geometry" />
-        </mxCell>
-        <mxCell id="claude" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="analyzer (claude / gpt-5.1)" vertex="1">
-          <mxGeometry height="40" width="280" x="935" y="295" as="geometry" />
-        </mxCell>
-        <mxCell id="db" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="incident DB (SQLite/MySQL)" vertex="1">
-          <mxGeometry height="40" width="280" x="935" y="355" as="geometry" />
-        </mxCell>
-        <mxCell id="ui" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="웹 대시보드 + 이메일 알림" vertex="1">
-          <mxGeometry height="40" width="280" x="935" y="415" as="geometry" />
-        </mxCell>
-        <mxCell id="e1" edge="1" parent="1" source="hostA" style="endArrow=block;html=1;fontSize=10;" target="ingress" value="push: 메트릭+로그">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e2" edge="1" parent="1" source="hostB" style="endArrow=block;html=1;fontSize=10;" target="relay" value="내부망">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e3" edge="1" parent="1" source="relay" style="endArrow=block;html=1;fontSize=10;" target="ingress" value="아웃바운드">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e4" edge="1" parent="1" source="ingress" style="endArrow=block;html=1;fontSize=10;" target="vm" value="메트릭">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e5" edge="1" parent="1" source="ingress" style="endArrow=block;html=1;fontSize=10;" target="vl" value="로그">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e6" edge="1" parent="1" style="endArrow=block;html=1;fontSize=10;" value="평가">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="739" y="215" as="sourcePoint" />
-            <mxPoint x="739" y="285" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="e7" edge="1" parent="1" source="vmalert" style="endArrow=block;html=1;fontSize=10;" target="am" value="발화">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e8" edge="1" parent="1" source="am" style="endArrow=block;html=1;fontSize=10;strokeColor=#b85450;fontColor=#b85450;" target="hook" value="① 알람 webhook (사설)">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e9" edge="1" parent="1" source="hook" style="endArrow=block;html=1;fontSize=10;" target="collector" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e10" edge="1" parent="1" source="collector" style="endArrow=block;html=1;fontSize=10;strokeColor=#6c8ebf;fontColor=#6c8ebf;" target="vl" value="② 직전 5분 쿼리 (pull, 사설)">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e11" edge="1" parent="1" source="collector" style="endArrow=block;html=1;fontSize=10;" target="claude" value="③ 분석">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e12" edge="1" parent="1" source="claude" style="endArrow=block;html=1;fontSize=10;" target="db" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e13" edge="1" parent="1" source="db" style="endArrow=block;html=1;fontSize=10;" target="ui" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="eB" edge="1" parent="1" source="pollerB" style="endArrow=block;html=1;fontSize=10;dashed=1;strokeColor=#d6b656;fontColor=#b09500;" target="hook" value="모드 B: 로그 inline POST">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="legend" parent="1" style="text;html=1;align=left;fontSize=11;fontColor=#999999;fontStyle=2;" value="제거됨(NCP 종속): OBS · Cloud Function(obs-to-webhook) · 별도 브리지 — 분석서버가 직접 VictoriaLogs 쿼리(pull)" vertex="1">
-          <mxGeometry height="40" width="700" x="40" y="660" as="geometry" />
+
+        <!-- edges -->
+        <mxCell id="e1" value="push 메트릭+로그" style="endArrow=block;html=1;fontSize=10;" edge="1" parent="1" source="hostA" target="ingest"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="(relay 경유)" style="endArrow=block;html=1;fontSize=10;dashed=1;" edge="1" parent="1" source="hostB" target="ingest"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="메트릭" style="endArrow=block;html=1;fontSize=10;" edge="1" parent="1" source="ingest" target="vm"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" value="로그" style="endArrow=block;html=1;fontSize=10;" edge="1" parent="1" source="ingest" target="vl"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" value="평가" style="endArrow=block;html=1;fontSize=10;" edge="1" parent="1" source="vm" target="vmalert"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e6" value="발화" style="endArrow=block;html=1;fontSize=10;" edge="1" parent="1" source="vmalert" target="am"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" value="① /webhook/alert" style="endArrow=block;html=1;fontSize=10;strokeColor=#b85450;fontColor=#b85450;" edge="1" parent="1" source="am" target="app"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" value="② 직전5분 pull" style="endArrow=block;html=1;fontSize=10;strokeColor=#6c8ebf;fontColor=#6c8ebf;" edge="1" parent="1" source="app" target="vl"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e9" value="대시보드" style="endArrow=block;html=1;fontSize=10;" edge="1" parent="1" source="nginx" target="app"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="legend" value="제거됨(NCP 종속): OBS · Cloud Function · NAT GW · Cloud Insight · CLA — 분석앱이 중앙 VictoriaLogs를 직접 pull(OBS/CF 없음). SPOF는 향후 k8s로 해소." style="text;html=1;align=left;fontSize=11;fontColor=#999999;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="670" width="900" height="40" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

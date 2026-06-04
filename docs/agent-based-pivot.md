@@ -195,6 +195,29 @@ monitoring_msp Alertmanager (임계 초과 발화)
 
 ---
 
+## 13. 올인원 배포 + 라이브 실증 (2026-06-04) — §12 토폴로지 갱신
+
+§12의 "2서버/1subnet" 권장을 **올인원 단일 서버**로 변경(SPOF 수용 — 향후 k8s 멀티 pod로 해소).
+다이어그램 [`architecture.drawio`](architecture.drawio) 갱신됨.
+
+**tbit-air-pub 한 박스(docker compose)에 전부:**
+- `nginx`(공인 80/443) · `app`(분석, /webhook/alert) · `victorialogs`(:9428) · `victoriametrics`(:8428) · `vmalert` · `alertmanager`
+- 전부 같은 compose 네트워크 = localhost 통신. `Alertmanager → http://app:8000/webhook/alert`.
+- 무인증(VM/VL/vmalert/AM)은 노출 안 함. **에이전트 인입 8428/9428만 ACG 소스IP 제한.**
+- 라벨 통일: 메트릭·로그·알람·수집기 전부 **host**(같은 값) — config.alloy가 둘 다 host 부여.
+
+**라이브 실증 완료(2026-06-04):**
+- 윈도우 PC Alloy → 클라우드 VictoriaLogs 실 로그 수집(49건/6h 확인).
+- 합성 Alertmanager 알람 → `/webhook/alert` → VictoriaLogs 직전5분 pull → 실 claude 분석 → **incident #8 Critical**(로그 9줄 source=victorialogs, OBS 미경유).
+- 올인원 6개 서비스 라이브 기동 확인(`docker compose ps`), vmalert host.rules 로드·Alertmanager webhook 배선 검증.
+- **버그 수정**: 수집기 쿼리 `{host=}`(스트림)→`host:=`(필드) — Alloy Loki push는 host를 일반 필드로 저장(실 e2e로만 발견).
+
+**미완(메트릭 실 트리거):** 에이전트 메트릭 전송(windows/unix exporter) + ACG 8428 + CPU 5분 부하 → vmalert 자동 발화. 발화→분석 체인은 합성 알람으로 검증됨.
+
+**배포:** 서버 `/opt/ai-incident-response`에서 `git pull && docker compose up -d --build && docker compose restart nginx`(app 재생성 시 nginx 옛 IP 캐싱→502, nginx 재시작 필수).
+
+---
+
 ## 부록 A — 검증된 고객 CF 코드 (NCP-native, 레거시 참고용)
 
 `tbit-air-cust-pkg/collect-export` (개인 계정, VPC=NAT경로 private 서브넷, 디폴트 파라미터에 고객 키).
