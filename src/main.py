@@ -357,6 +357,14 @@ def favicon_ico():
     return Response(content=FAVICON_SVG, media_type="image/svg+xml")
 
 
+# ── 에이전트 설치 가이드 (에이전트 기반 온보딩) ──────────────────────────────
+
+@app.get("/guide", response_class=HTMLResponse)
+def guide_page(request: Request, user=Depends(require_user)):
+    """모니터링 대상 서버에 Alloy 설치 → 메트릭/로그 전송 → 발화 시 분석 안내."""
+    return templates.TemplateResponse(request, "guide.html", {"current_user": user})
+
+
 # ── Webhook ──────────────────────────────────────────────────────────────────
 
 @app.post("/webhook/alert", status_code=202)

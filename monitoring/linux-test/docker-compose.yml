@@ -1,0 +1,20 @@
+# Linux 멀티배포 테스트 — Rocky9 + Ubuntu24에 Alloy 설치·실행해 중앙으로 메트릭+로그 전송.
+# CR 제거 후 bash 실행(윈도우 CRLF 안전). 실행:
+#   docker compose -f monitoring/linux-test/docker-compose.yml up -d
+# 트리거: docker exec <ctr> bash -c "for i in $(seq $(nproc)); do yes>/dev/null & done"
+name: air-linux-test
+
+services:
+  ubuntu-agent:
+    image: ubuntu:24.04
+    command: ["bash","-c","tr -d '\\r' < /test/agent.sh > /tmp/a.sh && bash /tmp/a.sh ubuntu-test"]
+    volumes:
+      - ./agent.sh:/test/agent.sh:ro
+    restart: unless-stopped
+
+  rocky-agent:
+    image: rockylinux:9
+    command: ["bash","-c","tr -d '\\r' < /test/agent.sh > /tmp/a.sh && bash /tmp/a.sh rocky-test"]
+    volumes:
+      - ./agent.sh:/test/agent.sh:ro
+    restart: unless-stopped

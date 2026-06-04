@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}에이전트 설치 가이드 — AI 장애 대응{% endblock %}
+{% block content %}
+<style>
+  .g-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 18px 22px; margin-bottom: 16px; }
+  .g-card h2 { font-size: 16px; color: var(--text); margin-bottom: 10px; }
+  .g-card h3 { font-size: 13px; color: var(--text-subtle); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .g-card p, .g-card li { color: var(--text-muted); font-size: 14px; line-height: 1.7; }
+  .g-card pre { background: #1a202c; color: #e2e8f0; padding: 12px 14px; border-radius: 6px; overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
+  .g-step { display:inline-block; background: var(--accent, #d69e2e); color:#1a202c; font-weight:800; border-radius: 50%; width: 22px; height: 22px; text-align:center; line-height:22px; margin-right:8px; }
+  .g-flow { background: #1a202c; color:#cbd5e0; padding: 14px; border-radius: 6px; font-family: monospace; font-size: 12.5px; white-space: pre; overflow-x:auto; }
+  .g-note { border-left: 3px solid var(--accent, #d69e2e); padding: 6px 12px; margin: 8px 0; color: var(--text-muted); font-size: 13px; background: rgba(214,158,46,.07); }
+</style>
+
+<div style="max-width: 920px;">
+  <h1 style="font-size:22px; margin-bottom:6px;">에이전트(Grafana Alloy) 설치 가이드</h1>
+  <p style="color:var(--text-muted); margin-bottom:18px;">모니터링 대상 서버에 <strong>Alloy 하나만</strong> 설치하면 됩니다. 메트릭·로그를 중앙으로 보내고,
+  임계 초과 시 <strong>자동으로 직전 5분 로그를 수집해 AI가 분석</strong>합니다. (NAT·Cloud Function 불필요, 서버 아웃바운드만)</p>
+
+  <div class="g-card">
+    <h2>동작 흐름</h2>
+    <div class="g-flow">[대상 서버] Alloy ──상시 push(메트릭+로그)──► 중앙(VictoriaMetrics / VictoriaLogs)
+                                         │
+              vmalert(CPU&gt;80% 5분 등) 발화 → Alertmanager
+                                         │ webhook
+                                         ▼
+              분석 서버 /webhook/alert → 직전 5분 로그 pull → AI 분석 → 이 대시보드 + 이메일</div>
+    <div class="g-note">메트릭은 임계 판단용으로만 중앙 저장(Grafana 화면은 선택). 로그는 <strong>발화 시점에만</strong> 분석에 사용됩니다.</div>
+  </div>
+
+  <div class="g-card">
+    <h2><span class="g-step">1</span>Alloy 설치</h2>
+    <h3>Ubuntu / Debian</h3>
+    <pre>sudo apt-get install -y curl unzip
+curl -sL -o alloy.zip https://github.com/grafana/alloy/releases/latest/download/alloy-linux-amd64.zip
+sudo unzip -o alloy.zip -d /usr/local/bin/ && sudo chmod +x /usr/local/bin/alloy-linux-amd64</pre>
+    <h3>Rocky / RHEL 계열</h3>
+    <pre>sudo dnf install -y unzip   # curl은 기본 제공(curl-minimal)
+curl -sL -o alloy.zip https://github.com/grafana/alloy/releases/latest/download/alloy-linux-amd64.zip
+sudo unzip -o alloy.zip -d /usr/local/bin/ && sudo chmod +x /usr/local/bin/alloy-linux-amd64</pre>
+    <h3>Windows</h3>
+    <pre>https://github.com/grafana/alloy/releases/latest → alloy-windows-amd64.exe.zip 다운로드 후 압축 해제</pre>
+  </div>
+
+  <div class="g-card">
+    <h2><span class="g-step">2</span>config.alloy 작성</h2>
+    <p>아래에서 <code>SERVER_NAME</code>(이 서버 식별자)과 중앙 주소만 채우세요. <strong>이 이름이 대시보드 사이트명·알람 호스트와 동일</strong>해야 합니다.</p>
+    <pre>// ── 메트릭 ──
+prometheus.exporter.unix "n" { }                 // Windows: prometheus.exporter.windows
+prometheus.scrape "n" {
+  targets = prometheus.exporter.unix.n.targets
+  forward_to = [prometheus.relabel.h.receiver]
+  scrape_interval = "15s"
+}
+prometheus.relabel "h" {
+  forward_to = [prometheus.remote_write.c.receiver]
+  rule { target_label = "host"  replacement = "SERVER_NAME" }
+}
+prometheus.remote_write "c" {
+  endpoint { url = "http://<중앙IP>:8428/api/v1/write" }
+}
+
+// ── 로그 (journald + /var/log, 또는 앱 로그 파일) ──
+local.file_match "f" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
+loki.source.file "f" { targets = local.file_match.f.targets  forward_to = [loki.process.h.receiver] }
+loki.process "h" {
+  forward_to = [loki.write.c.receiver]
+  stage.static_labels { values = { host = "SERVER_NAME", job = "syslog" } }
+}
+loki.write "c" {
+  endpoint { url = "http://<중앙IP>:9428/insert/loki/api/v1/push" }
+}</pre>
+    <div class="g-note">로그는 앱 경로를 일일이 받지 않습니다 — <strong>journald + /var/log</strong>(리눅스) / <strong>이벤트로그</strong>(윈도우)만 잡으면 됩니다. 비표준 경로 앱만 path 추가.</div>
+  </div>
+
+  <div class="g-card">
+    <h2><span class="g-step">3</span>실행</h2>
+    <pre>alloy-linux-amd64 run config.alloy --storage.path /var/lib/alloy
+# (운영: systemd 서비스로 등록 권장)</pre>
+    <h3>중앙 방화벽(ACG)</h3>
+    <p>중앙의 <code>8428</code>(메트릭)·<code>9428</code>(로그)에 <strong>이 서버 IP만</strong> 인바운드 허용. (VictoriaMetrics/Logs는 무인증 → 공인 전체 노출 금지)</p>
+  </div>
+
+  <div class="g-card">
+    <h2>확인</h2>
+    <ul>
+      <li>설치 후 몇 분 내 메트릭/로그가 중앙에 쌓입니다.</li>
+      <li>CPU 80% 5분 초과 등 임계 발생 시 <strong>자동으로</strong> 이 대시보드에 장애가 등록되고 AI 분석·이메일이 발송됩니다.</li>
+      <li>사이트별 수신자·임계는 <a href="/sites">사이트 관리</a>에서 설정합니다.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
