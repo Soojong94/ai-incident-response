@@ -23,8 +23,8 @@
       --nav-bg:       #1a1d2e;
       --card-bg:      #1a1d2e;
       --card-bg-alt:  #0f1117;
-      --border:       #2d3748;
-      --border-soft:  #1a1d2e;
+      --border:       #3f4d63;
+      --border-soft:  #2d3748;
       --text:         #e2e8f0;
       --text-muted:   #a0aec0;
       --text-subtle:  #718096;
@@ -43,8 +43,8 @@
       --nav-bg:       #eef0f4;
       --card-bg:      #eaecf0;
       --card-bg-alt:  #dde1e6;
-      --border:       #c4cad3;
-      --border-soft:  #d6dae0;
+      --border:       #a3acba;
+      --border-soft:  #c4cad3;
       --text:         #2d3748;
       --text-muted:   #4a5568;
       --text-subtle:  #6b7280;
@@ -65,7 +65,7 @@
     a:hover { text-decoration: underline; }
 
     .navbar {
-      background: var(--nav-bg); border-bottom: 1px solid var(--border); padding: 12px 24px;
+      background: var(--nav-bg); border-bottom: 2px solid var(--border); padding: 12px 24px;
       display: flex; align-items: center; gap: 16px;
     }
     .navbar h1 { font-size: 18px; font-weight: 700; color: var(--text); }
@@ -92,11 +92,11 @@
     [data-theme="dark"] .sev-Low      { color: #68d391; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    th { background: var(--card-bg); color: var(--text-muted); font-size: 12px; text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    th { background: var(--card-bg); color: var(--text-muted); font-size: 12px; text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); }
     td { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); font-size: 14px; }
     tr:hover td { background: var(--row-hover); }
 
-    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .card { background: var(--card-bg); border: 2px solid var(--border); border-radius: 6px; padding: 20px; margin-bottom: 16px; }
     .card h2 { font-size: 16px; color: var(--text-muted); margin-bottom: 12px; }
     .card h3 { font-size: 14px; color: var(--text-subtle); margin-bottom: 8px; }
 
@@ -111,8 +111,8 @@
     .meta-item span  { font-size: 14px; }
 
     input[type=text], input[type=email], input[type=url], input[type=search], select, textarea {
-      background: var(--input-bg); color: var(--text); border: 1px solid var(--border);
-      border-radius: 4px; padding: 6px 10px; font-size: 14px; font-family: inherit;
+      background: var(--input-bg); color: var(--text); border: 2px solid var(--border);
+      border-radius: 5px; padding: 6px 10px; font-size: 14px; font-family: inherit;
     }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
 
@@ -123,8 +123,8 @@
     .refresh-btn:hover { background: var(--primary-hover); }
 
     .nav-btn {
-      padding: 6px 14px; border-radius: 4px; font-size: 13px;
-      text-decoration: none; border: 1px solid transparent; transition: all 0.15s;
+      padding: 6px 14px; border-radius: 5px; font-size: 13px;
+      text-decoration: none; border: 2px solid transparent; transition: all 0.15s;
       cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 6px;
     }
     .nav-btn-primary  { background: var(--primary); color: white; border-color: var(--primary); }
@@ -157,8 +157,8 @@
     }
 
     .icon-btn {
-      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
-      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: inherit;
+      background: transparent; border: 2px solid var(--border); color: var(--text-muted);
+      padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-family: inherit;
     }
     .icon-btn:hover { background: var(--row-hover); color: var(--text); }
     .icon-btn.danger:hover { background: #742a2a; color: #fed7d7; border-color: #742a2a; }

@@ -301,6 +301,17 @@ def delete_site_note(db: Session, note_id: int) -> bool:
     return True
 
 
+def delete_site_notes(db: Session, site_id: int, author: str | None = None) -> int:
+    """사이트 메모 일괄 삭제. author 지정 시 그 작성자(ai/user)만, 없으면 전체."""
+    q = db.query(SiteNote).filter(SiteNote.site_id == site_id)
+    if author:
+        q = q.filter(SiteNote.author == author)
+    count = q.count()
+    q.delete(synchronize_session=False)
+    db.commit()
+    return count
+
+
 def get_recent_analyses_for_resource(
     db: Session,
     resource_name: str | None,

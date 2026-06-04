@@ -228,6 +228,9 @@
     <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
       AI 분석 prompt에 자동 포함 — 반복 3회면 ★ pinned로 자동 승격
     </span>
+    {% if current_user and current_user.role == 'admin' and notes %}
+    <button class="icon-btn danger" onclick="clearAiNotes()" style="float:right; padding:3px 10px; font-size:12px;">AI 메모 전체 삭제</button>
+    {% endif %}
   </h2>
 
   {% if notes %}
@@ -480,6 +483,11 @@ async function togglePin(noteId, pinned) {
 async function deleteNote(noteId) {
   if (!confirm('이 메모를 삭제할까요?')) return;
   await fetch(`/api/site-notes/${noteId}`, { method: 'DELETE' });
+  location.reload();
+}
+async function clearAiNotes() {
+  if (!confirm('이 사이트의 AI 메모를 전부 삭제할까요?')) return;
+  await fetch(`/api/sites/${SITE_ID}/notes?author=ai`, { method: 'DELETE' });
   location.reload();
 }
 

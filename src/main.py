@@ -22,7 +22,7 @@ from src.db.crud import (
     update_user as crud_update_user, delete_user as crud_delete_user,
     create_password_reset_token, get_password_reset_token, consume_password_reset_token,
     recent_reset_for_user,
-    list_site_notes, add_site_note, update_site_note, delete_site_note,
+    list_site_notes, add_site_note, update_site_note, delete_site_note, delete_site_notes,
     get_feedback_for_incident, upsert_feedback,
     daily_incident_counts, severity_distribution, status_distribution,
     top_sites_by_incident, notification_success_rate, avg_analysis_duration_seconds,
@@ -787,6 +787,13 @@ def api_delete_site_note(note_id: int, db: Session = Depends(get_db), _admin=Dep
     if not delete_site_note(db, note_id):
         raise HTTPException(status_code=404, detail="Note not found")
     return {"deleted": note_id}
+
+
+@app.delete("/api/sites/{site_id}/notes")
+def api_delete_site_notes(site_id: int, author: str = "", db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
+    """사이트 메모 일괄 삭제. ?author=ai 면 AI 메모만, 없으면 전체."""
+    deleted = delete_site_notes(db, site_id, author=author or None)
+    return {"deleted": deleted}
 
 
 # ── Analysis feedback API ───────────────────────────────────────────────────
