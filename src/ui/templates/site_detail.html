@@ -447,13 +447,6 @@ async function deleteRecipient(id) {
   location.reload();
 }
 
-async function clearSiteKeys() {
-  if (!confirm('이 사이트의 NCP 키를 삭제하시겠습니까? (이후 .env fallback으로 동작)')) return;
-  const resp = await fetch(`/api/sites/${SITE_ID}/keys`, { method: 'DELETE' });
-  if (!resp.ok) { alert('삭제 실패: ' + await resp.text()); return; }
-  location.reload();
-}
-
 // ── Site notes ─────────────────────────────────────────────────────
 async function addNote() {
   const input = document.getElementById('new-note');
