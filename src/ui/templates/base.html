@@ -111,11 +111,22 @@
     .meta-item label { font-size: 11px; color: var(--text-subtle); display: block; margin-bottom: 2px; }
     .meta-item span  { font-size: 14px; }
 
-    input[type=text], input[type=email], input[type=url], input[type=search], select, textarea {
+    input[type=text], input[type=email], input[type=url], input[type=search], input[type=number], input[type=password], select, textarea {
       background: var(--input-bg); color: var(--text); border: 2px solid var(--border);
-      border-radius: 5px; padding: 6px 10px; font-size: 14px; font-family: inherit;
+      border-radius: 6px; padding: 7px 11px; font-size: 14px; font-family: inherit;
     }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(192,86,75,.12); }
+
+    /* ? 호버 툴팁 */
+    .qmark { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%;
+      border:1.5px solid var(--text-subtle); color:var(--text-subtle); font-size:10px; font-weight:800; cursor:help;
+      margin-left:6px; position:relative; vertical-align:middle; }
+    .qmark:hover { border-color:var(--primary); color:var(--primary); }
+    .qmark:hover::after { content: attr(data-tip); position:absolute; bottom:140%; left:50%; transform:translateX(-50%);
+      background:#2b211d; color:#fff; padding:8px 11px; border-radius:7px; font-size:12px; font-weight:400; line-height:1.55;
+      width:max-content; max-width:270px; white-space:normal; text-align:left; z-index:1000; box-shadow:0 6px 18px rgba(0,0,0,.28); }
+    .qmark:hover::before { content:""; position:absolute; bottom:140%; left:50%; transform:translate(-50%,80%);
+      border:5px solid transparent; border-top-color:#2b211d; z-index:1000; }
 
     .refresh-btn {
       background: var(--primary); color: white; border: none; padding: 8px 16px;

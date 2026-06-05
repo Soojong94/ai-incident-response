@@ -7,17 +7,17 @@
   .recipient-row > span:last-child a { white-space: nowrap; flex-shrink: 0; }
   .recipient-row.header { color:var(--text-subtle); font-size:11px; text-transform:uppercase; border-top:none; padding-bottom:4px; }
   .recipient-row input { width:100%; }
-  .sev-toggle { display:inline-flex; gap:4px; }
-  .sev-toggle label { font-size:11px; padding:2px 6px; border:1px solid var(--border); border-radius:3px; cursor:pointer; user-select:none; }
+  .sev-toggle { display:inline-flex; gap:6px; }
+  .sev-toggle label { cursor:pointer; user-select:none; }
   .sev-toggle input { display:none; }
-  .sev-toggle input:checked + span.sev-Critical { background:#475569; color:#ffffff; }
-  .sev-toggle input:checked + span.sev-High     { background:#7b341e; color:#fbd38d; }
-  .sev-toggle input:checked + span.sev-Medium   { background:#5f370e; color:#f6e05e; }
-  .sev-toggle input:checked + span.sev-Low      { background:#276749; color:#c6f6d5; }
-  [data-theme="light"] .sev-toggle input:checked + span.sev-Critical { background:#fed7d7; color:#742a2a; }
-  [data-theme="light"] .sev-toggle input:checked + span.sev-High     { background:#fbd38d; color:#7b341e; }
-  [data-theme="light"] .sev-toggle input:checked + span.sev-Medium   { background:#f6e05e; color:#5f370e; }
-  [data-theme="light"] .sev-toggle input:checked + span.sev-Low      { background:#c6f6d5; color:#276749; }
+  .sev-toggle span { display:inline-block; font-size:12px; font-weight:700; padding:5px 12px; border:2px solid var(--border);
+    border-radius:7px; color:var(--text-muted); background:var(--card-bg); transition:all .12s; min-width:30px; text-align:center; }
+  .sev-toggle label:hover span { border-color:var(--text-subtle); }
+  .sev-toggle input:checked + span { color:#ffffff; }
+  .sev-toggle input:checked + span.sev-Critical { background:#c0392b; border-color:#c0392b; }
+  .sev-toggle input:checked + span.sev-High     { background:#dd6b20; border-color:#dd6b20; }
+  .sev-toggle input:checked + span.sev-Medium   { background:#b8860b; border-color:#b8860b; }
+  .sev-toggle input:checked + span.sev-Low      { background:#4a5568; border-color:#4a5568; }
   .add-row { padding:10px; background:var(--card-bg-alt); border-top:1px solid var(--border); border-radius:0 0 6px 6px; }
   .empty-row { padding:14px 12px; color:var(--text-subtle); text-align:center; font-size:13px; border-top:1px solid var(--border); }
   /* 편집 모드 토글 — 기본은 view 보임, edit 숨김 */
@@ -26,7 +26,7 @@
 </style>
 
 <div style="margin-bottom:20px;">
-  <a href="/sites">&larr; 사이트 목록</a>
+  <a href="/sites" class="nav-btn nav-btn-outline">&larr; 사이트 목록</a>
 </div>
 
 <!-- 헤더 카드 (이름 + 활성 + 설명 + 액션 + 요약) -->
@@ -40,7 +40,7 @@
       {% else %}
         <span style="font-size:11px; padding:2px 8px; background:#4a5568; color:#cbd5e0; border-radius:3px;">비활성</span>
       {% endif %}
-      {% if site.auto_created %}<span style="font-size:11px; padding:2px 8px; background:#5f370e; color:#fbd38d; border-radius:3px;">auto</span>{% endif %}
+      {% if site.auto_created %}<span style="font-size:11px; padding:2px 8px; background:var(--card-bg-alt); color:var(--text-muted); border:1px solid var(--border); border-radius:4px;">자동생성</span>{% endif %}
       {% if site.rate_limit_disabled %}<span style="font-size:11px; padding:2px 8px; background:#475569; color:#ffffff; border-radius:3px;">🚨 비상모드</span>{% endif %}
       <div style="margin-left:auto; display:flex; gap:6px;">
         <a href="/?site_id={{ site.id }}" class="nav-btn nav-btn-danger" style="font-size:12px; padding:5px 12px;">
@@ -86,7 +86,7 @@
     <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
       {% if recent_incidents %}최근 {{ recent_incidents | length }}건{% else %}없음{% endif %}
     </span>
-    <a href="/?site_id={{ site.id }}" style="font-size:12px; margin-left:auto; float:right;">전체 보기 →</a>
+    <a href="/?site_id={{ site.id }}" class="nav-btn nav-btn-outline" style="font-size:12px; padding:4px 12px; float:right;">전체 보기 →</a>
   </h2>
   {% if recent_incidents %}
   <table style="margin-top:0;">
@@ -120,36 +120,34 @@
   {% endif %}
 </div>
 
-<!-- 매칭 + CF 식별자 카드 -->
+<!-- 매칭 규칙 카드 -->
 <div class="card">
-  <h2>매칭 + CF 식별자
-    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
-      들어온 알람을 이 사이트로 매칭하는 규칙 + CF 코드 빌드에 박히는 식별자
-    </span>
+  <h2>매칭 규칙<span class="qmark" data-tip="장애가 들어오면 그 서버(host) 이름을 아래 패턴과 비교해 이 사이트로 분류합니다. 분류돼야 이 사이트에 등록한 수신자에게 알림이 갑니다.">?</span>
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">어떤 서버의 장애를 이 사이트로 묶을지</span>
   </h2>
   <!-- VIEW -->
   <div class="view-only meta-grid">
     <div class="meta-item">
-      <label>resource_name 글로브 패턴</label>
-      <span style="font-family:monospace; font-size:13px;">{{ site.resource_pattern or '— 없음 —' }}</span>
+      <label>호스트 매칭 패턴<span class="qmark" data-tip="와일드카드(*) 글로브 패턴. 예: web-prod-* → web-prod-1, web-prod-2 … 를 모두 이 사이트로 묶음. 비우면 서버 이름마다 사이트가 자동 생성됩니다.">?</span></label>
+      <span style="font-family:monospace; font-size:13px;">{{ site.resource_pattern or '— 없음 (서버 이름별 자동 생성) —' }}</span>
     </div>
     <div class="meta-item" style="grid-column:1/-1; font-size:11px; color:var(--text-subtle);">
-      장애의 host 이름이 위 글로브 패턴에 맞으면 이 사이트로 분류됩니다. (없으면 그 이름으로 사이트 자동 생성)
+      장애 host가 패턴에 맞으면 이 사이트로 분류 → 이 사이트 수신자에게 알림. (패턴이 없으면 host 이름으로 사이트가 자동 생성됩니다.)
     </div>
   </div>
   <!-- EDIT -->
   <div class="edit-only meta-grid">
     <div class="meta-item">
-      <label>resource_name 글로브 패턴</label>
-      <input id="s-pattern" type="text" value="{{ site.resource_pattern or '' }}" placeholder="예: team1-*" style="width:100%; font-family:monospace;">
+      <label>호스트 매칭 패턴<span class="qmark" data-tip="여러 서버를 한 사이트로 묶을 때만 입력. 예: web-prod-*">?</span></label>
+      <input id="s-pattern" type="text" value="{{ site.resource_pattern or '' }}" placeholder="예: web-prod-*  (비우면 자동)" style="width:100%; font-family:monospace;">
     </div>
   </div>
 </div>
 
 <!-- 아키텍처 카드 -->
 <div class="card">
-  <h2>아키텍처
-    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">AI 분석 prompt에 포함됨</span>
+  <h2>아키텍처<span class="qmark" data-tip="이 사이트의 인프라 구성을 적어두면 AI가 장애를 분석할 때 참고해 더 정확해집니다. 예: nginx → Tomcat 2대 → MySQL, Redis 캐시">?</span>
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">AI 분석에 참고됨</span>
   </h2>
   <!-- VIEW -->
   <div class="view-only">
@@ -167,20 +165,18 @@
 
 <!-- Rate-limit (분석 호출 차단 정책) -->
 <div class="card" {% if site.rate_limit_disabled %}style="border-color:var(--danger);"{% endif %}>
-  <h2>분석 Rate Limit
-    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">
-      윈도우 안 incident가 임계값 초과면 분석/알림 모두 차단 (status=suppressed)
-    </span>
+  <h2>알림 폭주 방지<span class="qmark" data-tip="짧은 시간에 같은 사이트 장애가 쏟아질 때, 정한 건수를 넘으면 그 이후 장애는 분석·알림을 자동으로 건너뜁니다(상태 suppressed). 장애 대응 중 알림 폭탄을 막아줍니다.">?</span>
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">짧은 시간 장애 폭주 시 알림 자동 억제</span>
   </h2>
 
   <!-- VIEW -->
   <div class="view-only meta-grid">
     <div class="meta-item">
-      <label>윈도우</label>
+      <label>감시 시간<span class="qmark" data-tip="이 시간(초) 동안 들어온 장애 건수를 셉니다.">?</span></label>
       <span style="font-size:14px;">{{ site.rate_limit_window_seconds or 300 }}초 ({{ ((site.rate_limit_window_seconds or 300) / 60) | round(1) }}분)</span>
     </div>
     <div class="meta-item">
-      <label>임계값</label>
+      <label>허용 건수<span class="qmark" data-tip="감시 시간 안에 이 건수까지만 분석/알림. 초과분은 자동 억제.">?</span></label>
       <span style="font-size:14px;">{{ site.rate_limit_count or 3 }}건</span>
     </div>
     <div class="meta-item" style="grid-column:1/-1;">
@@ -199,11 +195,11 @@
   <!-- EDIT -->
   <div class="edit-only meta-grid">
     <div class="meta-item">
-      <label>윈도우 (초)</label>
+      <label>감시 시간 (초)</label>
       <input id="rl-window" type="number" min="10" value="{{ site.rate_limit_window_seconds or 300 }}" style="width:100%;">
     </div>
     <div class="meta-item">
-      <label>임계값 (건)</label>
+      <label>허용 건수 (건)</label>
       <input id="rl-count" type="number" min="1" value="{{ site.rate_limit_count or 3 }}" style="width:100%;">
     </div>
     <div class="meta-item" style="grid-column:1/-1; padding:10px; background:var(--card-bg-alt); border-radius:6px;">
