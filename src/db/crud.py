@@ -135,6 +135,41 @@ def create_incident(db: Session, alarm_data: dict) -> Incident:
     return incident
 
 
+def find_open_incident(db: Session, resource_name: str, alarm_name: str, within_seconds: int = 3600):
+    """같은 host+알람의 미해결(processing/analyzed) incident가 최근 within_seconds 내 있으면 반환.
+    Alertmanager가 지속 알람을 ~5분마다 재통지할 때 중복 incident 양산을 막는 용도."""
+    from datetime import timedelta
+    cutoff = datetime.now() - timedelta(seconds=within_seconds)
+    return (
+        db.query(Incident)
+        .filter(Incident.resource_name == resource_name)
+        .filter(Incident.alarm_name == alarm_name)
+        .filter(Incident.status.in_(("processing", "analyzed")))
+        .filter(Incident.created_at >= cutoff)
+        .order_by(Incident.created_at.desc())
+        .first()
+    )
+
+
+def resolve_incidents_for(db: Session, resource_name: str, alarm_name: str, within_seconds: int = 86400) -> int:
+    """같은 host+알람의 미해결 incident를 resolved 처리 (Alertmanager resolved 수신 시). 건수 반환."""
+    from datetime import timedelta
+    cutoff = datetime.now() - timedelta(seconds=within_seconds)
+    incs = (
+        db.query(Incident)
+        .filter(Incident.resource_name == resource_name)
+        .filter(Incident.alarm_name == alarm_name)
+        .filter(Incident.status == "analyzed")
+        .filter(Incident.created_at >= cutoff)
+        .all()
+    )
+    for inc in incs:
+        inc.status = "resolved"
+    if incs:
+        db.commit()
+    return len(incs)
+
+
 def list_cluster_incidents(db: Session, cluster_id: str, exclude_id: int | None = None) -> list[Incident]:
     """같은 클러스터의 incident 목록 (created_at 오래된 순)."""
     q = db.query(Incident).filter(Incident.cluster_id == cluster_id)

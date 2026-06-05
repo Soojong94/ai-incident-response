@@ -440,12 +440,27 @@ async def webhook_alert(request: Request, background_tasks: BackgroundTasks, db:
     alarms = parse_alertmanager_payload(payload)
     if not alarms:
         return {"status": "ignored", "reason": "no firing alerts with host label", "incident_ids": []}
+    from src.db.crud import find_open_incident, resolve_incidents_for
     incident_ids = []
     for alarm_data in alarms:
+        host = alarm_data.get("resourceName")
+        name = alarm_data.get("alarmName")
+        # resolved 통지 → 같은 host+알람의 미해결 incident 정리(에스컬레이션도 중지)
+        if alarm_data.get("_resolved"):
+            n = resolve_incidents_for(db, host, name)
+            if n:
+                logger.info("resolved 수신 — %s/%s incident %d건 resolved", host, name, n)
+            continue
+        # 중복 방지 — 같은 host+알람의 미해결 incident가 있으면 새로 만들지 않음
+        existing = find_open_incident(db, host, name)
+        if existing:
+            logger.info("중복 알람 무시 — 기존 incident #%d 유지 (%s/%s)", existing.id, host, name)
+            incident_ids.append(existing.id)
+            continue
         incident = create_incident(db, alarm_data)
         background_tasks.add_task(run_pipeline, incident.id, alarm_data)
         incident_ids.append(incident.id)
-    logger.info("webhook/alert — %d개 incident 생성: %s", len(incident_ids), incident_ids)
+    logger.info("webhook/alert — incident: %s", incident_ids)
     return {"status": "accepted", "incident_ids": incident_ids}
 
 

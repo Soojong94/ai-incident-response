@@ -34,8 +34,6 @@ def parse_alertmanager_payload(payload) -> list[dict]:
     for a in alerts:
         if not isinstance(a, dict):
             continue
-        if a.get("status") == "resolved":
-            continue
         labels = a.get("labels", {}) or {}
         annotations = a.get("annotations", {}) or {}
         # 일관성 키: server_name(= 대시보드 사이트 ID) 우선, host/instance fallback
@@ -55,6 +53,8 @@ def parse_alertmanager_payload(payload) -> list[dict]:
             "vl_host": host,
             "vl_query_end": starts_at,
             "annotations": annotations,
+            # firing/resolved 구분 (resolved면 해당 host+알람의 미해결 incident를 정리)
+            "_resolved": a.get("status") == "resolved",
         })
     return out
 

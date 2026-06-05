@@ -11,4 +11,4 @@ receivers:
   - name: 'ai-analysis'
     webhook_configs:
       - url: 'http://app:8000/webhook/alert'   # 같은 compose 네트워크(localhost)
-        send_resolved: false
+        send_resolved: true                    # 해제 통지 → 앱이 해당 incident를 resolved 처리
