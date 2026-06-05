@@ -24,7 +24,7 @@ NCP-native 수집(Cloud Insight + CLA + OBS + Cloud Function)을 폐기하고 **
 
 - **모드 A (기본):** Alloy가 로그를 중앙 VictoriaLogs에 상시 전송 → 알람 시 분석서버가 직전 5분을 pull. 호스트 추가 코드 0.
 - **모드 B (데이터 거주성 제약 고객):** 로그 중앙 미전송 → 호스트 폴러가 `journalctl 5분`을 분석서버로 inline POST.
-- **폐쇄망:** relay-server가 로그까지 중계 → 모드 A로 커버.
+- **폐쇄망:** 게이트웨이(gateway.alloy)가 메트릭+로그를 중계 → 폐쇄망 서버(closed.alloy)도 커버.
 
 ## 보안 — 사설 subnet 필수
 

@@ -1,11 +1,12 @@
-# 설치 런북 — web(직접+중계) + was(폐쇄망)
+# 설치 런북 — web(직접·게이트웨이) + was(폐쇄망)
 
-실 테스트용 처음부터 설치 절차. **web = 인터넷 O (자기 수집 + was 중계 겸용), was = 인터넷 X (web 경유)**.
+실 테스트용 처음부터 설치 절차. 용어: **직접**(인터넷O) / **게이트웨이**(직접 중 폐쇄망 중계 겸용) / **폐쇄망**(인터넷X).
+여기선 **web = 게이트웨이(자기 수집 + was 중계), was = 폐쇄망(web 경유)**.
 
 ```
-[web]  Alloy(relay-server: 자기 메트릭+로그 + was 중계) ──인터넷──► 중앙(8428/9428)
+[web]  Alloy(게이트웨이: 자기 메트릭+로그 + was 중계) ──인터넷──► 중앙(8428/9428)
    ▲ 사내망 :9999(메트릭) :9998(로그)
-[was]  Alloy(relay-agent, 인터넷 차단)
+[was]  Alloy(폐쇄망, 인터넷 차단)
 ```
 
 ## 사전값 (미리 채워두기)
@@ -126,7 +127,7 @@ sudo install -m 0755 /tmp/alloy-linux-amd64 /usr/local/bin/alloy-linux-amd64
 sudo mkdir -p /etc/alloy-air /var/lib/alloy-air
 
 sudo tee /etc/alloy-air/config.alloy >/dev/null <<'EOF'
-// was = 폐쇄망 → web(중계 서버)로만 전송
+// was = 폐쇄망 → web(게이트웨이)로만 전송
 prometheus.exporter.unix "n" { }
 prometheus.scrape "n" {
   targets = prometheus.exporter.unix.n.targets
@@ -137,7 +138,7 @@ prometheus.relabel "h" {
   forward_to = [prometheus.remote_write.relay.receiver]
   rule { target_label = "host"  replacement = sys.env("RESOURCE_NAME") }
 }
-prometheus.remote_write "relay" { endpoint { url = sys.env("RELAY_VM_URL") } }
+prometheus.remote_write "relay" { endpoint { url = sys.env("GATEWAY_VM_URL") } }
 local.file_match "f" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
 loki.source.file "f" {
   targets = local.file_match.f.targets
@@ -147,13 +148,13 @@ loki.process "h" {
   forward_to = [loki.write.relay.receiver]
   stage.static_labels { values = { host = sys.env("RESOURCE_NAME"), job = "syslog" } }
 }
-loki.write "relay" { endpoint { url = sys.env("RELAY_VL_URL") } }
+loki.write "relay" { endpoint { url = sys.env("GATEWAY_VL_URL") } }
 EOF
 
 sudo tee /etc/default/alloy-air >/dev/null <<'EOF'
 RESOURCE_NAME=was
-RELAY_VM_URL=http://<WEB_LAN_IP>:9999/api/v1/metrics/write
-RELAY_VL_URL=http://<WEB_LAN_IP>:9998/loki/api/v1/push
+GATEWAY_VM_URL=http://<WEB_LAN_IP>:9999/api/v1/metrics/write
+GATEWAY_VL_URL=http://<WEB_LAN_IP>:9998/loki/api/v1/push
 EOF
 
 # systemd 서비스는 web의 1-3과 동일 (EnvironmentFile/ExecStart 그대로)

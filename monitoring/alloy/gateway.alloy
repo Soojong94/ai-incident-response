@@ -1,13 +1,13 @@
-// 폐쇄망 게이트웨이 (relay-server) — 고객망 안에서 인터넷 아웃바운드가 되는 1대.
-// 내부 relay-agent들의 메트릭/로그를 받아 중앙으로 중계한다.
+// 게이트웨이 (gateway) — 인터넷 되는 1대가 "자기 수집 + 폐쇄망 에이전트 중계"를 겸함.
 //   수신: 메트릭 :9999 (prometheus remote_write), 로그 :9998 (loki push)
 //   전달: 중앙 VictoriaMetrics(8428) / VictoriaLogs(9428)
 // 환경변수:
+//   RESOURCE_NAME  = 이 게이트웨이 서버 이름 (= 대시보드 사이트)
 //   CENTRAL_VM_URL = http://<중앙>:8428/api/v1/write
 //   CENTRAL_VL_URL = http://<중앙>:9428/insert/loki/api/v1/push
 
-// ── 이 서버 자신도 모니터링 (일반 서버 겸용) ──
-//   즉 에이전트 종류는 결국 2가지: ⓐ 중앙으로 보내는 서버(이 파일=중계 겸용 가능) / ⓑ 폐쇄 서버(relay-agent)
+// ── 이 서버 자신도 수집 (게이트웨이도 결국 '직접' 서버) ──
+//   에이전트 종류는 2가지: ⓐ 직접(인터넷O — 이 게이트웨이 포함) / ⓑ 폐쇄망(인터넷X, closed.alloy)
 prometheus.exporter.unix "self" { }
 prometheus.scrape "self" {
   targets         = prometheus.exporter.unix.self.targets

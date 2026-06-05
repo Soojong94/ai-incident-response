@@ -100,13 +100,13 @@ loki.write "c" {
   <!-- ③ -->
   <div class="g-card" id="closed">
     <h2>③ 폐쇄망 서버 (인터넷이 안 되는 경우)</h2>
-    <p>인터넷 아웃바운드가 막힌 서버는 중앙에 직접 못 보냅니다. 고객망 안에 <strong>인터넷 되는 서버 1대를 "중계(relay) 서버"</strong>로 세우고, 폐쇄 서버들은 그쪽으로만 보냅니다.</p>
-    <div class="g-flow">[폐쇄 서버] Alloy ──내부망──► [중계 서버] ──인터넷──► 중앙</div>
-    <h3>중계 서버 (인터넷 되는 1대)</h3>
-    <p><span class="g-tag">monitoring/alloy/relay-server.alloy</span> 사용 — 내부에서 메트릭(:9999)·로그(:9998)를 받아 중앙(8428/9428)으로 넘깁니다. (이 서버 자신도 일반 서버처럼 모니터링하려면 ②의 수집 블록을 함께 넣으면 됩니다 → 그러면 "일반+중계 겸용")</p>
-    <h3>폐쇄 서버</h3>
-    <p><span class="g-tag">monitoring/alloy/relay-agent.alloy</span> 사용 — ②와 똑같되 전송 대상만 <strong>중계 서버의 내부 IP</strong>(<span class="g-tag">:9999</span>/<span class="g-tag">:9998</span>)로 지정.</p>
-    <div class="g-note">중앙 방화벽은 <strong>중계 서버 IP만</strong> 열면 됩니다. 폐쇄 서버는 IP 등록 불필요. 즉 에이전트는 결국 <strong>두 종류</strong>예요 — ⓐ 중앙으로 직접 보내는 서버(겸용으로 중계도 가능) / ⓑ 중계 서버로 보내는 폐쇄 서버.</div>
+    <p>인터넷이 막힌 서버는 중앙에 직접 못 보냅니다. 사내망에 <strong>인터넷 되는 서버 1대를 "게이트웨이"</strong>로 세우고, 폐쇄망 서버들은 그쪽으로만 보냅니다.</p>
+    <div class="g-flow">[폐쇄망] Alloy ──사내망──► [게이트웨이] ──인터넷──► 중앙</div>
+    <h3>게이트웨이 (인터넷 되는 1대)</h3>
+    <p><span class="g-tag">monitoring/alloy/gateway.alloy</span> 사용 — <strong>자기 자신도 수집</strong>하면서, 폐쇄망 에이전트의 메트릭(:9999)·로그(:9998)를 받아 중앙(8428/9428)으로 넘깁니다. (직접 서버 + 게이트웨이 역할 겸용)</p>
+    <h3>폐쇄망 서버</h3>
+    <p><span class="g-tag">monitoring/alloy/closed.alloy</span> 사용 — ②와 똑같되 전송 대상만 <strong>게이트웨이 사내 IP</strong>(<span class="g-tag">:9999</span>/<span class="g-tag">:9998</span>)로 지정.</p>
+    <div class="g-note">중앙 방화벽은 <strong>게이트웨이 IP만</strong> 열면 됩니다(폐쇄망 서버 IP 불필요). 정리: 에이전트는 <strong>2종류</strong> — ⓐ <strong>직접</strong>(인터넷O, 게이트웨이도 여기 포함) / ⓑ <strong>폐쇄망</strong>(인터넷X). 게이트웨이는 ⓐ가 중계 역할을 겸한 것.</div>
   </div>
 
   <!-- ④ -->

@@ -1,10 +1,10 @@
-// 폐쇄망 서버 (relay-agent) — 인터넷 없이 내부 relay-server로만 전송.
-// direct와 동일하되 전송 대상이 중앙이 아니라 relay-server 내부 IP.
+// 폐쇄망 에이전트 (closed) — 인터넷 없이 내부 게이트웨이(gateway)로만 전송.
+// 직접(config.alloy)과 동일하되 전송 대상이 중앙이 아니라 게이트웨이 사내 IP.
 // 환경변수:
 //   RESOURCE_NAME = 이 서버 식별자 (= 대시보드 사이트 = 알람 host)
-//   RELAY_VM_URL  = http://<relay내부IP>:9999/api/v1/metrics/write
-//   RELAY_VL_URL  = http://<relay내부IP>:9998/loki/api/v1/push
-//   LOG_PATH      = /var/log/**/*.log 등
+//   GATEWAY_VM_URL = http://<게이트웨이 사내IP>:9999/api/v1/metrics/write
+//   GATEWAY_VL_URL = http://<게이트웨이 사내IP>:9998/loki/api/v1/push
+//   LOG_PATH       = /var/log/**/*.log 등
 
 prometheus.exporter.unix "n" { }
 
@@ -23,7 +23,7 @@ prometheus.relabel "h" {
 }
 
 prometheus.remote_write "relay" {
-  endpoint { url = sys.env("RELAY_VM_URL") }
+  endpoint { url = sys.env("GATEWAY_VM_URL") }
 }
 
 local.file_match "f" {
@@ -43,5 +43,5 @@ loki.process "h" {
 }
 
 loki.write "relay" {
-  endpoint { url = sys.env("RELAY_VL_URL") }
+  endpoint { url = sys.env("GATEWAY_VL_URL") }
 }
