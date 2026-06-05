@@ -3,8 +3,9 @@
 //   전달: 중앙 VictoriaMetrics(8428) / VictoriaLogs(9428)
 // 환경변수:
 //   RESOURCE_NAME  = 이 게이트웨이 서버 이름 (= 대시보드 사이트)
-//   CENTRAL_VM_URL = http://<중앙>:8428/api/v1/write
-//   CENTRAL_VL_URL = http://<중앙>:9428/insert/loki/api/v1/push
+//   CENTRAL_VM_URL = https://tbit-msp.kro.kr/vm/api/v1/write           (TLS 인제스트)
+//   CENTRAL_VL_URL = https://tbit-msp.kro.kr/vl/insert/loki/api/v1/push
+//   INGEST_USER / INGEST_PASS = nginx basic-auth 자격
 
 // ── 이 서버 자신도 수집 (게이트웨이도 결국 '직접' 서버) ──
 //   에이전트 종류는 2가지: ⓐ 직접(인터넷O — 이 게이트웨이 포함) / ⓑ 폐쇄망(인터넷X, closed.alloy)
@@ -47,7 +48,13 @@ prometheus.receive_http "in" {
 }
 
 prometheus.remote_write "central" {
-  endpoint { url = sys.env("CENTRAL_VM_URL") }
+  endpoint {
+    url = sys.env("CENTRAL_VM_URL")
+    basic_auth {
+      username = sys.env("INGEST_USER")
+      password = sys.env("INGEST_PASS")
+    }
+  }
 }
 
 // ── 로그 수신 → 중앙 전달 ──
@@ -60,5 +67,11 @@ loki.source.api "in" {
 }
 
 loki.write "central" {
-  endpoint { url = sys.env("CENTRAL_VL_URL") }
+  endpoint {
+    url = sys.env("CENTRAL_VL_URL")
+    basic_auth {
+      username = sys.env("INGEST_USER")
+      password = sys.env("INGEST_PASS")
+    }
+  }
 }

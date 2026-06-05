@@ -1,4 +1,4 @@
-// 에이전트 기반 PoC — Grafana Alloy 베이스라인 (모든 Linux 고객 서버 동일)
+// 직접 에이전트 (config.alloy) — 인터넷 되는 일반 Linux 서버. 중앙으로 직접 전송.
 //
 // 핵심 원칙: 앱별 로그 경로를 받지 않는다. 중앙 싱크(journald) + 표준 위치(/var/log)만 잡는다.
 //   - systemd 서비스 stdout/stderr → journald 자동 → 경로 불필요
@@ -6,14 +6,14 @@
 //   - 비표준 경로 앱만 예외적으로 path 추가(opt-in)
 //   - 컨테이너 호스트는 config.docker.alloy 를 같은 디렉토리에 추가(드롭인)
 //
-// ⚠ host 라벨 = OBS 객체 키 첫 세그먼트(= resource_name). 불일치 시 중앙 CF 매칭 실패.
+// ⚠ host 라벨(RESOURCE_NAME) = 대시보드 사이트 = 알람 host. 일치시킬 것.
 // ⚠ journald/varlog 접근 위해 Alloy는 호스트 패키지(systemd)로 실행 권장.
-//   (컨테이너로 돌리면 /var/log, /run/log/journal 마운트 필요)
 //
 // 환경변수:
-//   RESOURCE_NAME        예: tbit-air-mon-01
-//   VM_REMOTE_WRITE_URL  로컬: http://victoriametrics:8428/api/v1/write
-//   VL_LOKI_PUSH_URL     로컬: http://victorialogs:9428/insert/loki/api/v1/push
+//   RESOURCE_NAME   예: web
+//   CENTRAL_VM_URL  https://tbit-msp.kro.kr/vm/api/v1/write          (TLS 인제스트)
+//   CENTRAL_VL_URL  https://tbit-msp.kro.kr/vl/insert/loki/api/v1/push
+//   INGEST_USER / INGEST_PASS   nginx basic-auth 자격 (TLS 인제스트 보호)
 
 // ========== 메트릭 (호스트 시스템 지표) ==========
 prometheus.exporter.unix "host" { }
@@ -34,7 +34,11 @@ prometheus.relabel "add_host" {
 
 prometheus.remote_write "central" {
   endpoint {
-    url = sys.env("VM_REMOTE_WRITE_URL")
+    url = sys.env("CENTRAL_VM_URL")
+    basic_auth {
+      username = sys.env("INGEST_USER")
+      password = sys.env("INGEST_PASS")
+    }
   }
 }
 
@@ -66,6 +70,10 @@ loki.process "add_host" {
 
 loki.write "central" {
   endpoint {
-    url = sys.env("VL_LOKI_PUSH_URL")
+    url = sys.env("CENTRAL_VL_URL")
+    basic_auth {
+      username = sys.env("INGEST_USER")
+      password = sys.env("INGEST_PASS")
+    }
   }
 }

@@ -20,14 +20,22 @@
 
 ---
 
-## 0. 중앙 준비 (ACG)
+## 0. 중앙 준비 (HTTPS 인제스트 + ACG)
 
-중앙 방화벽(ACG)에 **web 공인 IP만** 인바운드 허용 — was는 web 경유라 등록 불필요.
+에이전트 로그/메트릭은 **평문 8428/9428이 아니라 443(TLS)** 으로 받습니다 — nginx가 TLS 종단 +
+basic-auth 검증 후 내부로 전달(로그가 평문으로 인터넷을 타지 않음). 중앙 서버에서:
+
+**(1) 인제스트 자격 생성** (`/opt/ai-incident-response`):
+```bash
+htpasswd -bc nginx/ingest.htpasswd agent '<강한-비밀번호>'   # 없으면: apt-get install -y apache2-utils
+docker compose up -d --build && docker compose restart nginx
+```
+
+**(2) ACG**: web 공인 IP로 **443만** 허용. (8428/9428은 공개 불필요 — 닫아두는 게 안전)
 
 | 프로토콜 | 소스 | 포트 |
 |---|---|---|
-| TCP | `<WEB_PUB_IP>/32` | `8428` (메트릭) |
-| TCP | `<WEB_PUB_IP>/32` | `9428` (로그) |
+| TCP | `<WEB_PUB_IP>/32` | `443` (TLS 인제스트 + 대시보드) |
 
 ---
 
@@ -69,12 +77,22 @@ prometheus.receive_http "in" {
   http { listen_address = "0.0.0.0"  listen_port = 9999 }
   forward_to = [prometheus.remote_write.central.receiver]
 }
-prometheus.remote_write "central" { endpoint { url = sys.env("CENTRAL_VM_URL") } }
+prometheus.remote_write "central" {
+  endpoint {
+    url = sys.env("CENTRAL_VM_URL")
+    basic_auth { username = sys.env("INGEST_USER")  password = sys.env("INGEST_PASS") }
+  }
+}
 loki.source.api "in" {
   http { listen_address = "0.0.0.0"  listen_port = 9998 }
   forward_to = [loki.write.central.receiver]
 }
-loki.write "central" { endpoint { url = sys.env("CENTRAL_VL_URL") } }
+loki.write "central" {
+  endpoint {
+    url = sys.env("CENTRAL_VL_URL")
+    basic_auth { username = sys.env("INGEST_USER")  password = sys.env("INGEST_PASS") }
+  }
+}
 EOF
 ```
 
@@ -82,8 +100,10 @@ EOF
 ```bash
 sudo tee /etc/default/alloy-air >/dev/null <<'EOF'
 RESOURCE_NAME=web
-CENTRAL_VM_URL=http://101.79.23.149:8428/api/v1/write
-CENTRAL_VL_URL=http://101.79.23.149:9428/insert/loki/api/v1/push
+CENTRAL_VM_URL=https://tbit-msp.kro.kr/vm/api/v1/write
+CENTRAL_VL_URL=https://tbit-msp.kro.kr/vl/insert/loki/api/v1/push
+INGEST_USER=agent
+INGEST_PASS=<강한-비밀번호>
 EOF
 
 sudo tee /etc/systemd/system/alloy-air.service >/dev/null <<'EOF'
@@ -180,14 +200,14 @@ sudo systemctl status alloy-air --no-pager
 
 ## 3. 도착 확인 (중앙에서, 또는 운영자가 봐줄 것)
 
-web 공인 경로(8428)에서 두 host가 보이면 성공:
+TLS 인제스트 경로로 조회 — 두 host가 보이면 성공:
 ```bash
-curl -s 'http://101.79.23.149:8428/api/v1/query' --data-urlencode 'query=node_uname_info' | grep -o '"host":"[^"]*"' | sort -u
-# "host":"web"  "host":"was"  둘 다 나오면 OK (was가 web 경유로 도달)
+curl -s -u agent:'<비밀번호>' 'https://tbit-msp.kro.kr/vm/api/v1/query' --data-urlencode 'query=node_uname_info' | grep -o '"host":"[^"]*"' | sort -u
+# "host":"web"  "host":"was"  둘 다 나오면 OK (was가 web 게이트웨이 경유로 도달)
 ```
-로그는 9428:
+로그:
 ```bash
-curl -s 'http://101.79.23.149:9428/select/logsql/query' --data-urlencode 'query=host:="was" _time:10m' | head
+curl -s -u agent:'<비밀번호>' 'https://tbit-msp.kro.kr/vl/select/logsql/query' --data-urlencode 'query=host:="was" _time:10m' | head
 ```
 
 ---
@@ -212,9 +232,9 @@ stress-ng --cpu 0 --timeout 360s    # 6분간 CPU 부하 → HighCPUUsage 발화
 
 ## 체크리스트
 
-- [ ] 중앙 ACG: web 공인 IP로 8428/9428 허용
-- [ ] web: Alloy 실행(active), 사내 9999/9998 was 허용
-- [ ] was: web에서 바이너리 복사, Alloy 실행(active), RELAY_*가 web 사내 IP
-- [ ] 중앙에서 host=web, host=was 메트릭 확인
+- [ ] 중앙: `htpasswd` 생성 + ACG에 web 공인 IP로 **443**만 허용 (8428/9428 미공개)
+- [ ] web: Alloy 실행(active), .env에 INGEST_USER/PASS, 사내 9999/9998 was 허용
+- [ ] was: web에서 바이너리 복사, Alloy 실행(active), GATEWAY_*가 web 사내 IP
+- [ ] 중앙에서 host=web, host=was 메트릭 확인 (https `/vm/` 조회)
 - [ ] 대시보드: 사이트 자동생성 + 수신자 등록
 - [ ] CPU 부하 → 장애 자동 등록 + 분석/이메일

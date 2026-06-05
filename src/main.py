@@ -369,7 +369,14 @@ def guide_page(request: Request, user=Depends(require_user)):
 async def webhook_alert(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """(정본·에이전트 기반) monitoring_msp Alertmanager(또는 vmalert) 알람 수신.
     firing 알람마다 incident 생성 → run_pipeline 이 VictoriaLogs에서 host 직전 5분 로그를 pull 해 AI 분석.
-    OBS/CF 경유 없음 (사설 subnet 내 직접 처리)."""
+
+    보안: WEBHOOK_SECRET 설정 시 `Authorization: Bearer <secret>` 헤더 필수.
+    (이 엔드포인트는 nginx로 공개 노출되므로 무인증이면 가짜 알람 주입 가능 → 토큰 검증)"""
+    import hmac as _hmac
+    if settings.webhook_secret:
+        auth = request.headers.get("Authorization", "")
+        if not _hmac.compare_digest(auth, f"Bearer {settings.webhook_secret}"):
+            raise HTTPException(status_code=401, detail="invalid webhook token")
     payload = await request.json()
     alarms = parse_alertmanager_payload(payload)
     if not alarms:

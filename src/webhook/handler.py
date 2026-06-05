@@ -1,17 +1,11 @@
-import asyncio
-import hashlib
-import hmac
 import logging
-from datetime import datetime
-
-from fastapi import HTTPException, Request
 
 from src.config import settings
 from src.db.crud import (
     create_incident, create_analysis, update_incident_status, add_logs,
     get_recipients_for_severity, record_notification, get_incident,
     find_similar_ai_note, add_site_note, increment_note_occurrence,
-    get_site_notes_for_prompt, list_cluster_incidents,
+    get_site_notes_for_prompt,
     count_recent_incidents_for_site,
     get_recent_analyses_for_resource,
 )
@@ -134,9 +128,12 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
                 incident_id, "yes" if site_architecture else "no",
                 len(site_notes_text), len(past_analyses),
             )
-            result = await _analyze_with_retry(
-                ai_client, alarm_data, logs, site_architecture, site_notes_text,
-                past_analyses, incident_id,
+            # 재시도는 ai_client.analyze 내부에서 1회 처리 (이중 재시도 제거)
+            result = await ai_client.analyze(
+                alarm_data, logs,
+                site_architecture=site_architecture,
+                site_notes=site_notes_text,
+                past_analyses=past_analyses,
             )
             analysis = create_analysis(db, incident_id, result)
             update_incident_status(db, incident_id, "analyzed", severity=analysis.severity)
@@ -155,35 +152,6 @@ async def run_pipeline(incident_id: int, alarm_data: dict) -> None:
             update_incident_status(db, incident_id, "ai_failed")
     finally:
         db.close()
-
-
-async def _analyze_with_retry(
-    ai_client,
-    alarm_data: dict,
-    logs: list[str],
-    site_architecture: str | None,
-    site_notes: list[str] | None,
-    past_analyses: list[dict] | None,
-    incident_id: int,
-) -> dict:
-    """AI 분석 1회 자동 재시도 — Timely 504 같은 일시 오류 대응."""
-    last_err = None
-    for attempt in (1, 2):
-        try:
-            return await ai_client.analyze(
-                alarm_data, logs,
-                site_architecture=site_architecture,
-                site_notes=site_notes,
-                past_analyses=past_analyses,
-            )
-        except Exception as e:
-            last_err = e
-            if attempt == 1:
-                logger.warning("AI 분석 실패 1회차 (incident=%d): %s — 5초 후 재시도", incident_id, e)
-                await asyncio.sleep(5)
-            else:
-                break
-    raise last_err
 
 
 def _accumulate_site_note(db, site_id: int, incident_id: int, result: dict) -> None:

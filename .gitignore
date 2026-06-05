@@ -17,6 +17,9 @@ timely-chat/
 .kiro/
 data/
 
+# 에이전트 인제스트 basic-auth 자격 (실파일은 커밋 금지 — .sample 참고)
+nginx/ingest.htpasswd
+
 # 런타임 로그 (uvicorn stdout/stderr 캡처)
 server.log
 server_err.log

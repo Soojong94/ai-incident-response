@@ -81,8 +81,11 @@ services:
       - TZ=Asia/Seoul
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/ingest.htpasswd:/etc/nginx/ingest.htpasswd:ro   # 에이전트 인제스트 basic-auth (배포 전 생성)
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - ./nginx/certbot/www:/var/www/certbot:ro
     depends_on:
       - app
+      - victoriametrics
+      - victorialogs
     restart: unless-stopped
