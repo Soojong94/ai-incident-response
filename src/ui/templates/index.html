@@ -206,7 +206,11 @@ size={{ size }}
       <td>
         {% if inc.severity %}<span class="sev-{{ inc.severity }}">{{ inc.severity }}</span>{% else %}-{% endif %}
       </td>
-      <td><span class="badge badge-{{ inc.status }}">{{ inc.status }}</span></td>
+      <td>
+        <span class="badge badge-{{ inc.status }}">{{ inc.status }}</span>
+        {% if inc.acknowledged_at %}<br><span style="font-size:11px; color:#2b8a3e;" title="{{ inc.acknowledged_by or '' }} · {{ inc.acknowledged_at.strftime('%m-%d %H:%M') }}">✓ 확인됨</span>
+        {% elif inc.ack_token and inc.status == 'analyzed' %}<br><span style="font-size:11px; color:#a6740a;">미확인 · 단계{{ inc.escalation_level or 0 }}</span>{% endif %}
+      </td>
       <td><button onclick="deleteIncident({{ inc.id }})" style="background:#475569; color:#fff; border:none; padding:3px 10px; border-radius:5px; cursor:pointer; font-size:12px;">삭제</button></td>
     </tr>
     {% endfor %}

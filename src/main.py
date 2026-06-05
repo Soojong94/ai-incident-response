@@ -385,18 +385,19 @@ _ACK_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 
 
 @app.get("/ack/{token}", response_class=HTMLResponse)
-def ack_incident_page(token: str, db: Session = Depends(get_db)):
-    """이메일의 '확인' 버튼 — 비로그인 접근. 확인 시 에스컬레이션 중지."""
+def ack_incident_page(token: str, by: str = "", db: Session = Depends(get_db)):
+    """이메일의 '확인' 버튼 — 비로그인 접근. 확인 시 에스컬레이션 중지. by=확인자(이메일)."""
     from src.db.crud import acknowledge_incident
-    inc = acknowledge_incident(db, token)
+    inc = acknowledge_incident(db, token, by=(by.strip() or None))
     if not inc:
         return HTMLResponse(_ACK_HTML.format(
             color="#b03a2e", title="유효하지 않은 링크",
             msg="확인 링크가 잘못되었거나 만료되었습니다."), status_code=404)
     when = inc.acknowledged_at.strftime("%Y-%m-%d %H:%M") if inc.acknowledged_at else ""
+    who = f" ({inc.acknowledged_by})" if inc.acknowledged_by else ""
     return HTMLResponse(_ACK_HTML.format(
         color="#2f9e44", title="확인 완료 ✓",
-        msg=f"장애 #{inc.id} — {inc.alarm_name or ''} 을(를) 확인 처리했습니다.<br>추가 에스컬레이션이 중지됩니다. ({when})"))
+        msg=f"장애 #{inc.id} — {inc.alarm_name or ''} 을(를) 확인{who} 처리했습니다.<br>추가 에스컬레이션이 중지됩니다. ({when})"))
 
 
 @app.get("/api/logs/raw")

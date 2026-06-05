@@ -88,8 +88,12 @@ def send_analysis_complete(
 
     ack_html = ""
     if ack_token:
+        import urllib.parse
+        ack_link = f"{DASHBOARD_URL}/ack/{ack_token}"
+        if recipient_email:
+            ack_link += "?by=" + urllib.parse.quote(recipient_email)
         ack_html = (
-            f'<a href="{DASHBOARD_URL}/ack/{ack_token}" '
+            f'<a href="{ack_link}" '
             f'style="display:inline-block; background:#2f9e44; color:#fff; padding:10px 20px; '
             f'border-radius:6px; text-decoration:none; font-size:14px; margin-right:8px;">✓ 확인 (에스컬레이션 중지)</a>'
         )
