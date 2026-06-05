@@ -58,7 +58,7 @@ services:
       - "-remoteWrite.url=http://victoriametrics:8428"
       - "-notifier.url=http://alertmanager:9093"
       - "-rule=/etc/vmalert/rules/*.yml"
-      - "-rule.configCheckInterval=15s"   # generated.yml 변경 시 핫리로드
+      - "-configCheckInterval=15s"        # generated.yml 변경 감지 → 자동 리로드
       - "-evaluationInterval=30s"
     volumes:
       - ./monitoring/vmalert/rules:/etc/vmalert/rules:ro
