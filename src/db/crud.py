@@ -75,13 +75,22 @@ def _match_or_create_site(db: Session, resource_name: str) -> Site | None:
     return site
 
 
-def sync_sites_from_hosts(db: Session, hosts: list[str]) -> int:
-    """활성 host 목록을 받아, 매칭되는 사이트가 없으면 생성(패턴 우선 → 없으면 1:1).
-    분석/알람 없이도 로그·메트릭이 들어온 서버를 사이트로 바로 올린다. 새로 만든 사이트 수 반환."""
+def sync_sites_from_hosts(db: Session, host_groups: list[tuple[str, str | None]]) -> int:
+    """[(host, group)] 을 받아, 매칭 사이트가 없으면 생성(패턴 우선 → 없으면 1:1)하고
+    group_name(상위 그룹=게이트웨이/공인IP 단위)을 갱신한다. 새로 만든 사이트 수 반환.
+
+    분석/알람 없이도 로그·메트릭이 들어온 서버를 사이트로 바로 올린다."""
     n_before = db.query(Site).count()
-    for h in hosts:
-        if h:
-            _match_or_create_site(db, h)
+    changed = False
+    for host, group in host_groups:
+        if not host:
+            continue
+        site = _match_or_create_site(db, host)
+        if site and group and site.group_name != group:
+            site.group_name = group
+            changed = True
+    if changed:
+        db.commit()
     return db.query(Site).count() - n_before
 
 

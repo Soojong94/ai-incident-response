@@ -48,6 +48,11 @@
     display:flex; gap:6px; padding-top:10px; border-top:1px solid var(--border-soft);
   }
   .site-tile .actions button { font-size: 11px; }
+  .site-group { margin-bottom: 22px; }
+  .group-header { display:flex; align-items:baseline; gap:10px; padding:6px 2px 8px; margin-bottom:12px; border-bottom:2px solid var(--border); }
+  .group-title { font-size:15px; font-weight:700; color:var(--text); }
+  .group-sub { font-size:11px; color:var(--text-subtle); }
+  .group-count { margin-left:auto; font-size:12px; color:var(--text-muted); background:var(--card-bg-alt); border:1px solid var(--border); border-radius:10px; padding:2px 10px; }
   .toolbar { display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
   .search-input { width: 280px; }
 </style>
@@ -95,34 +100,49 @@
 </div>
 
 {% if sites %}
-<div class="sites-grid" id="sites-grid">
-  {% for site in sites %}
-  <div class="site-tile {% if not site.enabled %}disabled{% endif %}"
-       data-name="{{ site.name | lower }}"
-       data-desc="{{ (site.description or '') | lower }}"
-       onclick="goSite(event, {{ site.id }})">
-    <h3>
-      {{ site.name }}
-      {% if site.auto_created %}<span style="font-size:10px; padding:1px 6px; background:#5f370e; color:#fbd38d; border-radius:3px; font-weight:normal;">auto</span>{% endif %}
-      {% if not site.enabled %}<span style="font-size:11px; color:var(--text-subtle); font-weight:normal;">비활성</span>{% endif %}
-      {% if site.rate_limit_disabled %}<span style="font-size:10px; padding:1px 6px; background:#475569; color:#ffffff; border-radius:3px; font-weight:normal;">🚨 비상</span>{% endif %}
-    </h3>
-    <div class="desc">{{ site.description or '— 설명 없음 —' }}</div>
-    <div style="font-size:11px; color:var(--text-subtle); display:flex; gap:8px; flex-wrap:wrap; row-gap:4px;">
-      {% if site.resource_pattern %}<span title="매칭 패턴">📌 <span style="font-family:monospace;">{{ site.resource_pattern }}</span></span>{% else %}<span style="color:var(--text-faint);">매칭 패턴 없음</span>{% endif %}
-      {% if site.architecture %}<span title="AI 분석에 활용됨">📐 아키텍처</span>{% endif %}
-      <span title="분석 rate-limit (윈도우 / 임계값)">⏱ {{ site.rate_limit_window_seconds or 300 }}s / {{ site.rate_limit_count or 3 }}건</span>
+<div id="sites-grouped">
+  {% for group_name, group_sites in grouped %}
+  <div class="site-group" data-group="{{ (group_name or '미분류') | lower }}">
+    <div class="group-header">
+      {% if group_name %}
+        <span class="group-title">🌐 {{ group_name }}</span>
+        <span class="group-sub">게이트웨이/공인IP 그룹</span>
+      {% else %}
+        <span class="group-title">미분류</span>
+        <span class="group-sub">그룹 라벨 없음 (단독·직접 서버)</span>
+      {% endif %}
+      <span class="group-count">서버 {{ group_sites | length }}</span>
     </div>
-    <div class="meta">
-      <span>수신자 <span class="count">{{ site.recipients | length }}</span>명</span>
-      <span>슬랙 <span class="count">{{ site.recipients | selectattr('slack_webhook') | list | length }}</span></span>
-      {% if site.wms_scenario_id %}<span title="WMS scenario">WMS <span class="count">{{ site.wms_scenario_id }}</span></span>{% endif %}
-    </div>
-    <div class="actions">
-      <button class="icon-btn" onclick='event.stopPropagation(); editSite({{ {"id": site.id, "name": site.name, "description": site.description or "", "enabled": site.enabled} | tojson }})'>수정</button>
-      <button class="icon-btn danger" onclick="event.stopPropagation(); deleteSite({{ site.id }})">삭제</button>
-      <a href="/?site_id={{ site.id }}" class="icon-btn" style="margin-left:auto; background:rgba(229, 62, 62, 0.15); color:var(--danger); border-color:var(--danger);" onclick="event.stopPropagation()" title="이 사이트의 장애 목록">🔺 장애</a>
-      <a href="/sites/{{ site.id }}" class="icon-btn" onclick="event.stopPropagation()">수신자 →</a>
+    <div class="sites-grid">
+      {% for site in group_sites %}
+      <div class="site-tile {% if not site.enabled %}disabled{% endif %}"
+           data-name="{{ site.name | lower }}"
+           data-desc="{{ (site.description or '') | lower }}"
+           onclick="goSite(event, {{ site.id }})">
+        <h3>
+          {{ site.name }}
+          {% if site.auto_created %}<span style="font-size:10px; padding:1px 6px; background:var(--card-bg-alt); color:var(--text-muted); border:1px solid var(--border); border-radius:3px; font-weight:normal;">auto</span>{% endif %}
+          {% if not site.enabled %}<span style="font-size:11px; color:var(--text-subtle); font-weight:normal;">비활성</span>{% endif %}
+          {% if site.rate_limit_disabled %}<span style="font-size:10px; padding:1px 6px; background:#475569; color:#ffffff; border-radius:3px; font-weight:normal;">🚨 비상</span>{% endif %}
+        </h3>
+        <div class="desc">{{ site.description or '— 설명 없음 —' }}</div>
+        <div style="font-size:11px; color:var(--text-subtle); display:flex; gap:8px; flex-wrap:wrap; row-gap:4px;">
+          {% if site.resource_pattern %}<span title="매칭 패턴">📌 <span style="font-family:monospace;">{{ site.resource_pattern }}</span></span>{% else %}<span style="color:var(--text-faint);">매칭 패턴 없음</span>{% endif %}
+          {% if site.architecture %}<span title="AI 분석에 활용됨">📐 아키텍처</span>{% endif %}
+          <span title="분석 rate-limit (윈도우 / 임계값)">⏱ {{ site.rate_limit_window_seconds or 300 }}s / {{ site.rate_limit_count or 3 }}건</span>
+        </div>
+        <div class="meta">
+          <span>수신자 <span class="count">{{ site.recipients | length }}</span>명</span>
+          <span>슬랙 <span class="count">{{ site.recipients | selectattr('slack_webhook') | list | length }}</span></span>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" onclick='event.stopPropagation(); editSite({{ {"id": site.id, "name": site.name, "description": site.description or "", "enabled": site.enabled} | tojson }})'>수정</button>
+          <button class="icon-btn danger" onclick="event.stopPropagation(); deleteSite({{ site.id }})">삭제</button>
+          <a href="/?site_id={{ site.id }}" class="icon-btn" style="margin-left:auto; background:rgba(229, 62, 62, 0.15); color:var(--danger); border-color:var(--danger);" onclick="event.stopPropagation()" title="이 사이트의 장애 목록">🔺 장애</a>
+          <a href="/sites/{{ site.id }}" class="icon-btn" onclick="event.stopPropagation()">수신자 →</a>
+        </div>
+      </div>
+      {% endfor %}
     </div>
   </div>
   {% endfor %}
@@ -149,6 +169,11 @@ function filterSites() {
     const match = !q || t.dataset.name.includes(q) || t.dataset.desc.includes(q);
     t.style.display = match ? '' : 'none';
     if (match) visible++;
+  });
+  // 검색 시 보이는 타일이 하나도 없는 그룹은 헤더까지 숨김
+  document.querySelectorAll('.site-group').forEach(g => {
+    const anyVisible = g.querySelector('.site-tile:not([style*="display: none"])');
+    g.style.display = anyVisible ? '' : 'none';
   });
   const empty = document.getElementById('empty-search');
   if (empty) empty.style.display = (tiles.length > 0 && visible === 0) ? 'block' : 'none';

@@ -11,6 +11,7 @@
 //
 // 환경변수:
 //   RESOURCE_NAME   예: web
+//   GROUP_NAME      상위 그룹(대시보드 묶음). 단독 서버면 자기 이름, 묶을 거면 같은 값 공유
 //   CENTRAL_VM_URL  https://tbit-msp.kro.kr/vm/api/v1/write          (TLS 인제스트)
 //   CENTRAL_VL_URL  https://tbit-msp.kro.kr/vl/insert/loki/api/v1/push
 //   INGEST_USER / INGEST_PASS   nginx basic-auth 자격 (TLS 인제스트 보호)
@@ -29,6 +30,10 @@ prometheus.relabel "add_host" {
   rule {
     target_label = "host"
     replacement  = sys.env("RESOURCE_NAME")
+  }
+  rule {
+    target_label = "group"
+    replacement  = sys.env("GROUP_NAME")
   }
 }
 
@@ -64,7 +69,7 @@ loki.source.file "varlog" {
 loki.process "add_host" {
   forward_to = [loki.write.central.receiver]
   stage.static_labels {
-    values = { host = sys.env("RESOURCE_NAME") }
+    values = { host = sys.env("RESOURCE_NAME"), group = sys.env("GROUP_NAME") }
   }
 }
 

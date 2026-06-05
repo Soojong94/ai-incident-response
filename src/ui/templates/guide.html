@@ -77,6 +77,10 @@ prometheus.relabel "h" {
     target_label = "host"
     replacement  = "SERVER_NAME"          // ← 서버 이름
   }
+  rule {
+    target_label = "group"
+    replacement  = "GROUP_NAME"           // ← 대시보드 묶음(없으면 서버이름)
+  }
 }
 prometheus.remote_write "c" {
   endpoint {
@@ -96,7 +100,7 @@ loki.source.file "f" {
 }
 loki.process "h" {
   forward_to = [loki.write.c.receiver]
-  stage.static_labels { values = { host = "SERVER_NAME", job = "syslog" } }
+  stage.static_labels { values = { host = "SERVER_NAME", job = "syslog", group = "GROUP_NAME" } }
 }
 loki.write "c" {
   endpoint {

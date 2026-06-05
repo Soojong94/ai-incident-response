@@ -65,6 +65,10 @@ prometheus.relabel "self" {
     target_label = "host"
     replacement  = sys.env("RESOURCE_NAME")
   }
+  rule {
+    target_label = "group"
+    replacement  = sys.env("GROUP_NAME")
+  }
 }
 local.file_match "self_logs" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
 loki.source.file "self_logs" {
@@ -73,15 +77,22 @@ loki.source.file "self_logs" {
 }
 loki.process "self_logs" {
   forward_to = [loki.write.central.receiver]
-  stage.static_labels { values = { host = sys.env("RESOURCE_NAME"), job = "syslog" } }
+  stage.static_labels { values = { host = sys.env("RESOURCE_NAME"), job = "syslog", group = sys.env("GROUP_NAME") } }
 }
-// 내부 was 중계 수신
+// 내부 was 중계 수신 → group 라벨 부착 → 중앙
 prometheus.receive_http "in" {
   http {
     listen_address = "0.0.0.0"
     listen_port    = 9999
   }
+  forward_to = [prometheus.relabel.relay.receiver]
+}
+prometheus.relabel "relay" {
   forward_to = [prometheus.remote_write.central.receiver]
+  rule {
+    target_label = "group"
+    replacement  = sys.env("GROUP_NAME")
+  }
 }
 prometheus.remote_write "central" {
   endpoint {
@@ -97,7 +108,11 @@ loki.source.api "in" {
     listen_address = "0.0.0.0"
     listen_port    = 9998
   }
+  forward_to = [loki.process.relay.receiver]
+}
+loki.process "relay" {
   forward_to = [loki.write.central.receiver]
+  stage.static_labels { values = { group = sys.env("GROUP_NAME") } }
 }
 loki.write "central" {
   endpoint {
@@ -115,6 +130,7 @@ EOF
 ```bash
 sudo tee /etc/default/alloy-air >/dev/null <<'EOF'
 RESOURCE_NAME=web
+GROUP_NAME=web
 CENTRAL_VM_URL=https://tbit-msp.kro.kr/vm/api/v1/write
 CENTRAL_VL_URL=https://tbit-msp.kro.kr/vl/insert/loki/api/v1/push
 INGEST_USER=agent

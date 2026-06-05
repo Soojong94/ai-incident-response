@@ -1,14 +1,15 @@
 // 게이트웨이 (gateway) — 인터넷 되는 1대가 "자기 수집 + 폐쇄망 에이전트 중계"를 겸함.
 //   수신: 메트릭 :9999 (prometheus remote_write), 로그 :9998 (loki push)
-//   전달: 중앙 VictoriaMetrics(8428) / VictoriaLogs(9428)
+//   전달: 중앙 VictoriaMetrics / VictoriaLogs (TLS 인제스트)
 // 환경변수:
 //   RESOURCE_NAME  = 이 게이트웨이 서버 이름 (= 대시보드 사이트)
-//   CENTRAL_VM_URL = https://tbit-msp.kro.kr/vm/api/v1/write           (TLS 인제스트)
+//   GROUP_NAME     = 상위 그룹(=이 게이트웨이/공인IP 단위). 자기+중계분에 group 라벨로 찍힘
+//                    → was 같은 폐쇄망 서버가 자동으로 이 그룹에 묶임
+//   CENTRAL_VM_URL = https://tbit-msp.kro.kr/vm/api/v1/write
 //   CENTRAL_VL_URL = https://tbit-msp.kro.kr/vl/insert/loki/api/v1/push
 //   INGEST_USER / INGEST_PASS = nginx basic-auth 자격
 
 // ── 이 서버 자신도 수집 (게이트웨이도 결국 '직접' 서버) ──
-//   에이전트 종류는 2가지: ⓐ 직접(인터넷O — 이 게이트웨이 포함) / ⓑ 폐쇄망(인터넷X, closed.alloy)
 prometheus.exporter.unix "self" { }
 prometheus.scrape "self" {
   targets         = prometheus.exporter.unix.self.targets
@@ -19,7 +20,11 @@ prometheus.relabel "self" {
   forward_to = [prometheus.remote_write.central.receiver]
   rule {
     target_label = "host"
-    replacement  = sys.env("RESOURCE_NAME")   // 이 중계 서버 자신의 이름
+    replacement  = sys.env("RESOURCE_NAME")
+  }
+  rule {
+    target_label = "group"
+    replacement  = sys.env("GROUP_NAME")
   }
 }
 
@@ -34,17 +39,24 @@ loki.source.file "self_logs" {
 loki.process "self_logs" {
   forward_to = [loki.write.central.receiver]
   stage.static_labels {
-    values = { host = sys.env("RESOURCE_NAME"), job = "syslog" }
+    values = { host = sys.env("RESOURCE_NAME"), job = "syslog", group = sys.env("GROUP_NAME") }
   }
 }
 
-// ── (relay) 내부 agent 메트릭 수신 → 중앙 전달 ──
+// ── (relay) 내부 agent 메트릭 수신 → group 라벨 부착 → 중앙 전달 ──
 prometheus.receive_http "in" {
   http {
     listen_address = "0.0.0.0"
     listen_port    = 9999
   }
+  forward_to = [prometheus.relabel.relay.receiver]
+}
+prometheus.relabel "relay" {
   forward_to = [prometheus.remote_write.central.receiver]
+  rule {
+    target_label = "group"
+    replacement  = sys.env("GROUP_NAME")
+  }
 }
 
 prometheus.remote_write "central" {
@@ -57,13 +69,19 @@ prometheus.remote_write "central" {
   }
 }
 
-// ── 로그 수신 → 중앙 전달 ──
+// ── 로그 수신 → group 라벨 부착 → 중앙 전달 ──
 loki.source.api "in" {
   http {
     listen_address = "0.0.0.0"
     listen_port    = 9998
   }
+  forward_to = [loki.process.relay.receiver]
+}
+loki.process "relay" {
   forward_to = [loki.write.central.receiver]
+  stage.static_labels {
+    values = { group = sys.env("GROUP_NAME") }
+  }
 }
 
 loki.write "central" {

@@ -56,6 +56,7 @@ def _migrate():
             site_cols = {row[1] for row in sites_info}
             for col, ddl in [
                 ("resource_pattern", "ALTER TABLE sites ADD COLUMN resource_pattern VARCHAR(200)"),
+                ("group_name", "ALTER TABLE sites ADD COLUMN group_name VARCHAR(100)"),
                 ("architecture", "ALTER TABLE sites ADD COLUMN architecture TEXT"),
                 ("auto_created", "ALTER TABLE sites ADD COLUMN auto_created BOOLEAN DEFAULT 0"),
                 ("rate_limit_window_seconds", "ALTER TABLE sites ADD COLUMN rate_limit_window_seconds INTEGER DEFAULT 300"),

@@ -717,17 +717,25 @@ def sites_page(request: Request, db: Session = Depends(get_db), user=Depends(req
     # 활성 서버(host)를 사이트로 자동 등록 — 분석/알람 없이 로그·메트릭만 들어와도 바로 보이게.
     # (패턴 사이트가 있으면 그쪽으로 매칭, 없으면 host 이름으로 1:1 생성)
     try:
-        from src.collector.victoriametrics_collector import list_active_hosts
+        from src.collector.victoriametrics_collector import list_active_host_groups
         from src.db.crud import sync_sites_from_hosts
-        hosts = list_active_hosts(minutes=10)
-        if hosts:
-            n = sync_sites_from_hosts(db, hosts)
+        host_groups = list_active_host_groups()
+        if host_groups:
+            n = sync_sites_from_hosts(db, host_groups)
             if n:
-                logging.getLogger(__name__).info("사이트 자동 동기화: %d개 신규 (활성 host %d)", n, len(hosts))
+                logging.getLogger(__name__).info("사이트 자동 동기화: %d개 신규 (활성 host %d)", n, len(host_groups))
     except Exception as e:
         logging.getLogger(__name__).warning("사이트 자동 동기화 실패: %s", e)
     sites = list_sites(db)
-    return templates.TemplateResponse(request, "sites.html", {"sites": sites, "current_user": user})
+    # 상위 그룹(=게이트웨이/공인IP 단위)으로 묶기 — group_name 없으면 '미분류'
+    buckets: dict = {}
+    for s in sites:
+        buckets.setdefault(s.group_name or "", []).append(s)
+    grouped = sorted(buckets.items(), key=lambda kv: (kv[0] == "", kv[0].lower()))
+    return templates.TemplateResponse(
+        request, "sites.html",
+        {"sites": sites, "grouped": grouped, "current_user": user},
+    )
 
 
 @app.get("/sites/{site_id}", response_class=HTMLResponse)
