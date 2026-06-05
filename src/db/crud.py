@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from src.db.models import (
     Incident, IncidentLog, AnalysisResult, Recipient, Site, User,
-    NotificationLog, PasswordResetToken, SiteNote, AnalysisFeedback,
+    NotificationLog, PasswordResetToken, SiteNote, AnalysisFeedback, IgnoredHost,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,8 @@ def _match_or_create_site(db: Session, resource_name: str) -> Site | None:
         if s.resource_pattern and fnmatch.fnmatchcase(resource_name.lower(), s.resource_pattern.lower()):
             return s
     # 매칭 실패 → 자동 생성 (admin이 나중에 이름/패턴/수신자를 다듬을 수 있게 auto_created=True)
+    # 이전에 삭제(무시)된 host라도 실제 알람이 다시 들어온 것이므로 무시 해제
+    db.query(IgnoredHost).filter(IgnoredHost.host == resource_name).delete(synchronize_session=False)
     base_name = resource_name
     name = base_name
     suffix = 1
@@ -85,10 +87,11 @@ def sync_sites_from_hosts(db: Session, host_groups: list[tuple[str, str | None]]
 
     분석/알람 없이도 로그·메트릭이 들어온 서버를 사이트로 바로 올린다."""
     n_before = db.query(Site).count()
+    ignored = {r[0] for r in db.query(IgnoredHost.host).all()}
     changed = False
     for host, group in host_groups:
-        if not host:
-            continue
+        if not host or host in ignored:
+            continue   # 삭제된(무시) 호스트는 자동 재생성 안 함
         site = _match_or_create_site(db, host)
         if site and group and site.group_name != group:
             site.group_name = group
@@ -883,7 +886,17 @@ def delete_site(db: Session, site_id: int) -> bool:
     site = get_site(db, site_id)
     if not site:
         return False
-    db.delete(site)  # cascade로 소속 수신자도 함께 삭제
+    # 이 사이트를 참조하는 incident는 이력 보존 위해 연결만 해제(site_id=None)
+    db.query(Incident).filter(Incident.site_id == site_id).update(
+        {Incident.site_id: None}, synchronize_session=False)
+    # 사이트 메모 삭제 (FK/orphan 방지)
+    db.query(SiteNote).filter(SiteNote.site_id == site_id).delete(synchronize_session=False)
+    name = site.name
+    db.delete(site)  # 소속 수신자는 relationship cascade로 함께 삭제
+    # 자동 발견(사이트 동기화)에서 제외 — 활성 서버여도 새로고침 때 다시 안 생기게.
+    # (실제 알람이 다시 들어오면 incident 경로에서 해제되어 재생성됨)
+    if not db.query(IgnoredHost).filter(IgnoredHost.host == name).first():
+        db.add(IgnoredHost(host=name))
     db.commit()
     return True
 

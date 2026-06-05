@@ -180,3 +180,13 @@ class Recipient(Base):
     updated_at = Column(DateTime, default=datetime.now)
 
     site = relationship("Site", back_populates="recipients")
+
+
+class IgnoredHost(Base):
+    """삭제된 사이트의 host — 자동 발견(사이트 동기화)에서 제외(tombstone).
+    실제 알람이 다시 들어오면 incident 경로에서 해제되어 사이트가 다시 생긴다."""
+    __tablename__ = "ignored_hosts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    host = Column(String(200), unique=True, index=True)
+    created_at = Column(DateTime, default=datetime.now)

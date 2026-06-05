@@ -460,8 +460,9 @@ async function saveSite() {
   location.reload();
 }
 async function deleteSite(id) {
-  if (!confirm(`이 사이트를 삭제할까요? (소속 수신자도 함께 삭제됨)`)) return;
-  await fetch(`/api/sites/${id}`, { method: 'DELETE' });
+  if (!confirm(`이 서버(사이트)를 삭제할까요?\n수신자·메모는 함께 삭제, 장애 이력은 보존됩니다.\n(이후 자동 재생성 안 됨 — 실제 알람이 다시 오면 그때 재생성)`)) return;
+  const r = await fetch(`/api/sites/${id}`, { method: 'DELETE' });
+  if (!r.ok) { alert('삭제 실패: ' + await r.text()); return; }
   window.location.href = '/sites';
 }
 
