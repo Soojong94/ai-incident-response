@@ -21,7 +21,7 @@ SEVERITY_FIELD = {
 
 
 def _parse_alarm(alarm_data: dict) -> dict:
-    """Normalize NCP Cloud Insight webhook payload (camelCase or snake_case)."""
+    """알람 페이로드(Alertmanager 변환분/내부 합성)를 내부 표준 형태로 정규화 (camelCase/snake_case 허용)."""
     def get(*keys):
         for k in keys:
             v = alarm_data.get(k)

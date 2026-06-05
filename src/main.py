@@ -83,9 +83,8 @@ def _inject_user(request: Request, ctx: dict) -> dict:
 # ── Auth middleware ─────────────────────────────────────────────────────────
 
 AUTH_EXEMPT_PATHS = {"/login", "/logout", "/favicon.svg", "/favicon.ico", "/forgot-password"}
-# webhook은 외부 시스템(NCP CF)이 호출하므로 인증 면제.
-# /test/는 더 이상 면제하지 않음 — 인증된 사용자만 트리거 가능.
-# /reset/ 은 토큰이 자격증명 역할이라 인증 면제 prefix.
+# /webhook/ 은 Alertmanager가 내부에서 호출(세션 없음) → 면제. 외부 노출은 nginx가 차단 + WEBHOOK_SECRET.
+# /reset/·/ack/ 는 토큰이 자격증명 역할이라 면제 prefix.
 AUTH_EXEMPT_PREFIXES = ("/webhook/", "/reset/", "/static/", "/ack/")
 
 
