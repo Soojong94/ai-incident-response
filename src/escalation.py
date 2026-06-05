@@ -46,28 +46,32 @@ def _notify_level(db, inc, level: int, recips) -> None:
                                 channel="slack", status="sent" if ok else "failed", error_message=err)
 
 
+def _next_level(db, site_id: int, cur: int, maxlvl: int):
+    """cur 다음으로 수신자가 있는 단계. top을 넘으면 0부터 다시 순환(repeat).
+    한 바퀴(0..max) 다 돌고도 미확인이면 0으로 wrap → 다시 반복."""
+    order = list(range(cur + 1, maxlvl + 1)) + list(range(0, cur + 1))
+    for lvl in order:
+        if get_recipients_for_level(db, site_id, lvl):
+            return lvl
+    return None
+
+
 def check_escalations_once() -> None:
     db = SessionLocal()
     try:
         for inc in get_incidents_to_escalate(db):
             maxlvl = max_escalation_level(db, inc.site_id)
-            if (inc.escalation_level or 0) >= maxlvl:
-                continue  # 더 올릴 단계 없음
-            # 다음으로 수신자가 있는 최소 단계
-            nxt = None
-            for lvl in range(int(inc.escalation_level or 0) + 1, maxlvl + 1):
-                recips = get_recipients_for_level(db, inc.site_id, lvl)
-                if recips:
-                    nxt = (lvl, recips)
-                    break
-            if not nxt:
-                continue
-            level, recips = nxt
+            cur = int(inc.escalation_level or 0)
+            level = _next_level(db, inc.site_id, cur, maxlvl)
+            if level is None:
+                continue  # 단계 수신자 없음
+            recips = get_recipients_for_level(db, inc.site_id, level)
             _notify_level(db, inc, level, recips)
             inc.escalation_level = level
             inc.last_escalated_at = datetime.now()
             db.commit()
-            logger.warning("에스컬레이션: incident=%d → level %d (%d명)", inc.id, level, len(recips))
+            cycled = " [재순환]" if level <= cur else ""
+            logger.warning("에스컬레이션: incident=%d → level %d (%d명)%s", inc.id, level, len(recips), cycled)
     finally:
         db.close()
 
