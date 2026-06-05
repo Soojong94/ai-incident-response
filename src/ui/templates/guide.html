@@ -27,7 +27,7 @@
     <a href="#how">① 동작 원리</a>
     <a href="#add">② 서버 추가(일반)</a>
     <a href="#closed">③ 폐쇄망 서버</a>
-    <a href="#site">④ 사이트 사용법</a>
+    <a href="#site">④ 사이트·그룹</a>
     <a href="#incident">⑤ 장애 확인</a>
     <a href="#faq">⑥ 자주 묻는 질문</a>
   </div>
@@ -112,6 +112,8 @@ loki.write "c" {
   }
 }</pre>
 
+    <div class="g-note">바꿀 값 정리 — <span class="g-tag">SERVER_NAME</span>: 서버 이름(=사이트) · <span class="g-tag">GROUP_NAME</span>: 상위 그룹(같은 값끼리 묶임, 단독이면 서버 이름) · <span class="g-tag">INGEST_PASS</span>: 중앙에서 발급한 인제스트 비밀번호(<span class="g-tag">agent</span> 계정). 중앙 주소(<span class="g-tag">tbit-msp.kro.kr</span>)는 환경에 맞게.</div>
+
     <h3><span class="g-step">3</span>실행 + 방화벽</h3>
     <pre>alloy-linux-amd64 run config.alloy --storage.path /var/lib/alloy</pre>
     <p>중앙 방화벽(ACG)에 <strong>이 서버 IP</strong>로 <span class="g-tag">443</span> 인바운드만 한 번 열어주면 됩니다(TLS+basic-auth로 보호 — 로그가 평문으로 안 나감).
@@ -133,19 +135,31 @@ loki.write "c" {
 
   <!-- ④ -->
   <div class="g-card" id="site">
-    <h2>④ 사이트 사용법 (<a href="/sites">사이트 관리</a>)</h2>
-    <p><strong>사이트</strong>는 서버(들)를 묶는 단위입니다. 누구에게 알림을 보낼지, 어떤 맥락으로 분석할지를 여기서 정합니다.</p>
-    <h3>자동 생성</h3>
-    <p>새 서버에서 첫 장애가 들어오면 그 이름으로 <strong>사이트가 자동 생성</strong>됩니다. 미리 만들 필요는 없지만, <strong>이메일을 받으려면 수신자를 미리 등록</strong>하는 걸 권장합니다.</p>
+    <h2>④ 사이트 · 그룹 사용법 (<a href="/sites">사이트 관리</a>)</h2>
+    <p><strong>서버(host) = 사이트</strong>가 기본 단위이고, 같은 게이트웨이(=공인IP) 뒤의 서버들은 <strong>상위 그룹</strong>으로 묶여 보입니다. 알림 수신자·분석 맥락·임계정책을 여기서 정합니다.</p>
+
+    <h3>자동 등록</h3>
+    <p>에이전트가 데이터를 보내기 시작하면 — <strong>장애가 없어도</strong> — 사이트 관리에 서버가 <strong>자동 등록</strong>됩니다. (사이트 관리 페이지를 열 때 최근 활성 서버를 동기화) 미리 만들 필요 없이, <strong>이메일을 받으려면 수신자만 등록</strong>하면 됩니다.</p>
+
+    <h3>그룹 → 서버 (드릴인)</h3>
+    <p>상위 화면은 <strong>🌐 그룹 카드</strong>(서버 수·수신자 합계)로 보이고, 카드를 클릭하면 그 그룹의 <strong>서버 카드들</strong>로 들어갑니다. 그룹은 에이전트의 <span class="g-tag">GROUP_NAME</span> 라벨로 자동 결정됩니다 — <strong>게이트웨이가 자기+폐쇄망 중계분에 같은 group을 찍어</strong> 한 묶음이 됩니다. 여러 서버를 같은 조직으로 묶으려면 <span class="g-tag">GROUP_NAME</span>만 같게 주세요.</p>
+
     <h3>① 수신자 등록 (이메일/Slack)</h3>
-    <p>사이트 상세에서 수신자를 추가하고, <strong>심각도별 수신 여부</strong>(Critical/High/Medium/Low)를 켭니다. 분석이 끝나면 해당 심각도를 받기로 한 사람에게만 발송됩니다.</p>
-    <h3>② 매칭 규칙</h3>
-    <p>여러 서버를 한 사이트로 묶으려면 <strong>resource 패턴</strong>(글로브, 예: <span class="g-tag">web-prod-*</span>)을 지정하세요. 장애의 호스트 이름이 패턴에 맞으면 그 사이트로 분류됩니다.</p>
+    <p>사이트 상세에서 수신자를 추가하고, <strong>심각도별 수신 여부</strong>(Critical/High/Medium/Low)를 켭니다. 분석이 끝나면 해당 심각도를 받기로 한 사람에게만 발송됩니다. (수신자가 없으면 <span class="g-tag">ALERT_EMAIL</span> 폴백)</p>
+
+    <h3>② 매칭 패턴</h3>
+    <p>여러 서버를 <strong>한 사이트</strong>로 합치려면 <strong>resource 패턴</strong>(글로브, 예: <span class="g-tag">web-prod-*</span>)을 지정하세요. 장애 host가 패턴에 맞으면 그 사이트로 분류됩니다. (그룹과 별개 — 그룹은 보기용 묶음, 패턴은 한 사이트로의 통합)</p>
+
     <h3>③ 알림 폭주 방지 (rate-limit)</h3>
-    <p>같은 사이트에서 짧은 시간에 장애가 쏟아지면 일정 횟수 초과분은 분석·알림을 자동으로 건너뜁니다(기본 5분 3건). 장애 대응 중 시끄럽지 않게 해줍니다. 비상 시 끌 수도 있습니다.</p>
+    <p>같은 사이트에서 짧은 시간에 장애가 쏟아지면 일정 횟수 초과분은 분석·알림을 자동으로 건너뜁니다(기본 5분 3건). 비상 시 끌 수도 있습니다.</p>
+
     <h3>④ 인프라 구조 메모 → 분석 품질↑</h3>
     <p>사이트에 <strong>인프라 구조</strong>(예: "nginx→was 2대→MySQL, Redis 캐시")를 적어두면 AI가 분석할 때 그 맥락을 참고해 <strong>더 정확</strong>해집니다.</p>
-    <h3>⑤ 사이트 메모 + 학습</h3>
+
+    <h3>⑤ 서버 로그 다운로드 (7일 보관)</h3>
+    <p>사이트 상세의 <strong>"서버 로그"</strong>에서 그 서버의 <strong>최근 7일 raw 로그</strong>를 기간(1시간~7일)별로 <strong>미리보기 / `.log` 다운로드</strong> 할 수 있습니다. 장애와 무관하게 아무 때나 수동으로 확보 가능합니다.</p>
+
+    <h3>⑥ 사이트 메모 + 학습</h3>
     <p>운영 메모를 남길 수 있고, AI가 반복되는 원인을 자동으로 누적합니다. 분석 결과에 👍을 누르면 <strong>검증된 메모로 승격</strong>되어 다음 분석에 활용됩니다.</p>
   </div>
 
@@ -170,7 +184,9 @@ loki.write "c" {
     <h3>서버마다 설정을 다 해야 하나요?</h3>
     <p>config는 서버마다 있어야 하지만 <strong>이름 한 줄만 다릅니다.</strong> 설치 스크립트로 자동화하세요.</p>
     <h3>새 서버를 중앙에 먼저 등록해야 하나요?</h3>
-    <p>아니요. 보내기 시작하면 바로 받습니다. 방화벽(ACG)에 IP만 열면 됩니다.</p>
+    <p>아니요. 보내기 시작하면 바로 받고, 사이트 관리에 자동 등록됩니다. 방화벽(ACG)에 그 IP로 443만 열면 됩니다.</p>
+    <h3>여러 서버를 하나로 묶어서 보려면?</h3>
+    <p>에이전트의 <span class="g-tag">GROUP_NAME</span>을 같은 값으로 주면 사이트 관리에서 한 그룹 카드로 묶여 보입니다. <strong>폐쇄망 서버는 게이트웨이가 대신 group을 찍어주므로 손댈 필요 없습니다.</strong></p>
   </div>
 </div>
 {% endblock %}
