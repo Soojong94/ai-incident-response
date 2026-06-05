@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     victoriametrics_url: str = "http://localhost:8428"
     # vmalert 룰 디렉토리 — 사이트별 알람 임계값을 generated.yml로 써서 vmalert가 핫리로드
     vmalert_rules_dir: str = "/etc/vmalert/rules"
+    # 서버 무응답(dead-man) 감지 — N초 이상 메트릭 미수신이면 "서버 무응답" 장애 자동 등록
+    deadman_enabled: bool = True
+    deadman_seconds: int = 180          # 3분
+    deadman_check_interval: int = 60    # 점검 주기(초)
 
     # SMTP
     smtp_host: str = "smtp.gmail.com"

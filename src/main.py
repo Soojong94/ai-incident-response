@@ -53,7 +53,12 @@ async def lifespan(app: FastAPI):
         write_rules(db)   # 사이트별 알람 임계값 → vmalert 룰 초기 생성
     finally:
         db.close()
+    # 서버 무응답(dead-man) 감지 백그라운드 루프
+    import asyncio
+    from src.deadman import deadman_loop
+    deadman_task = asyncio.create_task(deadman_loop())
     yield
+    deadman_task.cancel()
 
 
 app = FastAPI(title="AI Incident Response", lifespan=lifespan)
