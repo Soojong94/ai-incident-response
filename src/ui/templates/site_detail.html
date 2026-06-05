@@ -12,6 +12,15 @@
   /* 편집 모드 토글 — 기본은 view 보임, edit 숨김 */
   body.site-editing .view-only { display: none !important; }
   body:not(.site-editing) .edit-only { display: none !important; }
+  /* 수정 모드 — 떠다니는 저장 바 (가이드 FAB 왼쪽) */
+  .save-fab { position: fixed; right: 150px; bottom: 22px; z-index: 901; display: flex; gap: 8px; align-items: center; }
+  .save-fab .save-btn { background: var(--primary); color:#fff; border:none; padding:12px 22px; border-radius:999px;
+    font-weight:700; font-size:14px; cursor:pointer; box-shadow:0 4px 16px rgba(59,91,158,.34); transition: filter .12s, transform .12s; }
+  .save-fab .save-btn:hover { filter:brightness(1.07); transform:translateY(-1px); }
+  .save-fab .cancel-btn { background: var(--card-bg); color: var(--text-muted); border:1.5px solid var(--border);
+    padding:11px 16px; border-radius:999px; font-size:13px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,.12); }
+  .save-fab .cancel-btn:hover { color: var(--text); border-color: var(--primary); }
+  @media (max-width: 640px) { .save-fab { right: 22px; bottom: 84px; } }
 </style>
 
 <div style="margin-bottom:20px;">
@@ -391,6 +400,12 @@
     <button onclick="submitRecipientEdit()" class="refresh-btn" style="margin-left:0;">저장</button>
     <button onclick="closeRecipientEdit()" class="icon-btn" style="margin-left:8px;">취소</button>
   </div>
+</div>
+
+<!-- 수정 모드에서만 보이는 떠다니는 저장 바 -->
+<div class="save-fab edit-only">
+  <button class="cancel-btn" onclick="exitEditMode()">취소</button>
+  <button class="save-btn" onclick="saveSite()">💾 저장</button>
 </div>
 
 <script>
