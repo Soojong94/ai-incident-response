@@ -26,7 +26,7 @@
 </style>
 
 <div style="margin-bottom:20px;">
-  <a href="/sites" class="nav-btn nav-btn-outline">&larr; 사이트 목록</a>
+  <a href="/sites?group={{ (site.group_name or '') | urlencode }}" class="nav-btn nav-btn-outline">&larr; 사이트 목록</a>
 </div>
 
 <!-- 헤더 카드 (이름 + 활성 + 설명 + 액션 + 요약) -->
