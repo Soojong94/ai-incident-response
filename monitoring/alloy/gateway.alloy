@@ -28,7 +28,11 @@ prometheus.relabel "self" {
   }
 }
 
-// ── 이 서버 자신의 로그도 수집 → 중앙 ──
+// ── 이 서버 자신의 로그도 수집 → 중앙 (journald = 시스템 전체 + /var/log 파일) ──
+loki.source.journal "self_journal" {
+  max_age    = "12h"
+  forward_to = [loki.process.self_logs.receiver]
+}
 local.file_match "self_logs" {
   path_targets = [{ "__path__" = "/var/log/**/*.log" }]
 }

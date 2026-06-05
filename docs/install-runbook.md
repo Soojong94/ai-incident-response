@@ -70,6 +70,10 @@ prometheus.relabel "self" {
     replacement  = sys.env("GROUP_NAME")
   }
 }
+loki.source.journal "self_journal" {
+  max_age = "12h"
+  forward_to = [loki.process.self_logs.receiver]
+}
 local.file_match "self_logs" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
 loki.source.file "self_logs" {
   targets = local.file_match.self_logs.targets
@@ -193,6 +197,10 @@ prometheus.relabel "h" {
   }
 }
 prometheus.remote_write "relay" { endpoint { url = sys.env("GATEWAY_VM_URL") } }
+loki.source.journal "j" {
+  max_age = "12h"
+  forward_to = [loki.process.h.receiver]
+}
 local.file_match "f" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
 loki.source.file "f" {
   targets = local.file_match.f.targets

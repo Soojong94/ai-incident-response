@@ -26,6 +26,11 @@ prometheus.remote_write "relay" {
   endpoint { url = sys.env("GATEWAY_VM_URL") }
 }
 
+loki.source.journal "j" {
+  max_age    = "12h"
+  forward_to = [loki.process.h.receiver]
+}
+
 local.file_match "f" {
   path_targets = [{ "__path__" = sys.env("LOG_PATH") }]
 }

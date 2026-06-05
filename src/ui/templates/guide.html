@@ -191,7 +191,11 @@ prometheus.relabel "self" {
     replacement  = sys.env("GROUP_NAME")
   }
 }
-// 자기 로그
+// 자기 로그 (journald = 시스템 전체 + /var/log 파일)
+loki.source.journal "sj" {
+  max_age = "12h"
+  forward_to = [loki.process.self.receiver]
+}
 local.file_match "sf" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
 loki.source.file "sf" {
   targets = local.file_match.sf.targets
@@ -282,6 +286,10 @@ prometheus.relabel "h" {
   }
 }
 prometheus.remote_write "relay" { endpoint { url = sys.env("GATEWAY_VM_URL") } }
+loki.source.journal "j" {
+  max_age = "12h"
+  forward_to = [loki.process.h.receiver]
+}
 local.file_match "f" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
 loki.source.file "f" {
   targets = local.file_match.f.targets
