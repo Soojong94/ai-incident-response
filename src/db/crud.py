@@ -383,7 +383,7 @@ def get_recent_analyses_for_resource(
     q = (
         db.query(Incident)
         .filter(Incident.resource_name == resource_name)
-        .filter(Incident.status == "analyzed")
+        .filter(Incident.status.in_(("analyzed", "resolved")))
         .order_by(Incident.created_at.desc())
     )
     if exclude_incident_id is not None:
@@ -538,14 +538,14 @@ def notification_success_rate(db: Session, days: int = 30) -> dict:
 
 
 def avg_analysis_duration_seconds(db: Session, days: int = 30) -> dict:
-    """incident.created_at → incident.updated_at 차이의 평균 (analyzed 인 것만).
-    근사치 — incident가 analyzed 되는 시점에 updated_at이 업데이트되기 때문."""
+    """incident 생성 → AI 분석 완료(AnalysisResult.created_at)까지 평균.
+    분석이 끝난 incident면 이후 resolved 되어도 포함(분석결과가 있으므로). updated_at 미사용 → resolve 시각에 안 흔들림."""
     from datetime import timedelta
     cutoff = datetime.now() - timedelta(days=days)
     rows = (
-        db.query(Incident.created_at, Incident.updated_at)
+        db.query(Incident.created_at, AnalysisResult.created_at)
+        .join(AnalysisResult, AnalysisResult.incident_id == Incident.id)
         .filter(Incident.created_at >= cutoff)
-        .filter(Incident.status == "analyzed")
         .all()
     )
     if not rows:
