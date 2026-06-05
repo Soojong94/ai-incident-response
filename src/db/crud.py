@@ -32,6 +32,10 @@ def _parse_alarm(alarm_data: dict) -> dict:
     raw_time = get("alarmTime", "alarm_time")
     try:
         alarm_time = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
+        # Alertmanager startsAt 등은 UTC(tz-aware) → 컨테이너 로컬(KST)로 변환 후 naive 저장
+        # (created_at = datetime.now() 과 동일 기준이 되도록 통일 → 화면 표시가 KST)
+        if alarm_time.tzinfo is not None:
+            alarm_time = alarm_time.astimezone().replace(tzinfo=None)
     except Exception:
         alarm_time = datetime.now()
 

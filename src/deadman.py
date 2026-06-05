@@ -39,7 +39,8 @@ _DEADMAN_ANALYSIS = {
 def _last_seen_seconds() -> dict[str, float]:
     """host별 '마지막 메트릭 수신 후 경과초'. 최근 30분 내 데이터가 있던 host만."""
     url = settings.victoriametrics_url.rstrip("/") + "/api/v1/query"
-    query = "(time() - timestamp(last_over_time(node_uname_info[30m])))"
+    # 현재 시리즈(staleness ~5분 내)의 '마지막 샘플 후 경과초'. 5분 넘어 사라지면 자동 제외(스팸 방지).
+    query = "(time() - timestamp(node_uname_info))"
     out: dict[str, float] = {}
     with httpx.Client(timeout=10) as c:
         r = c.get(url, params={"query": query})
@@ -67,14 +68,20 @@ def check_deadman_once() -> None:
             if secs <= threshold:
                 _down.discard(host)   # 정상/복구
                 continue
+            if secs >= 3600:
+                # 1시간 이상은 비정상(시계 어긋남 등) → 오탐 방지로 발화하지 않음
+                if host not in _down:
+                    logger.warning("dead-man 비정상 경과초 무시: host=%s secs=%.0f (NTP/시계 동기 확인)", host, secs)
+                _down.add(host)
+                continue
             if host in _down:
                 continue              # 이미 발화함
             site = _match_or_create_site(db, host)
             if not site or not site.enabled or not getattr(site, "alarm_enabled", True):
                 _down.add(host)       # 감시 대상 아님 — 반복 평가만 막음
                 continue
+            _down.add(host)           # 발화 실패해도 반복 스팸 방지(먼저 표시)
             _raise_deadman(db, host, site, secs)
-            _down.add(host)
     finally:
         db.close()
 
