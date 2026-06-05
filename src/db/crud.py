@@ -909,3 +909,30 @@ def count_notifications(
     date_to: datetime | None = None,
 ) -> int:
     return _notifications_query(db, channel, status, search, date_from, date_to).count()
+
+
+def delete_notification(db: Session, notif_id: int) -> bool:
+    """알림 로그 1건 삭제. (관리자 전용 — 라우터에서 require_admin)"""
+    log = db.query(NotificationLog).filter(NotificationLog.id == notif_id).first()
+    if not log:
+        return False
+    db.delete(log)
+    db.commit()
+    return True
+
+
+def delete_notifications_filtered(
+    db: Session,
+    channel: str | None = None,
+    status: str | None = None,
+    search: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> int:
+    """현재 필터에 매칭되는 알림 로그를 일괄 삭제하고 삭제 건수 반환.
+    필터가 모두 비면 전체 삭제. (관리자 전용)"""
+    n = _notifications_query(db, channel, status, search, date_from, date_to).delete(
+        synchronize_session=False
+    )
+    db.commit()
+    return n

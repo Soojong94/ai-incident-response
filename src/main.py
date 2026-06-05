@@ -27,6 +27,7 @@ from src.db.crud import (
     daily_incident_counts, severity_distribution, status_distribution,
     top_sites_by_incident, notification_success_rate, avg_analysis_duration_seconds,
     list_notifications, count_notifications,
+    delete_notification, delete_notifications_filtered,
 )
 from src.auth import (
     ensure_initial_admin, authenticate, login_user, logout_user,
@@ -645,6 +646,36 @@ def notifications_page(
             "current_user": admin,
         },
     )
+
+
+@app.delete("/api/notifications/{notif_id}")
+def api_delete_notification(notif_id: int, db: Session = Depends(get_db), admin=Depends(require_admin)):
+    """알림 로그 1건 삭제 (관리자 전용)."""
+    if not delete_notification(db, notif_id):
+        raise HTTPException(status_code=404, detail="not found")
+    return {"deleted": 1}
+
+
+@app.delete("/api/notifications")
+def api_delete_notifications(
+    channel: str = "",
+    status: str = "",
+    q: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    db: Session = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    """현재 필터(없으면 전체)에 매칭되는 알림 로그를 일괄 삭제 (관리자 전용)."""
+    n = delete_notifications_filtered(
+        db,
+        channel=channel.strip() or None,
+        status=status.strip() or None,
+        search=q.strip() or None,
+        date_from=_parse_date(date_from),
+        date_to=_parse_date(date_to, end_of_day=True),
+    )
+    return {"deleted": n}
 
 
 # ── Sites + Recipients UI + API ──────────────────────────────────────────────

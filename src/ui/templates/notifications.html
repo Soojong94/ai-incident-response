@@ -54,6 +54,11 @@ size={{ size }}
       총 {{ total }}건 (페이지 {{ page }}/{{ total_pages }})
     </span>
   </h2>
+  {% if logs %}
+  <button class="nav-btn nav-btn-danger" style="margin-left:auto;" onclick="deleteFiltered()">
+    {% if has_filter %}현재 결과 삭제{% else %}전체 삭제{% endif %}
+  </button>
+  {% endif %}
 </div>
 
 <!-- 고급 검색 -->
@@ -130,6 +135,7 @@ size={{ size }}
         <th>리소스</th>
         <th style="width:160px;">시각</th>
         <th>비고</th>
+        <th style="width:54px;">삭제</th>
       </tr>
     </thead>
     <tbody>
@@ -147,6 +153,9 @@ size={{ size }}
         </td>
         <td style="font-size:12px; color:var(--text-subtle); max-width:340px; word-break:break-word;">
           {{ n.error_message or '-' }}
+        </td>
+        <td>
+          <button class="icon-btn danger" title="이 로그 삭제" onclick="deleteNotif({{ n.id }})" style="padding:2px 9px;">✕</button>
         </td>
       </tr>
       {% endfor %}
@@ -174,4 +183,26 @@ size={{ size }}
   {% if has_filter %}<p>검색 조건을 조정해보세요.</p>{% endif %}
 </div>
 {% endif %}
+
+<script>
+const HAS_FILTER = {{ 'true' if has_filter else 'false' }};
+async function deleteNotif(id) {
+  if (!confirm('이 알림 로그를 삭제할까요?')) return;
+  const r = await fetch('/api/notifications/' + id, { method: 'DELETE' });
+  if (!r.ok) { alert('삭제 실패: ' + await r.text()); return; }
+  location.reload();
+}
+async function deleteFiltered() {
+  const msg = HAS_FILTER
+    ? '현재 검색 결과의 알림 로그를 모두 삭제할까요?'
+    : '전체 알림 로그를 삭제할까요? (되돌릴 수 없음)';
+  if (!confirm(msg)) return;
+  // 현재 URL의 필터(q/channel/status/date_*)를 그대로 전달 — page/size는 서버가 무시
+  const r = await fetch('/api/notifications' + window.location.search, { method: 'DELETE' });
+  if (!r.ok) { alert('삭제 실패: ' + await r.text()); return; }
+  const j = await r.json();
+  alert(j.deleted + '건 삭제됨');
+  location.href = '/notifications';
+}
+</script>
 {% endblock %}
