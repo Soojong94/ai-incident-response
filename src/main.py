@@ -727,14 +727,22 @@ def sites_page(request: Request, db: Session = Depends(get_db), user=Depends(req
     except Exception as e:
         logging.getLogger(__name__).warning("사이트 자동 동기화 실패: %s", e)
     sites = list_sites(db)
-    # 상위 그룹(=게이트웨이/공인IP 단위)으로 묶기 — group_name 없으면 '미분류'
+    # 상위 그룹(=게이트웨이/공인IP 단위)으로 묶기 — group_name 없으면 '미분류'(빈 문자열)
     buckets: dict = {}
     for s in sites:
         buckets.setdefault(s.group_name or "", []).append(s)
-    grouped = sorted(buckets.items(), key=lambda kv: (kv[0] == "", kv[0].lower()))
+    groups = []
+    for gname, gsites in sorted(buckets.items(), key=lambda kv: (kv[0] == "", kv[0].lower())):
+        groups.append({
+            "name": gname,
+            "sites": gsites,
+            "count": len(gsites),
+            "recipients": sum(len(s.recipients) for s in gsites),
+            "enabled": sum(1 for s in gsites if s.enabled),
+        })
     return templates.TemplateResponse(
         request, "sites.html",
-        {"sites": sites, "grouped": grouped, "current_user": user},
+        {"sites": sites, "groups": groups, "current_user": user},
     )
 
 
