@@ -5,6 +5,7 @@ services:
       - "8000"
     volumes:
       - ./data:/app/data
+      - ./monitoring/vmalert/rules:/etc/vmalert/rules   # 사이트별 알람 룰을 여기에 생성 → vmalert 핫리로드
     env_file:
       - .env
     environment:
@@ -13,6 +14,7 @@ services:
       # 에이전트 기반(모드 A) — 같은 compose 네트워크의 VictoriaLogs를 직전5분 쿼리
       - VICTORIALOGS_URL=http://victorialogs:9428
       - VICTORIAMETRICS_URL=http://victoriametrics:8428
+      - VMALERT_RULES_DIR=/etc/vmalert/rules
     depends_on:
       - victorialogs
       - victoriametrics
@@ -56,6 +58,7 @@ services:
       - "-remoteWrite.url=http://victoriametrics:8428"
       - "-notifier.url=http://alertmanager:9093"
       - "-rule=/etc/vmalert/rules/*.yml"
+      - "-rule.configCheckInterval=15s"   # generated.yml 변경 시 핫리로드
       - "-evaluationInterval=30s"
     volumes:
       - ./monitoring/vmalert/rules:/etc/vmalert/rules:ro

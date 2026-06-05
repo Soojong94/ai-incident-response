@@ -140,6 +140,12 @@ class Site(Base):
     rate_limit_count = Column(Integer, default=3)
     rate_limit_disabled = Column(Boolean, default=False)     # 비상 모드 ON: limit 무시
     auto_created = Column(Boolean, default=False)           # alarm 페이로드로 자동 생성됐는지
+    # 알람 임계값 (서버별) — vmalert 룰로 생성됨. null=해당 지표 미감시
+    alarm_enabled = Column(Boolean, default=True)
+    cpu_threshold = Column(Integer, nullable=True, default=85)    # CPU 사용률 %
+    mem_threshold = Column(Integer, nullable=True, default=90)    # 메모리 사용률 %
+    disk_threshold = Column(Integer, nullable=True, default=85)   # 디스크 사용률 %
+    alarm_for_seconds = Column(Integer, default=300)             # 임계 초과 지속시간(초)
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now)

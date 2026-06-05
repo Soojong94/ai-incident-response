@@ -731,6 +731,24 @@ def update_site(db: Session, site_id: int, data: dict) -> Site | None:
             pass
     if "rate_limit_disabled" in data:
         site.rate_limit_disabled = bool(data["rate_limit_disabled"])
+    # 알람 임계값 (서버별)
+    if "alarm_enabled" in data:
+        site.alarm_enabled = bool(data["alarm_enabled"])
+    for f in ("cpu_threshold", "mem_threshold", "disk_threshold"):
+        if f in data:
+            raw = data[f]
+            if raw in (None, "", "null"):
+                setattr(site, f, None)  # 미감시
+            else:
+                try:
+                    setattr(site, f, max(1, min(100, int(raw))))
+                except (TypeError, ValueError):
+                    pass
+    if "alarm_for_seconds" in data:
+        try:
+            site.alarm_for_seconds = max(30, int(data["alarm_for_seconds"]))
+        except (TypeError, ValueError):
+            pass
     if "enabled" in data:
         site.enabled = bool(data["enabled"])
     site.updated_at = datetime.now()

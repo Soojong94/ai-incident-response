@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     log_window_seconds: int = 300  # 알람 직전 5분
     # VictoriaMetrics — 활성 host 목록 조회(사이트 자동 등록)용. 내부 사설 hop.
     victoriametrics_url: str = "http://localhost:8428"
+    # vmalert 룰 디렉토리 — 사이트별 알람 임계값을 generated.yml로 써서 vmalert가 핫리로드
+    vmalert_rules_dir: str = "/etc/vmalert/rules"
 
     # SMTP
     smtp_host: str = "smtp.gmail.com"

@@ -7,17 +7,6 @@
   .recipient-row > span:last-child a { white-space: nowrap; flex-shrink: 0; }
   .recipient-row.header { color:var(--text-subtle); font-size:11px; text-transform:uppercase; border-top:none; padding-bottom:4px; }
   .recipient-row input { width:100%; }
-  .sev-toggle { display:inline-flex; gap:6px; }
-  .sev-toggle label { cursor:pointer; user-select:none; }
-  .sev-toggle input { display:none; }
-  .sev-toggle span { display:inline-block; font-size:12px; font-weight:700; padding:5px 12px; border:2px solid var(--border);
-    border-radius:7px; color:var(--text-muted); background:var(--card-bg); transition:all .12s; min-width:30px; text-align:center; }
-  .sev-toggle label:hover span { border-color:var(--text-subtle); }
-  .sev-toggle input:checked + span { color:#ffffff; }
-  .sev-toggle input:checked + span.sev-Critical { background:#c0392b; border-color:#c0392b; }
-  .sev-toggle input:checked + span.sev-High     { background:#dd6b20; border-color:#dd6b20; }
-  .sev-toggle input:checked + span.sev-Medium   { background:#b8860b; border-color:#b8860b; }
-  .sev-toggle input:checked + span.sev-Low      { background:#4a5568; border-color:#4a5568; }
   .add-row { padding:10px; background:var(--card-bg-alt); border-top:1px solid var(--border); border-radius:0 0 6px 6px; }
   .empty-row { padding:14px 12px; color:var(--text-subtle); text-align:center; font-size:13px; border-top:1px solid var(--border); }
   /* 편집 모드 토글 — 기본은 view 보임, edit 숨김 */
@@ -186,6 +175,35 @@
   <!-- EDIT -->
   <div class="edit-only">
     <textarea id="s-arch" rows="8" placeholder="예:&#10;- 웹 계층: nginx 1.24 (port 80)&#10;- 앱 계층: Tomcat 9 (JVM 4GB)&#10;- DB: MySQL 8.0" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;">{{ site.architecture or '' }}</textarea>
+  </div>
+</div>
+
+<!-- 알람 임계값 (서버별) -->
+<div class="card">
+  <h2>알람 임계값<span class="qmark" data-tip="이 서버(들)의 CPU/메모리/디스크 사용률이 임계값을 지속시간 이상 넘으면 장애로 잡아 분석·알림합니다. 비우면 그 지표는 감시 안 함.">?</span>
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">CPU·메모리·디스크 사용률 기준</span>
+  </h2>
+  <!-- VIEW -->
+  <div class="view-only meta-grid">
+    <div class="meta-item"><label>알람</label>
+      <span style="font-size:14px;">{% if site.alarm_enabled %}<span style="color:#2f9e44;">● 켜짐</span>{% else %}<span style="color:var(--text-subtle);">○ 꺼짐</span>{% endif %}</span></div>
+    <div class="meta-item"><label>지속시간</label><span style="font-size:14px;">{{ site.alarm_for_seconds or 300 }}초 ({{ ((site.alarm_for_seconds or 300) / 60) | round(1) }}분)</span></div>
+    <div class="meta-item"><label>CPU</label><span style="font-size:14px;">{% if site.cpu_threshold %}{{ site.cpu_threshold }}% 초과{% else %}<span style="color:var(--text-faint);">미감시</span>{% endif %}</span></div>
+    <div class="meta-item"><label>메모리</label><span style="font-size:14px;">{% if site.mem_threshold %}{{ site.mem_threshold }}% 초과{% else %}<span style="color:var(--text-faint);">미감시</span>{% endif %}</span></div>
+    <div class="meta-item"><label>디스크</label><span style="font-size:14px;">{% if site.disk_threshold %}{{ site.disk_threshold }}% 초과{% else %}<span style="color:var(--text-faint);">미감시</span>{% endif %}</span></div>
+  </div>
+  <!-- EDIT -->
+  <div class="edit-only meta-grid">
+    <div class="meta-item" style="grid-column:1/-1;">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+        <input id="al-enabled" type="checkbox" {% if site.alarm_enabled %}checked{% endif %} style="width:auto;"> <strong>알람 켜기</strong>
+      </label>
+    </div>
+    <div class="meta-item"><label>CPU 사용률 % <span style="color:var(--text-faint);">(비우면 미감시)</span></label><input id="al-cpu" type="number" min="1" max="100" value="{{ site.cpu_threshold if site.cpu_threshold is not none else '' }}" style="width:100%;"></div>
+    <div class="meta-item"><label>메모리 사용률 %</label><input id="al-mem" type="number" min="1" max="100" value="{{ site.mem_threshold if site.mem_threshold is not none else '' }}" style="width:100%;"></div>
+    <div class="meta-item"><label>디스크 사용률 %</label><input id="al-disk" type="number" min="1" max="100" value="{{ site.disk_threshold if site.disk_threshold is not none else '' }}" style="width:100%;"></div>
+    <div class="meta-item"><label>지속시간 (초)</label><input id="al-for" type="number" min="30" value="{{ site.alarm_for_seconds or 300 }}" style="width:100%;"></div>
+    <div class="meta-item" style="grid-column:1/-1; font-size:11px; color:var(--text-subtle);">예: CPU 85 / 메모리 90 / 디스크 85 + 지속 300초 → 5분 이상 초과 시 장애 등록. 빈칸은 그 지표 미감시. (저장 시 즉시 적용)</div>
   </div>
 </div>
 
@@ -375,6 +393,15 @@ async function saveSite() {
     rate_limit_count: rlCnt ? parseInt(rlCnt.value, 10) : undefined,
     rate_limit_disabled: rlDis ? rlDis.checked : undefined,
   };
+  // 알람 임계값 (빈칸 = null = 미감시)
+  const alVal = (id) => { const e = document.getElementById(id); if (!e) return undefined; const v = e.value.trim(); return v === '' ? null : parseInt(v, 10); };
+  const alEn = document.getElementById('al-enabled');
+  if (alEn) payload.alarm_enabled = alEn.checked;
+  payload.cpu_threshold = alVal('al-cpu');
+  payload.mem_threshold = alVal('al-mem');
+  payload.disk_threshold = alVal('al-disk');
+  const alFor = document.getElementById('al-for');
+  if (alFor) payload.alarm_for_seconds = parseInt(alFor.value, 10);
   const r1 = await fetch(`/api/sites/${SITE_ID}`, {
     method:'PUT',
     headers:{'Content-Type':'application/json'},

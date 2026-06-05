@@ -49,6 +49,8 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         ensure_initial_admin(db)
+        from src.alarm_rules import write_rules
+        write_rules(db)   # 사이트별 알람 임계값 → vmalert 룰 초기 생성
     finally:
         db.close()
     yield
@@ -724,6 +726,8 @@ def sites_page(request: Request, db: Session = Depends(get_db), user=Depends(req
             n = sync_sites_from_hosts(db, host_groups)
             if n:
                 logging.getLogger(__name__).info("사이트 자동 동기화: %d개 신규 (활성 host %d)", n, len(host_groups))
+                from src.alarm_rules import write_rules
+                write_rules(db)   # 신규 서버 → 기본 임계값 알람 룰 생성
     except Exception as e:
         logging.getLogger(__name__).warning("사이트 자동 동기화 실패: %s", e)
     sites = list_sites(db)
@@ -784,6 +788,8 @@ async def api_update_site(site_id: int, request: Request, db: Session = Depends(
     site = update_site(db, site_id, data)
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
+    from src.alarm_rules import write_rules
+    write_rules(db)   # 임계값 변경 → 룰 재생성(vmalert 핫리로드)
     return _site_to_dict(site)
 
 
@@ -791,6 +797,8 @@ async def api_update_site(site_id: int, request: Request, db: Session = Depends(
 def api_delete_site(site_id: int, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
     if not delete_site(db, site_id):
         raise HTTPException(status_code=404, detail="Site not found")
+    from src.alarm_rules import write_rules
+    write_rules(db)
     return {"deleted": site_id}
 
 

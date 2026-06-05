@@ -20,6 +20,9 @@ data/
 # 에이전트 인제스트 basic-auth 자격 (실파일은 커밋 금지 — .sample 참고)
 nginx/ingest.htpasswd
 
+# 사이트별 알람 임계값으로 앱이 런타임 생성하는 vmalert 룰
+monitoring/vmalert/rules/generated.yml
+
 # 런타임 로그 (uvicorn stdout/stderr 캡처)
 server.log
 server_err.log

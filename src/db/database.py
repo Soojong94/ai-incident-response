@@ -57,6 +57,11 @@ def _migrate():
             for col, ddl in [
                 ("resource_pattern", "ALTER TABLE sites ADD COLUMN resource_pattern VARCHAR(200)"),
                 ("group_name", "ALTER TABLE sites ADD COLUMN group_name VARCHAR(100)"),
+                ("alarm_enabled", "ALTER TABLE sites ADD COLUMN alarm_enabled BOOLEAN DEFAULT 1"),
+                ("cpu_threshold", "ALTER TABLE sites ADD COLUMN cpu_threshold INTEGER DEFAULT 85"),
+                ("mem_threshold", "ALTER TABLE sites ADD COLUMN mem_threshold INTEGER DEFAULT 90"),
+                ("disk_threshold", "ALTER TABLE sites ADD COLUMN disk_threshold INTEGER DEFAULT 85"),
+                ("alarm_for_seconds", "ALTER TABLE sites ADD COLUMN alarm_for_seconds INTEGER DEFAULT 300"),
                 ("architecture", "ALTER TABLE sites ADD COLUMN architecture TEXT"),
                 ("auto_created", "ALTER TABLE sites ADD COLUMN auto_created BOOLEAN DEFAULT 0"),
                 ("rate_limit_window_seconds", "ALTER TABLE sites ADD COLUMN rate_limit_window_seconds INTEGER DEFAULT 300"),
