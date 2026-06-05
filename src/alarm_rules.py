@@ -54,9 +54,10 @@ def generate_rules_yaml(sites: list[Site]) -> str:
         m = _matcher(s)
         fr = s.alarm_for_seconds or 300
         if s.cpu_threshold:
+            # 1분 평균 CPU% — 지속시간(for=alarm_for_seconds) 동안 연속 초과해야 발화
             out.append(_rule(
                 "HighCPUUsage",
-                f'(1 - avg by (host) (rate(node_cpu_seconds_total{{mode="idle",{m}}}[2m]))) * 100 > {s.cpu_threshold}',
+                f'(1 - avg by (host) (rate(node_cpu_seconds_total{{mode="idle",{m}}}[1m]))) * 100 > {s.cpu_threshold}',
                 fr, "cpu", "CPU 과부하: {{ $labels.host }} {{ $value | humanize }}%",
             ))
             any_rule = True
