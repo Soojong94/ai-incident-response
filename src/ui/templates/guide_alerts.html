@@ -67,6 +67,10 @@
     <h3>끄기 / 미감시</h3>
     <p>특정 지표 칸을 <strong>비우면</strong> 그 지표는 미감시. <strong>"알람 켜기"를 끄면</strong> 그 서버는 임계값·무응답 모두 안 울립니다.</p>
     <div class="g-note">새로 들어온 서버는 <strong>기본 ON</strong>(CPU 85 / 메모리 90 / 디스크 85)으로 감시됩니다. 특정 서버만 빼려면 그 서버에서 알람을 끄세요.</div>
+
+    <h3>여러 서버를 한 사이트로 묶기 (선택)</h3>
+    <p>기본은 <strong>서버 1대 = 사이트 1개</strong>(데이터 들어오면 자동 생성). 여러 서버가 <strong>수신자·임계값을 공유</strong>하게 하려면, 자동 생성된 한 사이트의 <strong>수정 → "매칭 패턴"</strong>에 글로브를 넣으세요 — 예 <span class="g-tag">web-prod-*</span> → web-prod-1·2·3 이 그 사이트 하나로 묶여 같은 수신자·임계값을 씁니다. (이후 매칭되는 서버는 새 사이트를 안 만들고 그쪽으로 합류)</p>
+    <div class="g-note"><strong>그룹과 다릅니다.</strong> <span class="g-tag">그룹(GROUP_NAME)</span> = 대시보드에서 <em>묶어 보는</em> 용도(서버는 각각 관리). <span class="g-tag">매칭 패턴</span> = 아예 <em>한 사이트로 합쳐</em> 설정을 공유. 별개 개념이라 같이 써도 됩니다.</div>
   </div>
 
   <!-- ③ -->

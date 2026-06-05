@@ -125,6 +125,7 @@
       <tr><td><span class="g-tag">job</span></td><td>로그 출처 구분(syslog/journal 등)</td><td>config 고정</td></tr>
     </table>
     <p><strong>host 이름 = 사이트 = 알람 라벨 = 로그 라벨</strong>을 일치시키는 게 핵심입니다(전 구간 같은 키로 추적).</p>
+    <div class="g-note">기본은 <strong>서버 1대 = 사이트 1개</strong>(자동 생성). 여러 서버를 한 사이트로 합치려면 사이트의 <span class="g-tag">매칭 패턴</span>(예 <span class="g-tag">web-prod-*</span>)을, 보기만 묶으려면 <span class="g-tag">group</span>을 씁니다. (자세히는 <a href="/guide/alerts#threshold">② 알람·운영</a>)</div>
   </div>
 
   <!-- ⑦ -->
