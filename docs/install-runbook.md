@@ -61,7 +61,10 @@ prometheus.scrape "self" {
 }
 prometheus.relabel "self" {
   forward_to = [prometheus.remote_write.central.receiver]
-  rule { target_label = "host"  replacement = sys.env("RESOURCE_NAME") }
+  rule {
+    target_label = "host"
+    replacement  = sys.env("RESOURCE_NAME")
+  }
 }
 local.file_match "self_logs" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
 loki.source.file "self_logs" {
@@ -74,23 +77,35 @@ loki.process "self_logs" {
 }
 // 내부 was 중계 수신
 prometheus.receive_http "in" {
-  http { listen_address = "0.0.0.0"  listen_port = 9999 }
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 9999
+  }
   forward_to = [prometheus.remote_write.central.receiver]
 }
 prometheus.remote_write "central" {
   endpoint {
     url = sys.env("CENTRAL_VM_URL")
-    basic_auth { username = sys.env("INGEST_USER")  password = sys.env("INGEST_PASS") }
+    basic_auth {
+      username = sys.env("INGEST_USER")
+      password = sys.env("INGEST_PASS")
+    }
   }
 }
 loki.source.api "in" {
-  http { listen_address = "0.0.0.0"  listen_port = 9998 }
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 9998
+  }
   forward_to = [loki.write.central.receiver]
 }
 loki.write "central" {
   endpoint {
     url = sys.env("CENTRAL_VL_URL")
-    basic_auth { username = sys.env("INGEST_USER")  password = sys.env("INGEST_PASS") }
+    basic_auth {
+      username = sys.env("INGEST_USER")
+      password = sys.env("INGEST_PASS")
+    }
   }
 }
 EOF
@@ -156,7 +171,10 @@ prometheus.scrape "n" {
 }
 prometheus.relabel "h" {
   forward_to = [prometheus.remote_write.relay.receiver]
-  rule { target_label = "host"  replacement = sys.env("RESOURCE_NAME") }
+  rule {
+    target_label = "host"
+    replacement  = sys.env("RESOURCE_NAME")
+  }
 }
 prometheus.remote_write "relay" { endpoint { url = sys.env("GATEWAY_VM_URL") } }
 local.file_match "f" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }

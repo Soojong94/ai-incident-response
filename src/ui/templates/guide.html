@@ -73,18 +73,27 @@ prometheus.scrape "n" {
 }
 prometheus.relabel "h" {
   forward_to = [prometheus.remote_write.c.receiver]
-  rule { target_label = "host"  replacement = "SERVER_NAME" }   // ← 서버 이름
+  rule {
+    target_label = "host"
+    replacement  = "SERVER_NAME"          // ← 서버 이름
+  }
 }
 prometheus.remote_write "c" {
   endpoint {
     url = "https://tbit-msp.kro.kr/vm/api/v1/write"              // ← 중앙(TLS)
-    basic_auth { username = "agent"  password = "INGEST_PASS" }  // ← 인제스트 자격
+    basic_auth {
+      username = "agent"
+      password = "INGEST_PASS"                                  // ← 인제스트 자격
+    }
   }
 }
 
 // ── 로그 (journald + /var/log 전체. 앱 경로 따로 안 받아도 됨) ──
 local.file_match "f" { path_targets = [{ "__path__" = "/var/log/**/*.log" }] }
-loki.source.file "f" { targets = local.file_match.f.targets  forward_to = [loki.process.h.receiver] }
+loki.source.file "f" {
+  targets = local.file_match.f.targets
+  forward_to = [loki.process.h.receiver]
+}
 loki.process "h" {
   forward_to = [loki.write.c.receiver]
   stage.static_labels { values = { host = "SERVER_NAME", job = "syslog" } }
@@ -92,7 +101,10 @@ loki.process "h" {
 loki.write "c" {
   endpoint {
     url = "https://tbit-msp.kro.kr/vl/insert/loki/api/v1/push"
-    basic_auth { username = "agent"  password = "INGEST_PASS" }
+    basic_auth {
+      username = "agent"
+      password = "INGEST_PASS"
+    }
   }
 }</pre>
 
