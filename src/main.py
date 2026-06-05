@@ -714,6 +714,18 @@ def _site_to_dict(s, include_recipients: bool = False) -> dict:
 
 @app.get("/sites", response_class=HTMLResponse)
 def sites_page(request: Request, db: Session = Depends(get_db), user=Depends(require_user)):
+    # 활성 서버(host)를 사이트로 자동 등록 — 분석/알람 없이 로그·메트릭만 들어와도 바로 보이게.
+    # (패턴 사이트가 있으면 그쪽으로 매칭, 없으면 host 이름으로 1:1 생성)
+    try:
+        from src.collector.victoriametrics_collector import list_active_hosts
+        from src.db.crud import sync_sites_from_hosts
+        hosts = list_active_hosts(minutes=10)
+        if hosts:
+            n = sync_sites_from_hosts(db, hosts)
+            if n:
+                logging.getLogger(__name__).info("사이트 자동 동기화: %d개 신규 (활성 host %d)", n, len(hosts))
+    except Exception as e:
+        logging.getLogger(__name__).warning("사이트 자동 동기화 실패: %s", e)
     sites = list_sites(db)
     return templates.TemplateResponse(request, "sites.html", {"sites": sites, "current_user": user})
 

@@ -63,7 +63,7 @@ def _match_or_create_site(db: Session, resource_name: str) -> Site | None:
         name = f"{base_name} ({suffix})"
     site = Site(
         name=name,
-        description="알람 페이로드로 자동 생성됨 — 이름/패턴/수신자를 다듬어 주세요.",
+        description="수신 데이터로 자동 생성됨 — 이름/패턴/수신자를 다듬어 주세요.",
         resource_pattern=resource_name or None,
         auto_created=True,
         enabled=True,
@@ -73,6 +73,16 @@ def _match_or_create_site(db: Session, resource_name: str) -> Site | None:
     db.refresh(site)
     logger.info("사이트 자동 생성: %s (resource=%s)", site.name, resource_name)
     return site
+
+
+def sync_sites_from_hosts(db: Session, hosts: list[str]) -> int:
+    """활성 host 목록을 받아, 매칭되는 사이트가 없으면 생성(패턴 우선 → 없으면 1:1).
+    분석/알람 없이도 로그·메트릭이 들어온 서버를 사이트로 바로 올린다. 새로 만든 사이트 수 반환."""
+    n_before = db.query(Site).count()
+    for h in hosts:
+        if h:
+            _match_or_create_site(db, h)
+    return db.query(Site).count() - n_before
 
 
 CLUSTER_WINDOW_SECONDS = 300  # 5분

@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     # 운영: 같은 사설 subnet의 monitoring_msp VictoriaLogs 사설 IP. 무인증이므로 공인 노출 금지.
     victorialogs_url: str = "http://localhost:9428"
     log_window_seconds: int = 300  # 알람 직전 5분
+    # VictoriaMetrics — 활성 host 목록 조회(사이트 자동 등록)용. 내부 사설 hop.
+    victoriametrics_url: str = "http://localhost:8428"
 
     # SMTP
     smtp_host: str = "smtp.gmail.com"

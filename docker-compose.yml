@@ -12,8 +12,10 @@ services:
       - TZ=Asia/Seoul
       # 에이전트 기반(모드 A) — 같은 compose 네트워크의 VictoriaLogs를 직전5분 쿼리
       - VICTORIALOGS_URL=http://victorialogs:9428
+      - VICTORIAMETRICS_URL=http://victoriametrics:8428
     depends_on:
       - victorialogs
+      - victoriametrics
     restart: unless-stopped
 
   # 로그 저장소 — Alloy가 상시 push, 분석앱이 알람 시 직전 5분 쿼리(모드 A).
