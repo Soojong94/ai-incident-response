@@ -56,7 +56,7 @@ def generate_rules_yaml(sites: list[Site]) -> str:
         if s.cpu_threshold:
             out.append(_rule(
                 "HighCPUUsage",
-                f'(1 - avg by (host) (rate(node_cpu_seconds_total{{mode="idle",{m}}}[5m]))) * 100 > {s.cpu_threshold}',
+                f'(1 - avg by (host) (rate(node_cpu_seconds_total{{mode="idle",{m}}}[2m]))) * 100 > {s.cpu_threshold}',
                 fr, "cpu", "CPU 과부하: {{ $labels.host }} {{ $value | humanize }}%",
             ))
             any_rule = True
