@@ -4,6 +4,13 @@
 > 맨땅(서버·VPC·CF 전부 삭제)에서 전체를 재구축해 **NCP-native 흐름을 end-to-end 실증**했고,
 > 그 과정에서 드러난 **비용·NCP 종속 문제** 때문에 **에이전트 기반(vendor-neutral)** 으로 방향을 전환하기로 했다.
 
+> ⚠ **[현행 안내 — 2026-06-05 갱신]** 이 문서는 **2026-06-02 시점의 핸드오프 기록**입니다.
+> 이후 에이전트 기반으로 **구현·실서버 실증 완료**되었고(직접/게이트웨이/폐쇄망 + TLS 인제스트 + 그룹),
+> **OBS·Cloud Function·NCP 종속 요소는 전부 제거**됐습니다.
+> **현행 정본:** [`README.md`](../README.md) · [`install-runbook.md`](install-runbook.md) · [`../CLAUDE.md`](../CLAUDE.md) · in-app `/guide`.
+> 아래 §1~ 의 NCP/OBS/CF·`relay-server` 등 서술은 **당시 기록(일부 중간안은 폐기)** 이며 현재 코드와 다를 수 있습니다.
+> 용어: (구)`relay-server`→**게이트웨이(gateway)**, (구)`relay-agent`→**폐쇄망(closed)**.
+
 ---
 
 ## 1. 계정 토폴로지 (혼동 주의 — 실측 확정)
