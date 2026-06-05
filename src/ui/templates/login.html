@@ -89,6 +89,7 @@
     {% endif %}
 
     <form method="POST" action="/login">
+      <input type="hidden" name="next" value="{{ next_url or '' }}">
       <label>
         <span class="lbl">이메일</span>
         <input type="email" name="email" required autofocus placeholder="admin@example.com">

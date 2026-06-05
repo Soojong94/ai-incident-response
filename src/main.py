@@ -120,8 +120,9 @@ async def auth_middleware(request: Request, call_next):
     if not authed:
         if path.startswith("/api/"):
             return JSONResponse({"detail": "Not authenticated"}, status_code=401)
-        # 로그인 후엔 무조건 장애 목록(/)로 진입 — next 추적 안 함
-        return RedirectResponse(url="/login", status_code=303)
+        # 로그인 후 원래 가려던 경로로 돌아가도록 next 보존 (open-redirect 방어는 _safe_next)
+        import urllib.parse
+        return RedirectResponse(url=f"/login?next={urllib.parse.quote(path, safe='/')}", status_code=303)
     return await call_next(request)
 
 
@@ -155,8 +156,8 @@ app.add_middleware(
 # ── Login / Logout ──────────────────────────────────────────────────────────
 
 @app.get("/login", response_class=HTMLResponse)
-def login_page(request: Request, error: str = ""):
-    return templates.TemplateResponse(request, "login.html", {"error": error})
+def login_page(request: Request, error: str = "", next: str = ""):
+    return templates.TemplateResponse(request, "login.html", {"error": error, "next_url": _safe_next(next)})
 
 
 @app.post("/login")
@@ -164,13 +165,16 @@ async def login_action(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    next: str = Form(""),
     db: Session = Depends(get_db),
 ):
     user = authenticate(db, email, password)
     if not user:
-        return RedirectResponse(url="/login?error=invalid", status_code=303)
+        import urllib.parse
+        q = f"&next={urllib.parse.quote(next, safe='/')}" if next else ""
+        return RedirectResponse(url=f"/login?error=invalid{q}", status_code=303)
     login_user(request, user)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url=_safe_next(next), status_code=303)
 
 
 @app.get("/logout")
@@ -387,6 +391,7 @@ _ACK_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <div style="background:#fff; border:2px solid #ddcdc6; border-radius:12px; padding:36px 40px; max-width:440px; text-align:center; box-shadow:0 6px 24px rgba(0,0,0,.08);">
   <h1 style="color:{color}; font-size:22px; margin:0 0 12px;">{title}</h1>
   <p style="color:#5b4f49; font-size:15px; line-height:1.6; margin:0;">{msg}</p>
+  {link}
 </div></body></html>"""
 
 
@@ -398,12 +403,19 @@ def ack_incident_page(token: str, by: str = "", db: Session = Depends(get_db)):
     if not inc:
         return HTMLResponse(_ACK_HTML.format(
             color="#b03a2e", title="유효하지 않은 링크",
-            msg="확인 링크가 잘못되었거나 만료되었습니다."), status_code=404)
+            msg="확인 링크가 잘못되었거나 만료되었습니다.", link=""), status_code=404)
     when = inc.acknowledged_at.strftime("%Y-%m-%d %H:%M") if inc.acknowledged_at else ""
     who = f" ({inc.acknowledged_by})" if inc.acknowledged_by else ""
+    link = (
+        f'<a href="/incidents/{inc.id}" style="display:inline-block; margin-top:18px; '
+        f'background:#c0564b; color:#fff; padding:10px 22px; border-radius:6px; '
+        f'text-decoration:none; font-weight:600;">장애 상세 보기 →</a>'
+        f'<p style="color:#a0998f; font-size:12px; margin-top:8px;">(로그인이 필요합니다)</p>'
+    )
     return HTMLResponse(_ACK_HTML.format(
         color="#2f9e44", title="확인 완료 ✓",
-        msg=f"장애 #{inc.id} — {inc.alarm_name or ''} 을(를) 확인{who} 처리했습니다.<br>추가 에스컬레이션이 중지됩니다. ({when})"))
+        msg=f"장애 #{inc.id} — {inc.alarm_name or ''} 을(를) 확인{who} 처리했습니다.<br>추가 에스컬레이션이 중지됩니다. ({when})",
+        link=link))
 
 
 @app.get("/api/logs/raw")
