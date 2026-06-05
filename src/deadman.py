@@ -66,7 +66,9 @@ def check_deadman_once() -> None:
     try:
         for host, secs in seen.items():
             if secs <= threshold:
-                _down.discard(host)   # 정상/복구
+                if host in _down:
+                    _down.discard(host)
+                    _resolve_deadman(db, host)   # 복구 → 무응답 장애 자동 정리(resolved)
                 continue
             if secs >= 3600:
                 # 1시간 이상은 비정상(시계 어긋남 등) → 오탐 방지로 발화하지 않음
@@ -84,6 +86,26 @@ def check_deadman_once() -> None:
             _raise_deadman(db, host, site, secs)
     finally:
         db.close()
+
+
+def _resolve_deadman(db, host: str) -> None:
+    """서버가 다시 응답 → 그 host의 미해결 '서버 무응답' 장애를 resolved 처리(에스컬레이션도 중지)."""
+    from datetime import timedelta
+    from src.db.models import Incident
+    recent = datetime.now() - timedelta(hours=24)
+    incs = (
+        db.query(Incident)
+        .filter(Incident.resource_name == host)
+        .filter(Incident.alarm_name == "서버 무응답")
+        .filter(Incident.status == "analyzed")
+        .filter(Incident.created_at >= recent)
+        .all()
+    )
+    for inc in incs:
+        inc.status = "resolved"
+    if incs:
+        db.commit()
+        logger.info("서버 무응답 복구: host=%s → %d건 resolved", host, len(incs))
 
 
 def _raise_deadman(db, host: str, site, secs: float) -> None:
