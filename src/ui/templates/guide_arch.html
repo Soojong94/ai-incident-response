@@ -20,7 +20,8 @@
   .g-flow { background: #161a22; color:#cbd5e0; padding: 16px; border-radius: 8px; font-family: ui-monospace, monospace; font-size: 12.5px; white-space: pre; overflow-x:auto; margin: 8px 0; line-height:1.5; }
   .g-note { border-left: 3px solid var(--primary); padding: 8px 14px; margin: 10px 0; color: var(--text-muted); font-size: 13px; background: rgba(59,91,158,.07); border-radius: 0 4px 4px 0; }
   .g-tag { display:inline-block; background: var(--card-bg-alt); border:1px solid var(--border); border-radius: 4px; padding: 1px 7px; font-size: 12px; color: var(--text-muted); font-family: monospace; }
-  .mermaid { display:flex; justify-content:center; background: var(--card-bg-alt); border:1px solid var(--border); border-radius:8px; padding:16px; overflow-x:auto; margin:8px 0; }
+  .mermaid { background: var(--card-bg-alt); border:1px solid var(--border); border-radius:8px; padding:18px; overflow-x:auto; margin:8px 0; }
+  .mermaid svg { width:100% !important; max-width:100% !important; height:auto; display:block; }
 </style>
 
 <div class="g-wrap">
@@ -146,7 +147,13 @@ flowchart LR
 <script>
   try {
     var _dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    mermaid.initialize({ startOnLoad: true, theme: _dark ? 'dark' : 'neutral', securityLevel: 'loose' });
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: _dark ? 'dark' : 'neutral',
+      securityLevel: 'loose',
+      flowchart: { useMaxWidth: false, htmlLabels: true, nodeSpacing: 55, rankSpacing: 70 },
+      themeVariables: { fontSize: '16px' },
+    });
   } catch (e) {}
 </script>
 {% endblock %}
