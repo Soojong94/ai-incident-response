@@ -53,12 +53,15 @@ async def lifespan(app: FastAPI):
         write_rules(db)   # 사이트별 알람 임계값 → vmalert 룰 초기 생성
     finally:
         db.close()
-    # 서버 무응답(dead-man) 감지 백그라운드 루프
+    # 백그라운드 루프 — 서버 무응답(dead-man) 감지 + 에스컬레이션
     import asyncio
     from src.deadman import deadman_loop
+    from src.escalation import escalation_loop
     deadman_task = asyncio.create_task(deadman_loop())
+    escalation_task = asyncio.create_task(escalation_loop())
     yield
     deadman_task.cancel()
+    escalation_task.cancel()
 
 
 app = FastAPI(title="AI Incident Response", lifespan=lifespan)
@@ -83,7 +86,7 @@ AUTH_EXEMPT_PATHS = {"/login", "/logout", "/favicon.svg", "/favicon.ico", "/forg
 # webhook은 외부 시스템(NCP CF)이 호출하므로 인증 면제.
 # /test/는 더 이상 면제하지 않음 — 인증된 사용자만 트리거 가능.
 # /reset/ 은 토큰이 자격증명 역할이라 인증 면제 prefix.
-AUTH_EXEMPT_PREFIXES = ("/webhook/", "/reset/", "/static/")
+AUTH_EXEMPT_PREFIXES = ("/webhook/", "/reset/", "/static/", "/ack/")
 
 
 def _safe_next(next_url: str) -> str:
@@ -369,6 +372,31 @@ def favicon_ico():
 def guide_page(request: Request, user=Depends(require_user)):
     """모니터링 대상 서버에 Alloy 설치 → 메트릭/로그 전송 → 발화 시 분석 안내."""
     return templates.TemplateResponse(request, "guide.html", {"current_user": user})
+
+
+_ACK_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>장애 확인</title></head>
+<body style="font-family:sans-serif; background:#faf6f3; margin:0; display:flex; min-height:100vh; align-items:center; justify-content:center;">
+<div style="background:#fff; border:2px solid #ddcdc6; border-radius:12px; padding:36px 40px; max-width:440px; text-align:center; box-shadow:0 6px 24px rgba(0,0,0,.08);">
+  <h1 style="color:{color}; font-size:22px; margin:0 0 12px;">{title}</h1>
+  <p style="color:#5b4f49; font-size:15px; line-height:1.6; margin:0;">{msg}</p>
+</div></body></html>"""
+
+
+@app.get("/ack/{token}", response_class=HTMLResponse)
+def ack_incident_page(token: str, db: Session = Depends(get_db)):
+    """이메일의 '확인' 버튼 — 비로그인 접근. 확인 시 에스컬레이션 중지."""
+    from src.db.crud import acknowledge_incident
+    inc = acknowledge_incident(db, token)
+    if not inc:
+        return HTMLResponse(_ACK_HTML.format(
+            color="#b03a2e", title="유효하지 않은 링크",
+            msg="확인 링크가 잘못되었거나 만료되었습니다."), status_code=404)
+    when = inc.acknowledged_at.strftime("%Y-%m-%d %H:%M") if inc.acknowledged_at else ""
+    return HTMLResponse(_ACK_HTML.format(
+        color="#2f9e44", title="확인 완료 ✓",
+        msg=f"장애 #{inc.id} — {inc.alarm_name or ''} 을(를) 확인 처리했습니다.<br>추가 에스컬레이션이 중지됩니다. ({when})"))
 
 
 @app.get("/api/logs/raw")

@@ -19,6 +19,12 @@ class Incident(Base):
     severity = Column(String(50))                       # Critical | High | Medium | Low
     site_id = Column(Integer, ForeignKey("sites.id"), nullable=True, index=True)
     cluster_id = Column(String(36), nullable=True, index=True)  # 같은 site + 5분 윈도우 내 incident 묶음
+    # 확인(ack) + 에스컬레이션
+    ack_token = Column(String(40), nullable=True, index=True)
+    acknowledged_at = Column(DateTime, nullable=True)
+    acknowledged_by = Column(String(200), nullable=True)
+    escalation_level = Column(Integer, default=0)        # 현재까지 알린 최고 단계
+    last_escalated_at = Column(DateTime, nullable=True)
     raw_alarm = Column(JSON)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now)
@@ -146,6 +152,9 @@ class Site(Base):
     mem_threshold = Column(Integer, nullable=True, default=90)    # 메모리 사용률 %
     disk_threshold = Column(Integer, nullable=True, default=85)   # 디스크 사용률 %
     alarm_for_seconds = Column(Integer, default=300)             # 임계 초과 지속시간(초)
+    # 에스컬레이션 — 켜면 단계(level)별로 시차 발송, 미확인 시 다음 단계로 승격
+    escalation_enabled = Column(Boolean, default=False)
+    escalation_delay_minutes = Column(Integer, default=10)
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now)
@@ -165,6 +174,7 @@ class Recipient(Base):
     receive_high = Column(Boolean, default=True)
     receive_medium = Column(Boolean, default=False)
     receive_low = Column(Boolean, default=False)
+    escalation_level = Column(Integer, default=0)   # 0=1차 담당, 숫자↑=상위(마지막=C레벨)
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now)

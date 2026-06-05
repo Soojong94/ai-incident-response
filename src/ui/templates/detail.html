@@ -12,6 +12,11 @@
   {% if incident.severity %}
     <span class="sev-{{ incident.severity }}" style="font-size:18px;">{{ incident.severity }}</span>
   {% endif %}
+  {% if incident.acknowledged_at %}
+    <span style="font-size:13px; padding:3px 10px; border-radius:4px; background:#d3f9d8; color:#2b8a3e;" title="{{ incident.acknowledged_at.strftime('%Y-%m-%d %H:%M') }}">✓ 확인됨{% if incident.acknowledged_by %} · {{ incident.acknowledged_by }}{% endif %}</span>
+  {% elif incident.ack_token %}
+    <span style="font-size:13px; padding:3px 10px; border-radius:4px; background:#fff3bf; color:#a6740a;">미확인 · 에스컬레이션 단계 {{ incident.escalation_level or 0 }}</span>
+  {% endif %}
   {% if current_user and current_user.role == 'admin' %}
   <button class="icon-btn" onclick="reanalyze({{ incident.id }})" style="margin-left:auto;">
     🔄 다시 분석

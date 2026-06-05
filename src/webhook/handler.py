@@ -1,9 +1,11 @@
 import logging
+from datetime import datetime
 
 from src.config import settings
 from src.db.crud import (
     create_incident, create_analysis, update_incident_status, add_logs,
-    get_recipients_for_site, record_notification, get_incident,
+    get_recipients_for_site, get_recipients_for_level, ensure_ack_token,
+    record_notification, get_incident,
     find_similar_ai_note, add_site_note, increment_note_occurrence,
     get_site_notes_for_prompt,
     count_recent_incidents_for_site,
@@ -185,11 +187,24 @@ def _dispatch_notifications(db, incident_id: int, alarm_name: str, analysis: dic
     from src.notifier.email_notifier import send_analysis_complete
     from src.notifier.slack_notifier import send_slack
 
-    # 심각도와 무관하게 사이트 활성 수신자 전원에게 발송 (C/H/M/L 폐지)
-    recipients = get_recipients_for_site(db, site_id=site_id)
+    # 에스컬레이션 켜짐 → 1차(level 0) 수신자에게만 + ack 토큰(미확인 시 스케줄러가 단계 승격).
+    # 꺼짐 → 사이트 활성 수신자 전원에게(심각도 무시).
+    inc = get_incident(db, incident_id)
+    site = inc.site if inc else None
+    ack_token = None
+    if site and getattr(site, "escalation_enabled", False) and site_id:
+        ack_token = ensure_ack_token(db, incident_id)
+        recipients = get_recipients_for_level(db, site_id, 0)
+        if inc:
+            inc.escalation_level = 0
+            inc.last_escalated_at = datetime.now()
+            db.commit()
+    else:
+        recipients = get_recipients_for_site(db, site_id=site_id)
+
     if not recipients:
-        logger.info("수신자 테이블 비어있음 — .env fallback (severity=%s)", severity)
-        ok, err = send_analysis_complete(incident_id, alarm_name, analysis)
+        logger.info("수신자 없음 — .env fallback (severity=%s)", severity)
+        ok, err = send_analysis_complete(incident_id, alarm_name, analysis, ack_token=ack_token)
         record_notification(
             db, incident_id,
             recipient_id=None,
@@ -200,10 +215,10 @@ def _dispatch_notifications(db, incident_id: int, alarm_name: str, analysis: dic
         )
         return
 
-    logger.info("수신자 %d명에게 발송 (severity=%s)", len(recipients), severity)
+    logger.info("수신자 %d명에게 발송 (severity=%s, escalation=%s)", len(recipients), severity, bool(ack_token))
     for r in recipients:
         if r.email:
-            ok, err = send_analysis_complete(incident_id, alarm_name, analysis, recipient_email=r.email)
+            ok, err = send_analysis_complete(incident_id, alarm_name, analysis, recipient_email=r.email, ack_token=ack_token)
             record_notification(
                 db, incident_id, recipient_id=r.id,
                 recipient_label=f"{r.name} <{r.email}>",

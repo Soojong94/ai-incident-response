@@ -2,7 +2,7 @@
 {% block title %}{{ site.name }} — 사이트 상세{% endblock %}
 {% block content %}
 <style>
-  .recipient-row { display:grid; grid-template-columns: 1.2fr 1.6fr 1.3fr 0.4fr 1.6fr; gap:8px; padding:8px 10px; border-top:1px solid var(--border); align-items:center; font-size:13px; }
+  .recipient-row { display:grid; grid-template-columns: 1.2fr 1.5fr 1.1fr 0.5fr 0.4fr 1.5fr; gap:8px; padding:8px 10px; border-top:1px solid var(--border); align-items:center; font-size:13px; }
   .recipient-row > span:last-child button,
   .recipient-row > span:last-child a { white-space: nowrap; flex-shrink: 0; }
   .recipient-row.header { color:var(--text-subtle); font-size:11px; text-transform:uppercase; border-top:none; padding-bottom:4px; }
@@ -302,6 +302,32 @@
   </div>
 </div>
 
+<!-- 에스컬레이션 -->
+<div class="card">
+  <h2>에스컬레이션<span class="qmark" data-tip="켜면 장애 발생 시 1차(단계 0) 수신자에게만 먼저 보내고, 정한 시간 내 '확인'이 없으면 다음 단계 수신자로 승격 발송하며 마지막(최고 단계=C레벨)까지 올립니다. 메일의 '확인' 버튼을 누르면 중지. 수신자별 단계는 아래에서 지정.">?</span>
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">미확인 시 단계별 승격 발송</span>
+  </h2>
+  <!-- VIEW -->
+  <div class="view-only meta-grid">
+    <div class="meta-item"><label>에스컬레이션</label>
+      <span style="font-size:14px;">{% if site.escalation_enabled %}<span style="color:#2f9e44;">● 켜짐</span>{% else %}<span style="color:var(--text-subtle);">○ 꺼짐 (발생 시 전원 발송)</span>{% endif %}</span></div>
+    <div class="meta-item"><label>단계 간 지연</label><span style="font-size:14px;">{{ site.escalation_delay_minutes or 10 }}분</span></div>
+    <div class="meta-item" style="grid-column:1/-1; font-size:11px; color:var(--text-subtle);">
+      켜짐: 단계 0 → ({{ site.escalation_delay_minutes or 10 }}분 미확인) → 단계 1 → … → 최고 단계. 수신자 단계는 아래 "수신자 관리"에서 지정.
+    </div>
+  </div>
+  <!-- EDIT -->
+  <div class="edit-only meta-grid">
+    <div class="meta-item" style="grid-column:1/-1;">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0;">
+        <input id="esc-enabled" type="checkbox" {% if site.escalation_enabled %}checked{% endif %} style="width:auto;"> <strong>에스컬레이션 켜기</strong>
+      </label>
+      <p style="font-size:11px; color:var(--text-subtle); margin-top:6px;">끄면 장애 발생 시 등록 수신자 전원에게 즉시 발송됩니다(기본).</p>
+    </div>
+    <div class="meta-item"><label>단계 간 지연 (분)</label><input id="esc-delay" type="number" min="1" value="{{ site.escalation_delay_minutes or 10 }}" style="width:100%;"></div>
+  </div>
+</div>
+
 <!-- 수신자 관리 -->
 <div class="card">
   <h2>수신자 ({{ site.recipients | length }}명)</h2>
@@ -310,6 +336,7 @@
     <span>이름</span>
     <span>이메일</span>
     <span>Slack Webhook</span>
+    <span title="에스컬레이션 단계 (0=1차 담당)">단계</span>
     <span>활성</span>
     <span></span>
   </div>
@@ -320,13 +347,14 @@
       <span>{{ r.name }}</span>
       <span style="color:var(--text-muted);">{{ r.email or '-' }}</span>
       <span style="color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{% if r.slack_webhook %}✓ 등록됨{% else %}-{% endif %}</span>
+      <span style="text-align:center;">{{ r.escalation_level or 0 }}</span>
       <span>{% if r.enabled %}<span style="color:#68d391;">●</span>{% else %}<span style="color:var(--text-subtle);">○</span>{% endif %}</span>
       <span style="text-align:right; display:flex; gap:4px; justify-content:flex-end;">
         {% if r.email %}
         <button class="icon-btn" onclick="testRecipient({{ r.id }})" title="이메일로 샘플 알림 즉시 발송">테스트</button>
         {% endif %}
         <button class="icon-btn" onclick='editRecipient({{ {
-          "id": r.id, "name": r.name, "email": r.email or "", "slack_webhook": r.slack_webhook or "", "enabled": r.enabled
+          "id": r.id, "name": r.name, "email": r.email or "", "slack_webhook": r.slack_webhook or "", "escalation_level": r.escalation_level or 0, "enabled": r.enabled
         } | tojson }})'>수정</button>
         <button class="icon-btn danger" onclick="deleteRecipient({{ r.id }})">×</button>
       </span>
@@ -341,6 +369,7 @@
       <input type="text" placeholder="이름 *" data-field="name">
       <input type="email" placeholder="user@example.com" data-field="email">
       <input type="url" placeholder="https://hooks.slack.com/services/..." data-field="slack_webhook">
+      <input type="number" data-field="escalation_level" value="0" min="0" title="단계(0=1차)" style="width:100%;">
       <label><input type="checkbox" data-field="enabled" checked></label>
       <button class="nav-btn nav-btn-primary" onclick="addRecipient({{ site.id }})">+ 추가</button>
     </div>
@@ -356,6 +385,7 @@
       <div class="meta-item"><label>이름 *</label><input id="er-name" type="text" style="width:100%;"></div>
       <div class="meta-item"><label>이메일</label><input id="er-email" type="email" style="width:100%;"></div>
       <div class="meta-item" style="grid-column:1/-1;"><label>Slack Webhook URL</label><input id="er-slack" type="url" style="width:100%;"></div>
+      <div class="meta-item"><label>에스컬레이션 단계 <span style="color:var(--text-faint);">(0=1차)</span></label><input id="er-level" type="number" min="0" style="width:100%;"></div>
     </div>
     <div style="margin-bottom:14px;"><label><input type="checkbox" id="er-enabled"> 활성화</label></div>
     <button onclick="submitRecipientEdit()" class="refresh-btn" style="margin-left:0;">저장</button>
@@ -402,6 +432,10 @@ async function saveSite() {
   payload.disk_threshold = alVal('al-disk');
   const alFor = document.getElementById('al-for');
   if (alFor) payload.alarm_for_seconds = parseInt(alFor.value, 10);
+  const escEn = document.getElementById('esc-enabled');
+  if (escEn) payload.escalation_enabled = escEn.checked;
+  const escDelay = document.getElementById('esc-delay');
+  if (escDelay) payload.escalation_delay_minutes = parseInt(escDelay.value, 10);
   const r1 = await fetch(`/api/sites/${SITE_ID}`, {
     method:'PUT',
     headers:{'Content-Type':'application/json'},
@@ -426,6 +460,7 @@ async function addRecipient(siteId) {
     name,
     email: get('email').value.trim(),
     slack_webhook: get('slack_webhook').value.trim(),
+    escalation_level: parseInt(get('escalation_level').value, 10) || 0,
     enabled: get('enabled').checked,
   };
   const resp = await fetch(`/api/sites/${siteId}/recipients`, {
@@ -440,6 +475,7 @@ function editRecipient(r) {
   document.getElementById('er-name').value = r.name || '';
   document.getElementById('er-email').value = r.email || '';
   document.getElementById('er-slack').value = r.slack_webhook || '';
+  document.getElementById('er-level').value = r.escalation_level || 0;
   document.getElementById('er-enabled').checked = !!r.enabled;
   document.getElementById('recipient-edit-modal').style.display = 'flex';
 }
@@ -452,6 +488,7 @@ async function submitRecipientEdit() {
     name: document.getElementById('er-name').value.trim(),
     email: document.getElementById('er-email').value.trim(),
     slack_webhook: document.getElementById('er-slack').value.trim(),
+    escalation_level: parseInt(document.getElementById('er-level').value, 10) || 0,
     enabled: document.getElementById('er-enabled').checked,
   };
   const resp = await fetch(`/api/recipients/${id}`, {

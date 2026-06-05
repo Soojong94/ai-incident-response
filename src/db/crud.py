@@ -615,6 +615,7 @@ def create_recipient(db: Session, data: dict) -> Recipient:
         receive_high=bool(data.get("receive_high", True)),
         receive_medium=bool(data.get("receive_medium", False)),
         receive_low=bool(data.get("receive_low", False)),
+        escalation_level=int(data.get("escalation_level") or 0),
         enabled=bool(data.get("enabled", True)),
     )
     db.add(recipient)
@@ -635,6 +636,11 @@ def update_recipient(db: Session, recipient_id: int, data: dict) -> Recipient | 
     for field in ("receive_critical", "receive_high", "receive_medium", "receive_low", "enabled"):
         if field in data:
             setattr(recipient, field, bool(data[field]))
+    if "escalation_level" in data:
+        try:
+            recipient.escalation_level = max(0, int(data["escalation_level"] or 0))
+        except (TypeError, ValueError):
+            pass
     recipient.updated_at = datetime.now()
     db.commit()
     db.refresh(recipient)
@@ -679,6 +685,76 @@ def get_recipients_for_site(db: Session, site_id: int | None = None) -> list[Rec
     if site_id is not None:
         q = q.filter(Recipient.site_id == site_id)
     return q.all()
+
+
+def get_recipients_for_level(db: Session, site_id: int, level: int) -> list[Recipient]:
+    """사이트의 특정 에스컬레이션 단계(level) 활성 수신자."""
+    return (
+        db.query(Recipient)
+        .filter(Recipient.site_id == site_id)
+        .filter(Recipient.enabled.is_(True))
+        .filter(Recipient.escalation_level == level)
+        .all()
+    )
+
+
+def max_escalation_level(db: Session, site_id: int) -> int:
+    """사이트 수신자 중 최고 단계 (없으면 0)."""
+    rows = (
+        db.query(Recipient.escalation_level)
+        .filter(Recipient.site_id == site_id, Recipient.enabled.is_(True))
+        .all()
+    )
+    return max((r[0] or 0 for r in rows), default=0)
+
+
+def ensure_ack_token(db: Session, incident_id: int) -> str | None:
+    """incident에 ack_token이 없으면 생성해 반환."""
+    import secrets
+    inc = get_incident(db, incident_id)
+    if not inc:
+        return None
+    if not inc.ack_token:
+        inc.ack_token = secrets.token_urlsafe(24)
+        db.commit()
+    return inc.ack_token
+
+
+def acknowledge_incident(db: Session, token: str, by: str | None = None):
+    """ack_token으로 incident를 확인 처리. 이미 확인됐으면 그대로 반환. 없으면 None."""
+    if not token:
+        return None
+    inc = db.query(Incident).filter(Incident.ack_token == token).first()
+    if not inc:
+        return None
+    if not inc.acknowledged_at:
+        inc.acknowledged_at = datetime.now()
+        inc.acknowledged_by = by
+        db.commit()
+    return inc
+
+
+def get_incidents_to_escalate(db: Session) -> list[Incident]:
+    """에스컬레이션 대상 — 미확인 + escalation_enabled + 직전 발송 후 지연 경과 + 최근 24h."""
+    from datetime import timedelta
+    now = datetime.now()
+    cutoff = now - timedelta(hours=24)
+    cands = (
+        db.query(Incident)
+        .join(Site, Incident.site_id == Site.id)
+        .filter(Incident.acknowledged_at.is_(None))
+        .filter(Incident.status == "analyzed")
+        .filter(Incident.created_at >= cutoff)
+        .filter(Site.escalation_enabled.is_(True))
+        .all()
+    )
+    out = []
+    for inc in cands:
+        delay = (inc.site.escalation_delay_minutes or 10) * 60
+        base = inc.last_escalated_at or inc.created_at
+        if (now - base).total_seconds() >= delay:
+            out.append(inc)
+    return out
 
 
 # ── Site CRUD ──────────────────────────────────────────────────────────────
@@ -747,6 +823,13 @@ def update_site(db: Session, site_id: int, data: dict) -> Site | None:
     if "alarm_for_seconds" in data:
         try:
             site.alarm_for_seconds = max(30, int(data["alarm_for_seconds"]))
+        except (TypeError, ValueError):
+            pass
+    if "escalation_enabled" in data:
+        site.escalation_enabled = bool(data["escalation_enabled"])
+    if "escalation_delay_minutes" in data:
+        try:
+            site.escalation_delay_minutes = max(1, int(data["escalation_delay_minutes"]))
         except (TypeError, ValueError):
             pass
     if "enabled" in data:

@@ -61,8 +61,10 @@ def send_analysis_complete(
     alarm_name: str,
     analysis: dict,
     recipient_email: str | None = None,
+    ack_token: str | None = None,
 ) -> tuple[bool, str | None]:
     """recipient_email이 None이면 settings.alert_email로 fallback.
+    ack_token이 있으면 본문에 '확인'(에스컬레이션 중지) 버튼을 추가.
     반환: (성공 여부, 실패 시 사유)"""
     target = recipient_email or settings.alert_email
     if not target or not settings.smtp_user:
@@ -83,6 +85,14 @@ def send_analysis_complete(
     }.get(severity, "#718096")
 
     actions_html = "".join(f"<li style='margin-bottom:8px;'>{a}</li>" for a in actions[:3])
+
+    ack_html = ""
+    if ack_token:
+        ack_html = (
+            f'<a href="{DASHBOARD_URL}/ack/{ack_token}" '
+            f'style="display:inline-block; background:#2f9e44; color:#fff; padding:10px 20px; '
+            f'border-radius:6px; text-decoration:none; font-size:14px; margin-right:8px;">✓ 확인 (에스컬레이션 중지)</a>'
+        )
 
     html = f"""
 <html><body style="font-family:sans-serif; background:#f7fafc; padding:20px;">
@@ -109,7 +119,7 @@ def send_analysis_complete(
 
     <p style="color:#718096; font-size:12px; margin:0 0 16px;">신뢰도: {confidence}</p>
 
-    <a href="{DASHBOARD_URL}/incidents/{incident_id}"
+    {ack_html}<a href="{DASHBOARD_URL}/incidents/{incident_id}"
        style="display:inline-block; background:#3182ce; color:#fff; padding:10px 20px; border-radius:6px; text-decoration:none; font-size:14px;">
       상세 분석 보기 →
     </a>

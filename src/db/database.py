@@ -39,6 +39,11 @@ def _migrate():
         for col, ddl in [
             ("site_id", "ALTER TABLE incidents ADD COLUMN site_id INTEGER REFERENCES sites(id)"),
             ("cluster_id", "ALTER TABLE incidents ADD COLUMN cluster_id VARCHAR(36)"),
+            ("ack_token", "ALTER TABLE incidents ADD COLUMN ack_token VARCHAR(40)"),
+            ("acknowledged_at", "ALTER TABLE incidents ADD COLUMN acknowledged_at DATETIME"),
+            ("acknowledged_by", "ALTER TABLE incidents ADD COLUMN acknowledged_by VARCHAR(200)"),
+            ("escalation_level", "ALTER TABLE incidents ADD COLUMN escalation_level INTEGER DEFAULT 0"),
+            ("last_escalated_at", "ALTER TABLE incidents ADD COLUMN last_escalated_at DATETIME"),
         ]:
             if col not in inc_cols:
                 conn.execute(text(ddl))
@@ -49,6 +54,8 @@ def _migrate():
             rec_cols = {row[1] for row in recipients_info}
             if "site_id" not in rec_cols:
                 conn.execute(text("ALTER TABLE recipients ADD COLUMN site_id INTEGER REFERENCES sites(id)"))
+            if "escalation_level" not in rec_cols:
+                conn.execute(text("ALTER TABLE recipients ADD COLUMN escalation_level INTEGER DEFAULT 0"))
 
         # sites 컬럼
         sites_info = list(conn.execute(text("PRAGMA table_info(sites)")))
@@ -67,6 +74,8 @@ def _migrate():
                 ("rate_limit_window_seconds", "ALTER TABLE sites ADD COLUMN rate_limit_window_seconds INTEGER DEFAULT 300"),
                 ("rate_limit_count", "ALTER TABLE sites ADD COLUMN rate_limit_count INTEGER DEFAULT 3"),
                 ("rate_limit_disabled", "ALTER TABLE sites ADD COLUMN rate_limit_disabled BOOLEAN DEFAULT 0"),
+                ("escalation_enabled", "ALTER TABLE sites ADD COLUMN escalation_enabled BOOLEAN DEFAULT 0"),
+                ("escalation_delay_minutes", "ALTER TABLE sites ADD COLUMN escalation_delay_minutes INTEGER DEFAULT 10"),
             ]:
                 if col not in site_cols:
                     conn.execute(text(ddl))
