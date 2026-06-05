@@ -48,18 +48,27 @@
   <div class="g-card" id="overview">
     <h2>① 전체 구조</h2>
     <div class="mermaid">
-flowchart LR
-  direct["직접 서버<br/>Alloy"] -->|"HTTPS 443 · TLS+basic-auth"| nginx
-  gw["게이트웨이<br/>Alloy · 자기수집+중계"] -->|HTTPS 443| nginx
-  closed["폐쇄망 서버<br/>Alloy"] -->|"사내망 9999/9998"| gw
+flowchart TB
+  subgraph agents["대상 서버 (에이전트)"]
+    direction LR
+    direct["직접 서버<br/>Alloy"]
+    gw["게이트웨이 서버<br/>Alloy · 자기수집 + 폐쇄망 중계"]
+    closed["폐쇄망 서버<br/>Alloy · 인터넷 X"]
+    closed -->|"사내망 9999/9998"| gw
+  end
+  direct -->|"HTTPS 443 · TLS + basic-auth"| nginx
+  gw -->|"HTTPS 443"| nginx
   subgraph central["중앙 서버 · docker compose"]
     direction TB
-    nginx["nginx :443"] --> vm["VictoriaMetrics<br/>(3개월)"]
-    nginx --> vl["VictoriaLogs<br/>(7일)"]
+    nginx["nginx :443<br/>TLS 종단 · 인증"]
+    nginx --> vm["VictoriaMetrics<br/>메트릭 · 3개월"]
+    nginx --> vl["VictoriaLogs<br/>로그 · 7일"]
     nginx --> app["app · FastAPI"]
-    vm --> vmalert --> am["Alertmanager"] -->|webhook 내부| app
-    app -->|"host 직전 5분 로그"| vl
-    app --> out["AI 분석 → DB →<br/>대시보드 · 이메일/Slack"]
+    vm --> vmalert["vmalert · 룰 평가"]
+    vmalert --> am["Alertmanager"]
+    am -->|"webhook 내부"| app
+    app -->|"host 직전 5분 로그 pull"| vl
+    app --> out["AI 분석 → DB →<br/>대시보드 · 이메일 / Slack"]
   end
     </div>
     <div class="g-note">대상 서버에 까는 건 <strong>Grafana Alloy 하나뿐</strong>이고, 중앙은 <span class="g-tag">docker-compose.yml</span> 하나로 수집·저장·알람·분석·대시보드를 전부 띄웁니다.</div>
@@ -151,8 +160,8 @@ flowchart LR
       startOnLoad: true,
       theme: _dark ? 'dark' : 'neutral',
       securityLevel: 'loose',
-      flowchart: { useMaxWidth: false, htmlLabels: true, nodeSpacing: 55, rankSpacing: 70 },
-      themeVariables: { fontSize: '16px' },
+      flowchart: { useMaxWidth: false, htmlLabels: true, nodeSpacing: 60, rankSpacing: 85 },
+      themeVariables: { fontSize: '18px' },
     });
   } catch (e) {}
 </script>
