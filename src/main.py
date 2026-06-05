@@ -17,7 +17,7 @@ from src.db.crud import (
     create_incident, get_incident, get_incidents, count_incidents,
     delete_incident, delete_all_incidents, distinct_metric_types,
     list_recipients, get_recipient, create_recipient, update_recipient, delete_recipient,
-    list_sites, get_site, create_site, update_site, delete_site, list_recipients_for_site,
+    list_sites, get_site, update_site, delete_site, list_recipients_for_site,
     get_user_by_email, get_user, list_users, create_user as crud_create_user,
     update_user as crud_update_user, delete_user as crud_delete_user,
     create_password_reset_token, get_password_reset_token, consume_password_reset_token,
@@ -845,13 +845,6 @@ def site_detail_page(site_id: int, request: Request, db: Session = Depends(get_d
 @app.get("/api/sites")
 def api_list_sites(db: Session = Depends(get_db)) -> list[dict]:
     return [_site_to_dict(s, include_recipients=True) for s in list_sites(db)]
-
-
-@app.post("/api/sites", status_code=201)
-async def api_create_site(request: Request, db: Session = Depends(get_db), _admin=Depends(require_admin)) -> dict:
-    data = await request.json()
-    site = create_site(db, data)
-    return _site_to_dict(site)
 
 
 @app.put("/api/sites/{site_id}")

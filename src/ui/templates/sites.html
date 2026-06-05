@@ -59,41 +59,6 @@
     <span style="font-size:13px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">그룹 {{ groups | length }} · 서버 {{ sites | length }}</span>
   </h2>
   <input type="search" id="site-search" class="search-input" placeholder="그룹 / 서버 검색..." oninput="filterSites()" style="margin-left:24px;">
-  <button class="refresh-btn" onclick="openAddSite()">+ 사이트 추가</button>
-</div>
-
-<!-- 사이트 추가/수정 폼 -->
-<div id="site-form" class="card" style="display:none; margin-bottom:20px;">
-  <h2 id="site-form-title">사이트 추가</h2>
-  <input type="hidden" id="s-id">
-  <div class="meta-grid" style="margin-bottom:12px;">
-    <div class="meta-item">
-      <label>사이트 이름 *</label>
-      <input id="s-name" type="text" placeholder="예: 운영 - 메인 서비스" style="width:100%;">
-    </div>
-    <div class="meta-item">
-      <label>활성화</label>
-      <label><input type="checkbox" id="s-enabled" checked> 알림 활성</label>
-    </div>
-    <div class="meta-item" style="grid-column:1/-1;">
-      <label>설명</label>
-      <input id="s-desc" type="text" placeholder="이 사이트가 무엇을 모니터링하는지 메모" style="width:100%;">
-    </div>
-    <div class="meta-item">
-      <label>resource_name 글로브 패턴</label>
-      <input id="s-pattern" type="text" placeholder="예: team1-*, web-prod-*" style="width:100%;">
-    </div>
-    <div class="meta-item" style="grid-column:1/-1;">
-      <label>아키텍처 (Markdown — AI 분석 시 context로 전달)</label>
-      <textarea id="s-arch" rows="6" placeholder="예:&#10;- 웹 계층: nginx 1.24 (port 80, sticky session)&#10;- 앱 계층: Tomcat 9 (JVM 4GB, 4 instances)&#10;- DB: MySQL 8.0 (master/slave, pool 50)" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"></textarea>
-    </div>
-  </div>
-  <p style="font-size:12px; color:var(--text-subtle); margin-bottom:12px;">
-    💡 인시던트의 host 이름이 resource 패턴(글로브)에 맞으면 이 사이트로 분류되어 수신자에게 발송됩니다.
-    아키텍처는 AI 분석 prompt에 포함되어 더 정확한 원인 추론을 돕습니다.
-  </p>
-  <button onclick="submitSite()" class="refresh-btn" style="margin-left:0;">저장</button>
-  <button onclick="closeSiteForm()" class="icon-btn" style="margin-left:8px;">취소</button>
 </div>
 
 {% if sites %}
@@ -162,8 +127,8 @@
 <div id="empty-search" class="empty" style="display:none;">검색 결과가 없습니다.</div>
 {% else %}
 <div class="empty">
-  <p style="font-size:18px; margin-bottom:8px;">등록된 사이트가 없습니다</p>
-  <p>"사이트 추가" 버튼으로 첫 사이트를 등록하세요.</p>
+  <p style="font-size:18px; margin-bottom:8px;">아직 등록된 서버가 없습니다</p>
+  <p>대상 서버에 에이전트(Alloy)를 설치하면 데이터가 들어오는 즉시 여기에 자동으로 나타납니다. (<a href="/guide">설치 가이드</a>)</p>
 </div>
 {% endif %}
 
@@ -218,58 +183,6 @@ function filterSites() {
   if (params.has('group')) showGroup(params.get('group'));
 })();
 
-function openAddSite() {
-  document.getElementById('site-form-title').textContent = '사이트 추가';
-  document.getElementById('s-id').value = '';
-  document.getElementById('s-name').value = '';
-  document.getElementById('s-desc').value = '';
-  document.getElementById('s-pattern').value = '';
-  document.getElementById('s-arch').value = '';
-  document.getElementById('s-enabled').checked = true;
-  document.getElementById('site-form').style.display = 'block';
-  document.getElementById('s-name').focus();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-async function editSite(s) {
-  document.getElementById('site-form-title').textContent = `사이트 수정 #${s.id}`;
-  document.getElementById('s-id').value = s.id;
-  document.getElementById('s-name').value = s.name;
-  document.getElementById('s-desc').value = s.description || '';
-  document.getElementById('s-pattern').value = s.resource_pattern || '';
-  // 카드에 전달된 데이터엔 architecture가 빠져있을 수 있어 fetch로 보강
-  try {
-    const resp = await fetch('/api/sites');
-    if (resp.ok) {
-      const all = await resp.json();
-      const full = all.find(x => x.id === s.id);
-      document.getElementById('s-arch').value = (full && full.architecture) || '';
-    }
-  } catch (e) {}
-  document.getElementById('s-enabled').checked = !!s.enabled;
-  document.getElementById('site-form').style.display = 'block';
-  document.getElementById('s-name').focus();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-function closeSiteForm() {
-  document.getElementById('site-form').style.display = 'none';
-}
-async function submitSite() {
-  const id = document.getElementById('s-id').value;
-  const name = document.getElementById('s-name').value.trim();
-  if (!name) { alert('사이트 이름은 필수입니다'); return; }
-  const payload = {
-    name,
-    description: document.getElementById('s-desc').value.trim(),
-    resource_pattern: document.getElementById('s-pattern').value.trim(),
-    architecture: document.getElementById('s-arch').value,
-    enabled: document.getElementById('s-enabled').checked,
-  };
-  const url = id ? `/api/sites/${id}` : '/api/sites';
-  const method = id ? 'PUT' : 'POST';
-  const resp = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-  if (!resp.ok) { alert('저장 실패: ' + await resp.text()); return; }
-  location.reload();
-}
 async function deleteSite(id) {
   if (!confirm(`사이트 #${id}를 삭제할까요? (소속 수신자도 함께 삭제됨)`)) return;
   await fetch(`/api/sites/${id}`, { method: 'DELETE' });
