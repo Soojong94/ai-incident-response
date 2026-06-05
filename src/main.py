@@ -363,6 +363,28 @@ def guide_page(request: Request, user=Depends(require_user)):
     return templates.TemplateResponse(request, "guide.html", {"current_user": user})
 
 
+@app.get("/api/logs/raw")
+async def api_logs_raw(host: str, hours: int = 24, download: int = 0, user=Depends(require_user)):
+    """서버(host)의 최근 N시간 로그를 VictoriaLogs(7일 보관)에서 raw 텍스트로 반환.
+    download=1이면 .log 파일로 첨부 다운로드. 장애와 무관하게 수동 열람용."""
+    host = (host or "").strip()
+    if not host:
+        raise HTTPException(status_code=400, detail="host 필요")
+    from src.collector import victorialogs_collector
+    try:
+        lines = await victorialogs_collector.collect_range(host, hours=hours)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"VictoriaLogs 조회 실패: {e}")
+    text = "\n".join(lines) if lines else f"(로그 없음 — host={host}, 최근 {hours}h. 보관 7일 이내인지 확인)"
+    headers = {}
+    if download:
+        from datetime import datetime, timezone
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        safe = "".join(c for c in host if c.isalnum() or c in "-_.") or "host"
+        headers["Content-Disposition"] = f'attachment; filename="{safe}_{stamp}.log"'
+    return Response(content=text, media_type="text/plain; charset=utf-8", headers=headers)
+
+
 # ── Webhook ──────────────────────────────────────────────────────────────────
 
 @app.post("/webhook/alert", status_code=202)

@@ -5,7 +5,7 @@ VictoriaLogs 로그 수집기 (에이전트 기반).
 `obs_collector.collect` 와 **동일한 list[str] 형태**를 반환하므로 analyzer/파이프라인은 무변경 재사용.
 
 - 운영: 같은 사설 subnet의 monitoring_msp VictoriaLogs를 사설 IP로 쿼리 (무인증 → 공인 노출 금지).
-- 쿼리: `{host="<server_name>"} _time:[start, end]` → NDJSON 응답을 `@timestamp/type/message` 형태로 매핑.
+- 쿼리: `host:=<server_name> _time:[start, end]` → NDJSON 응답을 `<ts> [<type>] <message>` 로 매핑.
 """
 import json
 import logging
@@ -34,22 +34,15 @@ def _parse_end(end) -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def collect(host: str, end=None, window_seconds: int | None = None) -> list[str]:
-    """host 의 [end-window, end] 구간 로그를 VictoriaLogs에서 조회.
+async def _query_records(host: str, start_dt: datetime, end_dt: datetime, timeout: int = 60) -> list[tuple[str, str]]:
+    """host의 [start, end] 구간 로그를 VictoriaLogs에서 조회해 (ts, "<ts> [<type>] <msg>") 리스트로 반환.
 
-    반환: "<ts> [<type>] <message>" 문자열 리스트 (시간순, 최근 100줄).
-    실패는 호출측(run_pipeline)에서 graceful degradation 처리.
+    host는 필드 필터(host:=)로 매칭 — Alloy의 Loki push는 host를 스트림 필드가 아닌
+    일반 필드로 저장하므로 `{host="..."}` 스트림 필터로는 안 잡힌다. (필드 필터는 둘 다 매칭)
     """
-    window = window_seconds or settings.log_window_seconds
-    end_dt = _parse_end(end)
-    start_dt = end_dt - timedelta(seconds=window)
-    # host는 필드 필터(host:=)로 매칭 — Alloy의 Loki push는 host를 스트림 필드가 아닌
-    # 일반 필드로 저장하므로 `{host="..."}` 스트림 필터로는 안 잡힌다. (필드 필터는 둘 다 매칭)
     query = f'host:={json.dumps(host)} _time:[{_rfc3339(start_dt)}, {_rfc3339(end_dt)}]'
     url = settings.victorialogs_url.rstrip("/") + "/select/logsql/query"
-
-    logger.info("VictoriaLogs 수집 시작: host=%s, window=%ds", host, window)
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(url, data={"query": query})
         resp.raise_for_status()
         body = resp.text
@@ -70,6 +63,31 @@ async def collect(host: str, end=None, window_seconds: int | None = None) -> lis
         records.append((ts, f"{ts} [{log_type}] {message}"))
 
     records.sort(key=lambda x: x[0])
+    return records
+
+
+async def collect(host: str, end=None, window_seconds: int | None = None) -> list[str]:
+    """host 의 [end-window, end] 구간 로그를 VictoriaLogs에서 조회 (AI 분석용, 최근 100줄).
+
+    실패는 호출측(run_pipeline)에서 graceful degradation 처리.
+    """
+    window = window_seconds or settings.log_window_seconds
+    end_dt = _parse_end(end)
+    start_dt = end_dt - timedelta(seconds=window)
+    logger.info("VictoriaLogs 수집 시작: host=%s, window=%ds", host, window)
+    records = await _query_records(host, start_dt, end_dt, timeout=30)
     logs = [entry for _, entry in records[-100:]]
     logger.info("VictoriaLogs 로그 %d줄 수집 완료 (전체 %d줄)", len(logs), len(records))
     return logs
+
+
+async def collect_range(host: str, hours: int = 24, limit: int = 20000) -> list[str]:
+    """host 의 최근 N시간 로그를 조회 (대시보드 수동 열람/다운로드용).
+
+    보관기간(7일=168h) 안에서 hours 만큼. 최대 limit 줄(과대 응답 방지).
+    """
+    hours = max(1, min(hours, 168))
+    end_dt = datetime.now(timezone.utc)
+    start_dt = end_dt - timedelta(hours=hours)
+    records = await _query_records(host, start_dt, end_dt, timeout=60)
+    return [entry for _, entry in records[-limit:]]

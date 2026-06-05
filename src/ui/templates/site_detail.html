@@ -144,6 +144,32 @@
   </div>
 </div>
 
+<!-- 서버 로그 (7일 보관) 카드 -->
+<div class="card">
+  <h2>서버 로그<span class="qmark" data-tip="중앙 VictoriaLogs에 7일 보관된 이 서버의 로그를 시간대별로 조회/다운로드. 장애와 무관하게 수동으로 볼 수 있습니다.">?</span>
+    <span style="font-size:12px; color:var(--text-subtle); font-weight:normal; margin-left:8px;">최근 7일 raw 로그 열람 · 다운로드</span>
+  </h2>
+  <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+    <div class="meta-item" style="margin:0;">
+      <label>호스트(host)</label>
+      <input id="log-host" type="text" value="{{ site.name }}" style="font-family:monospace;">
+    </div>
+    <div class="meta-item" style="margin:0;">
+      <label>기간</label>
+      <select id="log-hours">
+        <option value="1">최근 1시간</option>
+        <option value="6">최근 6시간</option>
+        <option value="24" selected>최근 24시간</option>
+        <option value="72">최근 3일</option>
+        <option value="168">최근 7일</option>
+      </select>
+    </div>
+    <button class="nav-btn nav-btn-outline" onclick="previewLogs()">미리보기</button>
+    <button class="nav-btn nav-btn-primary" onclick="downloadLogs()">&#8595; 다운로드</button>
+  </div>
+  <pre id="log-preview" style="display:none; margin-top:14px; max-height:380px; overflow:auto; background:var(--card-bg-alt); border:2px solid var(--border); border-radius:6px; padding:12px; font-size:12px; white-space:pre-wrap; word-break:break-all;"></pre>
+</div>
+
 <!-- 아키텍처 카드 -->
 <div class="card">
   <h2>아키텍처<span class="qmark" data-tip="이 사이트의 인프라 구성을 적어두면 AI가 장애를 분석할 때 참고해 더 정확해집니다. 예: nginx → Tomcat 2대 → MySQL, Redis 캐시">?</span>
@@ -445,6 +471,32 @@ async function deleteRecipient(id) {
   if (!confirm(`수신자 #${id}를 삭제할까요?`)) return;
   await fetch(`/api/recipients/${id}`, { method:'DELETE' });
   location.reload();
+}
+
+// ── 서버 로그 (7일 보관) ─────────────────────────────────────────────
+function _logUrl(download) {
+  const host = encodeURIComponent(document.getElementById('log-host').value.trim());
+  const hours = document.getElementById('log-hours').value;
+  return `/api/logs/raw?host=${host}&hours=${hours}&download=${download}`;
+}
+async function previewLogs() {
+  const host = document.getElementById('log-host').value.trim();
+  if (!host) { alert('호스트를 입력하세요'); return; }
+  const pre = document.getElementById('log-preview');
+  pre.style.display = 'block';
+  pre.textContent = '조회 중…';
+  try {
+    const resp = await fetch(_logUrl(0));
+    const text = await resp.text();
+    if (!resp.ok) { pre.textContent = '실패: ' + text; return; }
+    const lines = text.split('\n');
+    pre.textContent = lines.length > 300 ? '… (전체 ' + lines.length + '줄 중 마지막 300줄 — 전체는 다운로드)\n\n' + lines.slice(-300).join('\n') : text;
+  } catch (e) { pre.textContent = '오류: ' + e; }
+}
+function downloadLogs() {
+  const host = document.getElementById('log-host').value.trim();
+  if (!host) { alert('호스트를 입력하세요'); return; }
+  window.open(_logUrl(1), '_blank');
 }
 
 // ── Site notes ─────────────────────────────────────────────────────
