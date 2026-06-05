@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}아키텍처 — AI 장애 대응{% endblock %}
+{% block content %}
+<style>
+  .g-wrap { max-width: 980px; }
+  .g-tabs { display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
+  .g-tab { padding:8px 16px; border:2px solid var(--border); border-radius:8px; text-decoration:none; font-size:14px; color:var(--text); background:var(--card-bg); }
+  .g-tab.active { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:700; }
+  .g-toc { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin-bottom: 18px; }
+  .g-toc a { color: var(--text); text-decoration: none; margin-right: 14px; font-size: 13px; white-space:nowrap; }
+  .g-toc a:hover { text-decoration: underline; }
+  .g-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 18px; }
+  .g-card h2 { font-size: 18px; color: var(--text); margin-bottom: 12px; }
+  .g-card h3 { font-size: 13px; color: var(--text-subtle); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .g-card p, .g-card li, .g-card td { color: var(--text-muted); font-size: 14px; line-height: 1.75; }
+  .g-card strong { color: var(--text); }
+  .g-card table { width:100%; border-collapse:collapse; margin:8px 0; }
+  .g-card th, .g-card td { border:1px solid var(--border); padding:7px 10px; text-align:left; vertical-align:top; }
+  .g-card th { background: var(--card-bg-alt); color: var(--text-subtle); font-size:12px; }
+  .g-flow { background: #161a22; color:#cbd5e0; padding: 16px; border-radius: 8px; font-family: ui-monospace, monospace; font-size: 12.5px; white-space: pre; overflow-x:auto; margin: 8px 0; line-height:1.5; }
+  .g-note { border-left: 3px solid var(--primary); padding: 8px 14px; margin: 10px 0; color: var(--text-muted); font-size: 13px; background: rgba(59,91,158,.07); border-radius: 0 4px 4px 0; }
+  .g-tag { display:inline-block; background: var(--card-bg-alt); border:1px solid var(--border); border-radius: 4px; padding: 1px 7px; font-size: 12px; color: var(--text-muted); font-family: monospace; }
+</style>
+
+<div class="g-wrap">
+  <h1 style="font-size:24px; margin-bottom:10px;">🏗 아키텍처</h1>
+  <div class="g-tabs">
+    <a href="/guide" class="g-tab">① 설치</a>
+    <a href="/guide/alerts" class="g-tab">② 알람 · 운영</a>
+    <a href="/guide/architecture" class="g-tab active">③ 아키텍처</a>
+  </div>
+  <p style="color:var(--text-muted); margin-bottom:16px;">에이전트 기반(vendor-neutral) 구조 — 대상 서버엔 Alloy 하나, 중앙은 한 묶음(all-in-one)으로 수집·알람·분석을 처리합니다.</p>
+
+  <div class="g-toc">
+    <strong style="font-size:12px; color:var(--text-subtle);">바로가기</strong>&nbsp;&nbsp;
+    <a href="#overview">① 전체 구조</a>
+    <a href="#flow">② 데이터 흐름</a>
+    <a href="#agents">③ 에이전트 3역할</a>
+    <a href="#central">④ 중앙 구성요소</a>
+    <a href="#security">⑤ 보안</a>
+    <a href="#labels">⑥ 라벨 체계</a>
+    <a href="#ai">⑦ AI 분석</a>
+  </div>
+
+  <!-- ① -->
+  <div class="g-card" id="overview">
+    <h2>① 전체 구조</h2>
+    <div class="g-flow">[대상 서버들]
+  직접(direct)      Alloy ───────────────── HTTPS 443 (TLS + basic-auth) ──┐
+   인터넷O                                                                  │
+  게이트웨이(gateway) Alloy(자기수집 + 폐쇄망 중계) ──── HTTPS 443 ──────────┤
+   인터넷O   ▲ 사내망 9999/9998                                            ▼
+  폐쇄망(closed)    Alloy ── 사내망 ──┘                          ┌──────────────────────────┐
+   인터넷X                                                       │   중앙 서버 (docker compose) │
+                                                                 │  nginx(443)                │
+                                                                 │   ├ /vm/ → VictoriaMetrics │
+                                                                 │   ├ /vl/ → VictoriaLogs    │
+                                                                 │   └ /   → app(FastAPI)     │
+                                                                 │  vmalert → Alertmanager    │
+                                                                 │   └ webhook(내부) → app     │
+                                                                 │  app → 로그 pull → AI 분석   │
+                                                                 │   → DB → 대시보드 + 이메일   │
+                                                                 └──────────────────────────┘</div>
+    <div class="g-note">대상 서버에 까는 건 <strong>Grafana Alloy 하나뿐</strong>. 중앙은 <span class="g-tag">docker-compose.yml</span> 하나로 수집·저장·알람·분석·대시보드를 전부 띄웁니다. 클라우드 종속 요소(NCP CF/OBS 등)는 없습니다.</div>
+  </div>
+
+  <!-- ② -->
+  <div class="g-card" id="flow">
+    <h2>② 데이터 흐름</h2>
+    <ol>
+      <li><strong>상시 전송</strong> — Alloy가 메트릭(15초)·로그를 <strong>HTTPS 443</strong>(<span class="g-tag">/vm/</span>,<span class="g-tag">/vl/</span>)으로 보냄 → nginx가 TLS 종단 + basic-auth 후 내부 VictoriaMetrics/Logs로.</li>
+      <li><strong>룰 평가</strong> — vmalert가 사이트별 임계값 룰을 평가, 초과 지속 시 <strong>Alertmanager</strong>로 알림.</li>
+      <li><strong>webhook</strong> — Alertmanager가 <strong>내부에서</strong> <span class="g-tag">POST /webhook/alert</span> 호출(외부 비공개).</li>
+      <li><strong>로그 pull</strong> — app이 그 host의 <strong>직전 5분 로그를 VictoriaLogs에서</strong> 조회.</li>
+      <li><strong>AI 분석</strong> — 원인/심각도/조치 분석 → DB 저장 → <strong>대시보드 + 이메일/Slack</strong>.</li>
+    </ol>
+    <p>서버 무응답(3분 미수신)은 vmalert가 아니라 <strong>app이 직접 감지</strong>해 같은 경로로 장애를 만듭니다.</p>
+  </div>
+
+  <!-- ③ -->
+  <div class="g-card" id="agents">
+    <h2>③ 에이전트 3역할 (종류는 2 + 역할 1)</h2>
+    <table>
+      <tr><th>역할</th><th>인터넷</th><th>설명</th><th>config</th></tr>
+      <tr><td><strong>직접</strong></td><td>O</td><td>중앙으로 바로 전송하는 일반 서버</td><td><span class="g-tag">config.alloy</span></td></tr>
+      <tr><td><strong>게이트웨이</strong></td><td>O</td><td>직접 서버가 <strong>폐쇄망 서버 중계까지 겸함</strong>(= 공인IP/조직 단위)</td><td><span class="g-tag">gateway.alloy</span></td></tr>
+      <tr><td><strong>폐쇄망</strong></td><td>X</td><td>인터넷이 없어 <strong>게이트웨이 경유</strong>로만 전송</td><td><span class="g-tag">closed.alloy</span></td></tr>
+    </table>
+    <p>"종류"는 <strong>직접/폐쇄망 2가지</strong>, 게이트웨이는 직접이 중계 역할을 겸한 것. 중앙 방화벽엔 <strong>게이트웨이 IP만</strong> 열면 폐쇄망까지 커버됩니다. (설치는 <a href="/guide">① 설치</a>)</p>
+  </div>
+
+  <!-- ④ -->
+  <div class="g-card" id="central">
+    <h2>④ 중앙 구성요소</h2>
+    <table>
+      <tr><th>서비스</th><th>역할</th><th>보관</th></tr>
+      <tr><td><strong>nginx</strong> (443)</td><td>TLS 종단, <span class="g-tag">/vm/</span>·<span class="g-tag">/vl/</span> 인제스트(basic-auth), 대시보드, webhook 외부 차단</td><td>—</td></tr>
+      <tr><td><strong>VictoriaMetrics</strong></td><td>메트릭 저장 + 룰 평가 데이터소스</td><td>3개월</td></tr>
+      <tr><td><strong>VictoriaLogs</strong></td><td>로그 저장 — 알람 시 직전 5분 조회</td><td><strong>7일</strong></td></tr>
+      <tr><td><strong>vmalert</strong></td><td>사이트별 임계값 룰 평가 → Alertmanager</td><td>—</td></tr>
+      <tr><td><strong>Alertmanager</strong></td><td>dedup/그룹핑 → app webhook</td><td>—</td></tr>
+      <tr><td><strong>app</strong> (FastAPI)</td><td>webhook 수신, 로그 pull, AI 분석, 대시보드, 무응답/에스컬레이션</td><td>DB</td></tr>
+    </table>
+  </div>
+
+  <!-- ⑤ -->
+  <div class="g-card" id="security">
+    <h2>⑤ 보안</h2>
+    <ul>
+      <li><strong>전송 구간 TLS</strong> — 에이전트→중앙은 평문 8428/9428이 아니라 <strong>HTTPS 443 + basic-auth</strong>. 로그가 평문으로 인터넷을 타지 않음.</li>
+      <li><strong>무인증 포트 비공개</strong> — VictoriaMetrics/Logs(8428/9428)는 컨테이너 내부에서만. 절대 공개 금지.</li>
+      <li><strong>webhook 비공개</strong> — <span class="g-tag">/webhook/alert</span>는 nginx에서 외부 차단(Alertmanager는 내부 호출). 분리 배포 시 <span class="g-tag">WEBHOOK_SECRET</span> 토큰.</li>
+      <li><strong>로그인</strong> — 비밀번호 bcrypt 해시, 서명 세션 쿠키(Secure).</li>
+      <li><strong>방화벽</strong> — 중앙은 <strong>443만</strong> 공개(에이전트 IP로 제한 권장).</li>
+    </ul>
+  </div>
+
+  <!-- ⑥ -->
+  <div class="g-card" id="labels">
+    <h2>⑥ 라벨 체계</h2>
+    <table>
+      <tr><th>라벨</th><th>의미</th><th>설정</th></tr>
+      <tr><td><span class="g-tag">host</span></td><td>서버 = 대시보드 사이트 = 알람 키 = 로그 조회 키</td><td>에이전트 <span class="g-tag">RESOURCE_NAME</span></td></tr>
+      <tr><td><span class="g-tag">group</span></td><td>상위 조직(공인IP/게이트웨이 단위) — 대시보드 묶음</td><td>에이전트 <span class="g-tag">GROUP_NAME</span> (게이트웨이가 폐쇄망분까지 찍음)</td></tr>
+      <tr><td><span class="g-tag">job</span></td><td>로그 출처 구분(syslog/journal 등)</td><td>config 고정</td></tr>
+    </table>
+    <p><strong>host 이름 = 사이트 = 알람 라벨 = 로그 라벨</strong>을 일치시키는 게 핵심입니다(전 구간 같은 키로 추적).</p>
+  </div>
+
+  <!-- ⑦ -->
+  <div class="g-card" id="ai">
+    <h2>⑦ AI 분석</h2>
+    <p>알람마다 <strong>직전 5분 로그 + 맥락</strong>을 모아 LLM에 보내 구조화된 결과(원인 분류·상세·심각도·영향·즉시조치·재발방지·신뢰도)를 받습니다.</p>
+    <h3>분석에 함께 주는 맥락</h3>
+    <ul>
+      <li><strong>아키텍처 메모</strong> — 사이트에 적어둔 인프라 구성</li>
+      <li><strong>사이트 메모</strong> — 운영 메모 + AI가 누적한 반복 원인(👍 시 승격)</li>
+      <li><strong>과거 분석</strong> — 같은 서버의 최근 분석 결과</li>
+    </ul>
+    <p>제공자 교체는 <span class="g-tag">src/analyzer/ai_client.py</span> 한 파일만 수정하면 됩니다(Timely GPT ↔ Claude 등).</p>
+  </div>
+</div>
+{% endblock %}

@@ -384,6 +384,12 @@ def guide_alerts_page(request: Request, user=Depends(require_user)):
     return templates.TemplateResponse(request, "guide_alerts.html", {"current_user": user})
 
 
+@app.get("/guide/architecture", response_class=HTMLResponse)
+def guide_arch_page(request: Request, user=Depends(require_user)):
+    """③ 아키텍처 — 에이전트/중앙 스택/데이터 흐름/보안/라벨 체계."""
+    return templates.TemplateResponse(request, "guide_arch.html", {"current_user": user})
+
+
 _ACK_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>장애 확인</title></head>
