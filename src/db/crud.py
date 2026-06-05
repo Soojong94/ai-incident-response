@@ -668,6 +668,19 @@ def get_recipients_for_severity(db: Session, severity: str, site_id: int | None 
     return q.all()
 
 
+def get_recipients_for_site(db: Session, site_id: int | None = None) -> list[Recipient]:
+    """사이트의 활성 수신자 전원 (심각도 무시 — 알람 발생 시 등록자 전원 발송 정책)."""
+    q = (
+        db.query(Recipient)
+        .outerjoin(Site, Recipient.site_id == Site.id)
+        .filter(Recipient.enabled.is_(True))
+        .filter((Site.enabled.is_(True)) | (Recipient.site_id.is_(None)))
+    )
+    if site_id is not None:
+        q = q.filter(Recipient.site_id == site_id)
+    return q.all()
+
+
 # ── Site CRUD ──────────────────────────────────────────────────────────────
 
 def list_sites(db: Session) -> list[Site]:

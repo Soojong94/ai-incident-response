@@ -2,7 +2,7 @@
 {% block title %}{{ site.name }} — 사이트 상세{% endblock %}
 {% block content %}
 <style>
-  .recipient-row { display:grid; grid-template-columns: 1.2fr 1.5fr 1.2fr 1fr 0.4fr 1.6fr; gap:8px; padding:8px 10px; border-top:1px solid var(--border); align-items:center; font-size:13px; }
+  .recipient-row { display:grid; grid-template-columns: 1.2fr 1.6fr 1.3fr 0.4fr 1.6fr; gap:8px; padding:8px 10px; border-top:1px solid var(--border); align-items:center; font-size:13px; }
   .recipient-row > span:last-child button,
   .recipient-row > span:last-child a { white-space: nowrap; flex-shrink: 0; }
   .recipient-row.header { color:var(--text-subtle); font-size:11px; text-transform:uppercase; border-top:none; padding-bottom:4px; }
@@ -292,7 +292,6 @@
     <span>이름</span>
     <span>이메일</span>
     <span>Slack Webhook</span>
-    <span>심각도</span>
     <span>활성</span>
     <span></span>
   </div>
@@ -303,21 +302,13 @@
       <span>{{ r.name }}</span>
       <span style="color:var(--text-muted);">{{ r.email or '-' }}</span>
       <span style="color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{% if r.slack_webhook %}✓ 등록됨{% else %}-{% endif %}</span>
-      <span style="font-size:11px;">
-        {% if r.receive_critical %}<span class="sev-Critical">C</span>{% endif %}
-        {% if r.receive_high %}<span class="sev-High">H</span>{% endif %}
-        {% if r.receive_medium %}<span class="sev-Medium">M</span>{% endif %}
-        {% if r.receive_low %}<span class="sev-Low">L</span>{% endif %}
-      </span>
       <span>{% if r.enabled %}<span style="color:#68d391;">●</span>{% else %}<span style="color:var(--text-subtle);">○</span>{% endif %}</span>
       <span style="text-align:right; display:flex; gap:4px; justify-content:flex-end;">
         {% if r.email %}
         <button class="icon-btn" onclick="testRecipient({{ r.id }})" title="이메일로 샘플 알림 즉시 발송">테스트</button>
         {% endif %}
         <button class="icon-btn" onclick='editRecipient({{ {
-          "id": r.id, "name": r.name, "email": r.email or "", "slack_webhook": r.slack_webhook or "",
-          "receive_critical": r.receive_critical, "receive_high": r.receive_high,
-          "receive_medium": r.receive_medium, "receive_low": r.receive_low, "enabled": r.enabled
+          "id": r.id, "name": r.name, "email": r.email or "", "slack_webhook": r.slack_webhook or "", "enabled": r.enabled
         } | tojson }})'>수정</button>
         <button class="icon-btn danger" onclick="deleteRecipient({{ r.id }})">×</button>
       </span>
@@ -332,12 +323,6 @@
       <input type="text" placeholder="이름 *" data-field="name">
       <input type="email" placeholder="user@example.com" data-field="email">
       <input type="url" placeholder="https://hooks.slack.com/services/..." data-field="slack_webhook">
-      <span class="sev-toggle">
-        <label><input type="checkbox" data-field="receive_critical" checked><span class="sev-Critical">C</span></label>
-        <label><input type="checkbox" data-field="receive_high" checked><span class="sev-High">H</span></label>
-        <label><input type="checkbox" data-field="receive_medium"><span class="sev-Medium">M</span></label>
-        <label><input type="checkbox" data-field="receive_low"><span class="sev-Low">L</span></label>
-      </span>
       <label><input type="checkbox" data-field="enabled" checked></label>
       <button class="nav-btn nav-btn-primary" onclick="addRecipient({{ site.id }})">+ 추가</button>
     </div>
@@ -353,13 +338,6 @@
       <div class="meta-item"><label>이름 *</label><input id="er-name" type="text" style="width:100%;"></div>
       <div class="meta-item"><label>이메일</label><input id="er-email" type="email" style="width:100%;"></div>
       <div class="meta-item" style="grid-column:1/-1;"><label>Slack Webhook URL</label><input id="er-slack" type="url" style="width:100%;"></div>
-    </div>
-    <div style="margin-bottom:14px;">
-      <label style="font-size:12px; color:var(--text-subtle); display:block; margin-bottom:6px;">수신 심각도</label>
-      <label style="margin-right:14px;"><input type="checkbox" id="er-critical"> <span class="sev-Critical">Critical</span></label>
-      <label style="margin-right:14px;"><input type="checkbox" id="er-high"> <span class="sev-High">High</span></label>
-      <label style="margin-right:14px;"><input type="checkbox" id="er-medium"> <span class="sev-Medium">Medium</span></label>
-      <label style="margin-right:14px;"><input type="checkbox" id="er-low"> <span class="sev-Low">Low</span></label>
     </div>
     <div style="margin-bottom:14px;"><label><input type="checkbox" id="er-enabled"> 활성화</label></div>
     <button onclick="submitRecipientEdit()" class="refresh-btn" style="margin-left:0;">저장</button>
@@ -421,10 +399,6 @@ async function addRecipient(siteId) {
     name,
     email: get('email').value.trim(),
     slack_webhook: get('slack_webhook').value.trim(),
-    receive_critical: get('receive_critical').checked,
-    receive_high: get('receive_high').checked,
-    receive_medium: get('receive_medium').checked,
-    receive_low: get('receive_low').checked,
     enabled: get('enabled').checked,
   };
   const resp = await fetch(`/api/sites/${siteId}/recipients`, {
@@ -439,10 +413,6 @@ function editRecipient(r) {
   document.getElementById('er-name').value = r.name || '';
   document.getElementById('er-email').value = r.email || '';
   document.getElementById('er-slack').value = r.slack_webhook || '';
-  document.getElementById('er-critical').checked = !!r.receive_critical;
-  document.getElementById('er-high').checked = !!r.receive_high;
-  document.getElementById('er-medium').checked = !!r.receive_medium;
-  document.getElementById('er-low').checked = !!r.receive_low;
   document.getElementById('er-enabled').checked = !!r.enabled;
   document.getElementById('recipient-edit-modal').style.display = 'flex';
 }
@@ -455,10 +425,6 @@ async function submitRecipientEdit() {
     name: document.getElementById('er-name').value.trim(),
     email: document.getElementById('er-email').value.trim(),
     slack_webhook: document.getElementById('er-slack').value.trim(),
-    receive_critical: document.getElementById('er-critical').checked,
-    receive_high: document.getElementById('er-high').checked,
-    receive_medium: document.getElementById('er-medium').checked,
-    receive_low: document.getElementById('er-low').checked,
     enabled: document.getElementById('er-enabled').checked,
   };
   const resp = await fetch(`/api/recipients/${id}`, {

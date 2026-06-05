@@ -3,7 +3,7 @@ import logging
 from src.config import settings
 from src.db.crud import (
     create_incident, create_analysis, update_incident_status, add_logs,
-    get_recipients_for_severity, record_notification, get_incident,
+    get_recipients_for_site, record_notification, get_incident,
     find_similar_ai_note, add_site_note, increment_note_occurrence,
     get_site_notes_for_prompt,
     count_recent_incidents_for_site,
@@ -185,7 +185,8 @@ def _dispatch_notifications(db, incident_id: int, alarm_name: str, analysis: dic
     from src.notifier.email_notifier import send_analysis_complete
     from src.notifier.slack_notifier import send_slack
 
-    recipients = get_recipients_for_severity(db, severity, site_id=site_id)
+    # 심각도와 무관하게 사이트 활성 수신자 전원에게 발송 (C/H/M/L 폐지)
+    recipients = get_recipients_for_site(db, site_id=site_id)
     if not recipients:
         logger.info("수신자 테이블 비어있음 — .env fallback (severity=%s)", severity)
         ok, err = send_analysis_complete(incident_id, alarm_name, analysis)
