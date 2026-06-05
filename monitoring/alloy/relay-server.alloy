@@ -22,7 +22,22 @@ prometheus.relabel "self" {
   }
 }
 
-// ── 메트릭 수신 → 중앙 전달 ──
+// ── 이 서버 자신의 로그도 수집 → 중앙 ──
+local.file_match "self_logs" {
+  path_targets = [{ "__path__" = "/var/log/**/*.log" }]
+}
+loki.source.file "self_logs" {
+  targets    = local.file_match.self_logs.targets
+  forward_to = [loki.process.self_logs.receiver]
+}
+loki.process "self_logs" {
+  forward_to = [loki.write.central.receiver]
+  stage.static_labels {
+    values = { host = sys.env("RESOURCE_NAME"), job = "syslog" }
+  }
+}
+
+// ── (relay) 내부 agent 메트릭 수신 → 중앙 전달 ──
 prometheus.receive_http "in" {
   http {
     listen_address = "0.0.0.0"
