@@ -370,8 +370,14 @@ def favicon_ico():
 
 @app.get("/guide", response_class=HTMLResponse)
 def guide_page(request: Request, user=Depends(require_user)):
-    """모니터링 대상 서버에 Alloy 설치 → 메트릭/로그 전송 → 발화 시 분석 안내."""
+    """① 설치 가이드 — 대상 서버에 Alloy 설치 → 메트릭/로그 전송."""
     return templates.TemplateResponse(request, "guide.html", {"current_user": user})
+
+
+@app.get("/guide/alerts", response_class=HTMLResponse)
+def guide_alerts_page(request: Request, user=Depends(require_user)):
+    """② 알람·운영 가이드 — 임계값/무응답/중복방지/해제/에스컬레이션/확인 동작 설명."""
+    return templates.TemplateResponse(request, "guide_alerts.html", {"current_user": user})
 
 
 _ACK_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8">

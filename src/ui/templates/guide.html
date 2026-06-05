@@ -3,6 +3,9 @@
 {% block content %}
 <style>
   .g-wrap { max-width: 960px; }
+  .g-tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .g-tab { padding:8px 16px; border:2px solid var(--border); border-radius:8px; text-decoration:none; font-size:14px; color:var(--text); background:var(--card-bg); }
+  .g-tab.active { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:700; }
   .g-toc { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin-bottom: 18px; }
   .g-toc a { color: var(--text); text-decoration: none; margin-right: 14px; font-size: 13px; white-space:nowrap; }
   .g-toc a:hover { text-decoration: underline; }
@@ -20,8 +23,12 @@
 </style>
 
 <div class="g-wrap">
-  <h1 style="font-size:24px; margin-bottom:6px;">📘 사용 가이드</h1>
-  <p style="color:var(--text-muted); margin-bottom:16px;">서버에 에이전트(Alloy)를 설치해 장애를 자동 감지·분석하는 방법입니다. <strong>내 서버 유형(공인망/폐쇄망)을 ②에서 고르고</strong>, 해당 케이스(③ 또는 ④)를 그대로 따라 하면 됩니다.</p>
+  <h1 style="font-size:24px; margin-bottom:10px;">📘 설치 가이드</h1>
+  <div class="g-tabs">
+    <a href="/guide" class="g-tab active">① 설치</a>
+    <a href="/guide/alerts" class="g-tab">② 알람 · 운영</a>
+  </div>
+  <p style="color:var(--text-muted); margin-bottom:16px;">서버에 에이전트(Alloy)를 설치해 장애를 자동 감지·분석하는 방법입니다. <strong>내 서버 유형(공인망/폐쇄망)을 ②에서 고르고</strong>, 해당 케이스(③ 또는 ④)를 그대로 따라 하면 됩니다. (알람이 어떻게 동작하는지는 <a href="/guide/alerts">② 알람·운영</a>)</p>
 
   <div class="g-toc">
     <strong style="font-size:12px; color:var(--text-subtle);">바로가기</strong>&nbsp;&nbsp;

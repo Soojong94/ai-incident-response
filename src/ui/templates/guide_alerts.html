@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}알람·운영 가이드 — AI 장애 대응{% endblock %}
+{% block content %}
+<style>
+  .g-wrap { max-width: 960px; }
+  .g-tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .g-tab { padding:8px 16px; border:2px solid var(--border); border-radius:8px; text-decoration:none; font-size:14px; color:var(--text); background:var(--card-bg); }
+  .g-tab.active { background:var(--primary); color:#fff; border-color:var(--primary); font-weight:700; }
+  .g-toc { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin-bottom: 18px; }
+  .g-toc a { color: var(--text); text-decoration: none; margin-right: 14px; font-size: 13px; white-space:nowrap; }
+  .g-toc a:hover { text-decoration: underline; }
+  .g-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin-bottom: 18px; }
+  .g-card h2 { font-size: 18px; color: var(--text); margin-bottom: 12px; }
+  .g-card h3 { font-size: 13px; color: var(--text-subtle); margin: 16px 0 6px; text-transform: uppercase; letter-spacing: .05em; }
+  .g-card p, .g-card li, .g-card td { color: var(--text-muted); font-size: 14px; line-height: 1.75; }
+  .g-card strong { color: var(--text); }
+  .g-card table { width:100%; border-collapse:collapse; margin:8px 0; }
+  .g-card th, .g-card td { border:1px solid var(--border); padding:7px 10px; text-align:left; vertical-align:top; }
+  .g-card th { background: var(--card-bg-alt); color: var(--text-subtle); font-size:12px; }
+  .g-flow { background: #1a202c; color:#cbd5e0; padding: 14px; border-radius: 6px; font-family: monospace; font-size: 12.5px; white-space: pre; overflow-x:auto; margin: 8px 0; }
+  .g-note { border-left: 3px solid #c0564b; padding: 8px 14px; margin: 10px 0; color: var(--text-muted); font-size: 13px; background: rgba(192,86,75,.08); border-radius: 0 4px 4px 0; }
+  .g-tag { display:inline-block; background: var(--card-bg-alt); border:1px solid var(--border); border-radius: 4px; padding: 1px 7px; font-size: 12px; color: var(--text-muted); font-family: monospace; }
+</style>
+
+<div class="g-wrap">
+  <h1 style="font-size:24px; margin-bottom:10px;">📗 알람 · 운영 가이드</h1>
+  <div class="g-tabs">
+    <a href="/guide" class="g-tab">① 설치</a>
+    <a href="/guide/alerts" class="g-tab active">② 알람 · 운영</a>
+  </div>
+  <p style="color:var(--text-muted); margin-bottom:16px;">알람이 언제 뜨고, 어떻게 묶이고/풀리고, 누구에게/어떻게 전달되는지 — 동작 원리를 한눈에 정리했습니다.</p>
+
+  <div class="g-toc">
+    <strong style="font-size:12px; color:var(--text-subtle);">바로가기</strong>&nbsp;&nbsp;
+    <a href="#kinds">① 알람 종류</a>
+    <a href="#threshold">② 임계값</a>
+    <a href="#dedup">③ 중복 방지</a>
+    <a href="#resolve">④ 자동 해제</a>
+    <a href="#notify">⑤ 알림 받기</a>
+    <a href="#escalation">⑥ 에스컬레이션·확인</a>
+    <a href="#status">⑦ 상태·표시</a>
+    <a href="#ops">⑧ 운영·테스트</a>
+  </div>
+
+  <!-- ① -->
+  <div class="g-card" id="kinds">
+    <h2>① 알람 종류</h2>
+    <table>
+      <tr><th>종류</th><th>발화 조건</th><th>출처</th></tr>
+      <tr><td><strong>CPU 과부하</strong></td><td>1분 평균 CPU% > 임계값, 지속시간 연속</td><td>vmalert 룰</td></tr>
+      <tr><td><strong>메모리 과부하</strong></td><td>메모리 사용률 > 임계값, 지속시간 연속</td><td>vmalert 룰</td></tr>
+      <tr><td><strong>디스크 부족</strong></td><td>디스크 사용률 > 임계값, 지속시간 연속</td><td>vmalert 룰</td></tr>
+      <tr><td><strong>서버 무응답</strong></td><td>메트릭 <strong>3분 미수신</strong>(서버 다운/에이전트 중단)</td><td>앱 자체 감지</td></tr>
+    </table>
+    <p>CPU/메모리/디스크는 <strong>서버마다 독립</strong>입니다 — 셋 다 임계 초과면 각각 따로 뜹니다.</p>
+    <div class="g-note">알람이 뜨면 그 host의 <strong>직전 5분 로그를 모아 AI가 원인을 분석</strong>합니다. (CPU 과부하처럼 로그를 안 남기는 자원 알람은 로그가 빈약할 수 있어요)</div>
+  </div>
+
+  <!-- ② -->
+  <div class="g-card" id="threshold">
+    <h2>② 임계값 설정 (서버별)</h2>
+    <p><a href="/sites">사이트 관리</a> → 서버 → 수정 → <strong>"알람 임계값"</strong>에서 CPU/메모리/디스크 %와 <strong>지속시간(초)</strong>을 정합니다. 저장하면 <strong>즉시</strong> 반영(룰 자동 생성·리로드).</p>
+    <h3>1분 평균 + 지속시간</h3>
+    <p>CPU는 <strong>1분 평균</strong>으로 보고, <strong>지속시간</strong>만큼 연속 초과해야 발화합니다 — 순간 스파이크로 시끄럽지 않게.</p>
+    <p>예) <span class="g-tag">CPU 80%</span> + <span class="g-tag">지속 180초</span> = "1분 평균 80%가 3분 연속" 시 발화.</p>
+    <h3>끄기 / 미감시</h3>
+    <p>특정 지표 칸을 <strong>비우면</strong> 그 지표는 미감시. <strong>"알람 켜기"를 끄면</strong> 그 서버는 임계값·무응답 모두 안 울립니다.</p>
+    <div class="g-note">새로 들어온 서버는 <strong>기본 ON</strong>(CPU 85 / 메모리 90 / 디스크 85)으로 감시됩니다. 특정 서버만 빼려면 그 서버에서 알람을 끄세요.</div>
+  </div>
+
+  <!-- ③ -->
+  <div class="g-card" id="dedup">
+    <h2>③ 장애 1건으로 묶기 (중복 방지)</h2>
+    <p>같은 알람이 계속 켜져 있으면 알림 시스템이 <strong>~5분마다 재통지</strong>합니다. 그때마다 장애를 새로 만들지 않도록, 다음이면 <strong>기존 1건을 유지</strong>합니다:</p>
+    <ul>
+      <li>같은 <strong>서버 + 같은 알람</strong>이고</li>
+      <li>아직 <strong>미해결</strong>(resolved 전)이며</li>
+      <li>최근 <strong>1시간</strong> 내 생성된 장애가 있을 때</li>
+    </ul>
+    <div class="g-flow">짧은 부하(≤5분)   → 장애 1건 (재통지 틈 없음)
+오래 지속(10분+) → 5분마다 재통지가 와도 전부 1건으로 묶임
+알람 해제됨      → 다음에 또 켜지면 새 장애 1건</div>
+    <div class="g-note"><strong>혼동 주의:</strong> "5분"은 <em>알림 폭주 방지</em>(아래) 얘기고, 중복 방지는 <strong>"같은 알람 미해결이면 1건"</strong>(1시간 기준)입니다.</div>
+  </div>
+
+  <!-- ④ -->
+  <div class="g-card" id="resolve">
+    <h2>④ 자동 해제 (resolved)</h2>
+    <p>알람이 풀리면(CPU가 임계 아래로, 서버가 다시 응답 등) <strong>자동으로 장애가 <span class="g-tag">resolved</span>(초록)</strong> 처리됩니다.</p>
+    <ul>
+      <li>대시보드에서 해결된 것으로 보이고</li>
+      <li>진행 중이던 <strong>에스컬레이션도 즉시 중지</strong>됩니다.</li>
+    </ul>
+    <p>즉 <strong>사람이 일일이 닫지 않아도</strong> 상태가 따라옵니다. (서버 무응답도 복구되면 자동 resolved)</p>
+  </div>
+
+  <!-- ⑤ -->
+  <div class="g-card" id="notify">
+    <h2>⑤ 알림 받기 (수신자)</h2>
+    <p><a href="/sites">사이트</a> 상세 → <strong>수신자 관리</strong>에서 이메일/Slack을 등록합니다. 등록만 하면 됩니다(심각도 구분 없음).</p>
+    <table>
+      <tr><th>모드</th><th>동작</th></tr>
+      <tr><td><strong>기본 (에스컬레이션 OFF)</strong></td><td>장애 발생 시 <strong>등록 수신자 전원</strong>에게 즉시 발송</td></tr>
+      <tr><td><strong>에스컬레이션 ON</strong></td><td>단계 0부터 차례로 — 미확인 시 다음 단계로 승격(⑥)</td></tr>
+    </table>
+    <p>수신자가 한 명도 없으면 <span class="g-tag">ALERT_EMAIL</span>(폴백)로 발송됩니다.</p>
+  </div>
+
+  <!-- ⑥ -->
+  <div class="g-card" id="escalation">
+    <h2>⑥ 에스컬레이션 + 확인(ack)</h2>
+    <p>사이트 상세 → <strong>에스컬레이션 켜기</strong> + <strong>단계 간 지연(분)</strong> 설정. 수신자마다 <strong>단계</strong>를 부여합니다(0 = 1차 담당, 숫자↑ = 상위, 마지막 = C레벨).</p>
+    <div class="g-flow">장애 발생
+ → 단계 0 발송
+ → (지연 내 '확인' 없으면) 단계 1
+ → (지연) 단계 2 → … → 최고 단계
+ → 그래도 미확인이면 다시 0부터 반복
+멈춤 = '확인(ack)' / 알람 해제(resolved) / 24시간 경과</div>
+    <h3>"확인" 버튼</h3>
+    <p>알림 메일에 <strong>"✓ 확인 (에스컬레이션 중지)"</strong> 버튼이 있습니다. 누르면(로그인 불필요) <strong>그 즉시 에스컬레이션이 멈추고</strong>, 누가/언제 확인했는지 대시보드에 남습니다.</p>
+    <h3>대시보드 표시</h3>
+    <p>장애 목록·상세에 <span class="g-tag">✓ 확인됨 (확인자·시각)</span> 또는 <span class="g-tag">미확인 · 단계N</span> 으로 보입니다.</p>
+  </div>
+
+  <!-- ⑦ -->
+  <div class="g-card" id="status">
+    <h2>⑦ 상태 · 표시</h2>
+    <h3>장애 상태</h3>
+    <table>
+      <tr><th>상태</th><th>의미</th></tr>
+      <tr><td><span class="g-tag">processing</span></td><td>로그 수집 + AI 분석 중</td></tr>
+      <tr><td><span class="g-tag">analyzed</span></td><td>분석 완료 (활성 장애)</td></tr>
+      <tr><td><span class="g-tag">resolved</span></td><td>알람 해제됨 (자동 정리)</td></tr>
+      <tr><td><span class="g-tag">suppressed</span></td><td>알림 폭주 방지로 억제됨</td></tr>
+      <tr><td><span class="g-tag">ai_failed</span></td><td>AI 분석 실패</td></tr>
+    </table>
+    <h3>조직 / 서버</h3>
+    <p>장애·알림·메일 모두 <strong>🏢 조직(그룹) · 🖥 서버(host)</strong> 가 함께 표시됩니다. 메일 제목도 <span class="g-tag">[조직/서버]</span>. 그룹은 에이전트의 <span class="g-tag">GROUP_NAME</span> 으로 묶입니다.</p>
+    <h3>알림 폭주 방지 (rate-limit)</h3>
+    <p>한 사이트에서 <strong>짧은 시간(기본 5분)에 장애가 임계(기본 3건)를 넘으면</strong> 초과분을 자동 억제(<span class="g-tag">suppressed</span>)합니다. 장애 대응 중 알림 폭탄 방지. (사이트별 조절 가능, 비상 모드로 끌 수 있음)</p>
+  </div>
+
+  <!-- ⑧ -->
+  <div class="g-card" id="ops">
+    <h2>⑧ 운영 · 테스트 팁</h2>
+    <h3>부하 테스트</h3>
+    <p>대상 서버에서 (설치 없이) CPU를 채워 발화 확인:</p>
+    <div class="g-flow">for i in $(seq $(nproc)); do yes >/dev/null & done   # 부하
+pkill yes                                            # 종료</div>
+    <p>빠른 확인용으로 그 서버의 <strong>임계값을 낮추고 지속시간을 짧게</strong>(예 CPU 30% / 30초) 해두면 1~2분 내 발화합니다. 끝나면 원복.</p>
+    <h3>한 사이클로 보기</h3>
+    <p>부하 → 장애 <strong>1건</strong>(조직/서버·로그 포함) → 에스컬레이션 0→1→2→반복 → 메일 <strong>"확인"</strong> → 중지 → <code>pkill yes</code> → 자동 <strong>resolved</strong>.</p>
+    <h3>정리</h3>
+    <p>테스트 장애를 한꺼번에 비우려면 운영자가 중앙에서 <span class="g-tag">scripts/cleanup.sh</span> 실행, 또는 장애 목록에서 개별/일괄 삭제.</p>
+  </div>
+</div>
+{% endblock %}
