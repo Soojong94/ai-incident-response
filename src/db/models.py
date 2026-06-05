@@ -17,8 +17,6 @@ class Incident(Base):
     alarm_time = Column(DateTime)
     status = Column(String(50), default="processing")  # processing | analyzed | ai_failed
     severity = Column(String(50))                       # Critical | High | Medium | Low
-    obs_bucket = Column(String(200))
-    obs_object_key = Column(String(500))
     site_id = Column(Integer, ForeignKey("sites.id"), nullable=True, index=True)
     cluster_id = Column(String(36), nullable=True, index=True)  # 같은 site + 5분 윈도우 내 incident 묶음
     raw_alarm = Column(JSON)
@@ -134,13 +132,8 @@ class Site(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, index=True)
     description = Column(Text, nullable=True)
-    resource_pattern = Column(String(200), nullable=True)  # 글로브: team1-*, web-prod-*
-    obs_bucket = Column(String(200), nullable=True)         # 정확 매치
+    resource_pattern = Column(String(200), nullable=True)  # 글로브: team1-*, web-prod-* (host 매칭)
     architecture = Column(Text, nullable=True)              # 인프라 구조 (Markdown) — AI prompt에 주입
-    # API keys — 모두 Fernet 암호화 저장. 빈 값이면 .env fallback.
-    ncp_access_key_enc = Column(Text, nullable=True)
-    ncp_secret_key_enc = Column(Text, nullable=True)
-    wms_scenario_id = Column(String(50), nullable=True)     # 평문 — 식별자만, 민감 X
     # 분석 rate-limit: 윈도우 안 incident가 count 초과 시 후속은 분석/알림 skip
     rate_limit_window_seconds = Column(Integer, default=300)  # 5분
     rate_limit_count = Column(Integer, default=3)

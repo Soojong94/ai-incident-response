@@ -547,6 +547,11 @@ def delete_incident(db: Session, incident_id: int) -> bool:
     incident = db.query(Incident).filter(Incident.id == incident_id).first()
     if not incident:
         return False
+    # 이 incident에서 생성된 AI 메모도 함께 삭제 (FK 정리 + 사용자 요청)
+    db.query(SiteNote).filter(
+        SiteNote.related_incident_id == incident_id,
+        SiteNote.author == "ai",
+    ).delete(synchronize_session=False)
     db.delete(incident)
     db.commit()
     return True
@@ -554,6 +559,8 @@ def delete_incident(db: Session, incident_id: int) -> bool:
 
 def delete_all_incidents(db: Session) -> int:
     count = db.query(Incident).count()
+    # 장애 내역 전체 삭제 시 AI 메모도 전부 삭제
+    db.query(SiteNote).filter(SiteNote.author == "ai").delete(synchronize_session=False)
     db.query(Incident).delete()
     db.commit()
     return count

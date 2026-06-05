@@ -37,8 +37,6 @@ def _migrate():
         # incidents 컬럼
         inc_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(incidents)"))}
         for col, ddl in [
-            ("obs_bucket", "ALTER TABLE incidents ADD COLUMN obs_bucket VARCHAR(200)"),
-            ("obs_object_key", "ALTER TABLE incidents ADD COLUMN obs_object_key VARCHAR(500)"),
             ("site_id", "ALTER TABLE incidents ADD COLUMN site_id INTEGER REFERENCES sites(id)"),
             ("cluster_id", "ALTER TABLE incidents ADD COLUMN cluster_id VARCHAR(36)"),
         ]:
@@ -58,13 +56,8 @@ def _migrate():
             site_cols = {row[1] for row in sites_info}
             for col, ddl in [
                 ("resource_pattern", "ALTER TABLE sites ADD COLUMN resource_pattern VARCHAR(200)"),
-                ("obs_bucket", "ALTER TABLE sites ADD COLUMN obs_bucket VARCHAR(200)"),
                 ("architecture", "ALTER TABLE sites ADD COLUMN architecture TEXT"),
                 ("auto_created", "ALTER TABLE sites ADD COLUMN auto_created BOOLEAN DEFAULT 0"),
-                ("ncp_access_key_enc", "ALTER TABLE sites ADD COLUMN ncp_access_key_enc TEXT"),
-                ("ncp_secret_key_enc", "ALTER TABLE sites ADD COLUMN ncp_secret_key_enc TEXT"),
-                ("wms_scenario_id", "ALTER TABLE sites ADD COLUMN wms_scenario_id VARCHAR(50)"),
-                ("cf_package_name", "ALTER TABLE sites ADD COLUMN cf_package_name VARCHAR(100)"),
                 ("rate_limit_window_seconds", "ALTER TABLE sites ADD COLUMN rate_limit_window_seconds INTEGER DEFAULT 300"),
                 ("rate_limit_count", "ALTER TABLE sites ADD COLUMN rate_limit_count INTEGER DEFAULT 3"),
                 ("rate_limit_disabled", "ALTER TABLE sites ADD COLUMN rate_limit_disabled BOOLEAN DEFAULT 0"),
