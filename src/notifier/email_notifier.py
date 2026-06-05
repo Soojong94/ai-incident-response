@@ -62,9 +62,12 @@ def send_analysis_complete(
     analysis: dict,
     recipient_email: str | None = None,
     ack_token: str | None = None,
+    host: str = "",
+    group: str = "",
 ) -> tuple[bool, str | None]:
     """recipient_email이 None이면 settings.alert_email로 fallback.
     ack_token이 있으면 본문에 '확인'(에스컬레이션 중지) 버튼을 추가.
+    host/group이 있으면 제목·본문에 '조직/서버'를 표시.
     반환: (성공 여부, 실패 시 사유)"""
     target = recipient_email or settings.alert_email
     if not target or not settings.smtp_user:
@@ -107,6 +110,7 @@ def send_analysis_complete(
   </div>
   <div style="padding:24px;">
     <h3 style="margin:0 0 4px; font-size:16px;">장애 #{incident_id} — {alarm_name}</h3>
+    <p style="margin:0 0 10px; font-size:14px; color:#2d3748;">🏢 조직 <b>{group or '-'}</b> &nbsp;·&nbsp; 🖥 서버 <b>{host or '-'}</b></p>
     <p style="margin:0 0 20px;">
       <span style="background:{severity_color}; color:#fff; padding:3px 10px; border-radius:4px; font-size:13px; font-weight:bold;">{severity}</span>
       &nbsp;
@@ -133,7 +137,8 @@ def send_analysis_complete(
 """
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[AI장애대응] #{incident_id} {alarm_name} — {severity} 분석 완료"
+    _loc = f"{group}/{host}" if group else (host or "")
+    msg["Subject"] = f"[AI장애대응] {('[' + _loc + '] ') if _loc else ''}#{incident_id} {alarm_name} — {severity}"
     msg["From"] = settings.smtp_user
     msg["To"] = target
     msg.attach(MIMEText(html, "html", "utf-8"))

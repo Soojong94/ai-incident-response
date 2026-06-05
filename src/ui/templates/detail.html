@@ -38,7 +38,8 @@ async function reanalyze(id) {
 <div class="card">
   <h2>알람 정보</h2>
   <div class="meta-grid">
-    <div class="meta-item"><label>리소스</label><span>{{ incident.resource_name or '-' }}</span></div>
+    <div class="meta-item"><label>조직 (그룹)</label><span>{% if incident.site and incident.site.group_name %}🏢 {{ incident.site.group_name }}{% else %}<span style="color:var(--text-subtle);">미분류</span>{% endif %}</span></div>
+    <div class="meta-item"><label>리소스 (서버)</label><span>🖥 {{ incident.resource_name or '-' }}</span></div>
     <div class="meta-item">
       <label>사이트</label>
       <span>

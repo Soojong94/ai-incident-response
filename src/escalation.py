@@ -35,9 +35,11 @@ def _notify_level(db, inc, level: int, recips) -> None:
     from src.notifier.slack_notifier import send_slack
     adict = _analysis_dict(inc)
     name = inc.alarm_name or "알람"
+    host = inc.resource_name or ""
+    group = (inc.site.group_name if inc.site else "") or ""
     for r in recips:
         if r.email:
-            ok, err = send_analysis_complete(inc.id, name, adict, recipient_email=r.email, ack_token=inc.ack_token)
+            ok, err = send_analysis_complete(inc.id, name, adict, recipient_email=r.email, ack_token=inc.ack_token, host=host, group=group)
             record_notification(db, inc.id, recipient_id=r.id, recipient_label=f"[esc L{level}] {r.name} <{r.email}>",
                                 channel="email", status="sent" if ok else "failed", error_message=err)
         if r.slack_webhook:

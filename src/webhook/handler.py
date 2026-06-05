@@ -191,6 +191,8 @@ def _dispatch_notifications(db, incident_id: int, alarm_name: str, analysis: dic
     # 꺼짐 → 사이트 활성 수신자 전원에게(심각도 무시).
     inc = get_incident(db, incident_id)
     site = inc.site if inc else None
+    host = inc.resource_name if inc else ""
+    group = (site.group_name if site else "") or ""
     ack_token = None
     if site and getattr(site, "escalation_enabled", False) and site_id:
         ack_token = ensure_ack_token(db, incident_id)
@@ -204,7 +206,7 @@ def _dispatch_notifications(db, incident_id: int, alarm_name: str, analysis: dic
 
     if not recipients:
         logger.info("수신자 없음 — .env fallback (severity=%s)", severity)
-        ok, err = send_analysis_complete(incident_id, alarm_name, analysis, ack_token=ack_token)
+        ok, err = send_analysis_complete(incident_id, alarm_name, analysis, ack_token=ack_token, host=host, group=group)
         record_notification(
             db, incident_id,
             recipient_id=None,
@@ -218,7 +220,7 @@ def _dispatch_notifications(db, incident_id: int, alarm_name: str, analysis: dic
     logger.info("수신자 %d명에게 발송 (severity=%s, escalation=%s)", len(recipients), severity, bool(ack_token))
     for r in recipients:
         if r.email:
-            ok, err = send_analysis_complete(incident_id, alarm_name, analysis, recipient_email=r.email, ack_token=ack_token)
+            ok, err = send_analysis_complete(incident_id, alarm_name, analysis, recipient_email=r.email, ack_token=ack_token, host=host, group=group)
             record_notification(
                 db, incident_id, recipient_id=r.id,
                 recipient_label=f"{r.name} <{r.email}>",

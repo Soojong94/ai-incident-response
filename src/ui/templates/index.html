@@ -184,7 +184,7 @@ size={{ size }}
       <th style="width:32px;"><input type="checkbox" id="select-all" onchange="toggleAll(this.checked)"></th>
       <th>#</th>
       <th>알람명</th>
-      <th>리소스</th>
+      <th>조직 / 서버</th>
       <th>메트릭</th>
       <th>발생시간</th>
       <th>심각도</th>
@@ -198,7 +198,10 @@ size={{ size }}
       <td><input type="checkbox" class="row-check" value="{{ inc.id }}" onchange="updateSelection()"></td>
       <td><a href="/incidents/{{ inc.id }}">{{ inc.id }}</a></td>
       <td><a href="/incidents/{{ inc.id }}">{{ inc.alarm_name or '-' }}</a></td>
-      <td>{{ inc.resource_name or '-' }}</td>
+      <td>
+        {% if inc.site and inc.site.group_name %}<span style="font-size:11px; color:#718096;">🏢 {{ inc.site.group_name }}</span><br>{% endif %}
+        🖥 {{ inc.resource_name or '-' }}
+      </td>
       <td>{{ inc.metric_type or '-' }}</td>
       <td style="font-size:12px; color:#718096;">
         {{ inc.alarm_time.strftime('%Y-%m-%d %H:%M:%S') if inc.alarm_time else '-' }}

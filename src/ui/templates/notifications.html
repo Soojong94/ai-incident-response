@@ -132,7 +132,7 @@ size={{ size }}
         <th style="width:80px;">채널</th>
         <th style="width:80px;">상태</th>
         <th>수신자</th>
-        <th>리소스</th>
+        <th>조직 / 서버</th>
         <th style="width:160px;">시각</th>
         <th>비고</th>
         <th style="width:54px;">삭제</th>
@@ -146,7 +146,7 @@ size={{ size }}
         <td><span class="st-{{ n.status }}">● {{ n.status }}</span></td>
         <td style="font-size:13px;">{{ n.recipient_label or '-' }}</td>
         <td style="font-size:12px; color:var(--text-muted); font-family:monospace;">
-          {{ n.incident.resource_name if n.incident else '-' }}
+          {% if n.incident and n.incident.site and n.incident.site.group_name %}<span style="color:var(--text-subtle);">{{ n.incident.site.group_name }} /</span> {% endif %}{{ n.incident.resource_name if n.incident else '-' }}
         </td>
         <td style="font-size:12px; color:var(--text-subtle); white-space:nowrap;">
           {{ n.sent_at.strftime('%Y-%m-%d %H:%M:%S') if n.sent_at else '-' }}
