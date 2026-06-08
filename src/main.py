@@ -162,6 +162,27 @@ def login_page(request: Request, error: str = "", next: str = ""):
     return templates.TemplateResponse(request, "login.html", {"error": error, "next_url": _safe_next(next)})
 
 
+# ── 로그인 시도 rate-limit (in-memory) — 무차별 대입 완화 ─────────────────────
+import time as _time
+_login_fails: dict[str, list] = {}
+_LOGIN_MAX = 5
+_LOGIN_WINDOW = 300  # 5분 내 5회 실패 시 차단
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "?"
+
+
+def _login_blocked(key: str) -> bool:
+    now = _time.time()
+    arr = [t for t in _login_fails.get(key, []) if now - t < _LOGIN_WINDOW]
+    _login_fails[key] = arr
+    return len(arr) >= _LOGIN_MAX
+
+
 @app.post("/login")
 async def login_action(
     request: Request,
@@ -170,11 +191,16 @@ async def login_action(
     next: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    import urllib.parse
+    q = f"&next={urllib.parse.quote(next, safe='/')}" if next else ""
+    key = _client_ip(request)
+    if _login_blocked(key):
+        return RedirectResponse(url=f"/login?error=ratelimited{q}", status_code=303)
     user = authenticate(db, email, password)
     if not user:
-        import urllib.parse
-        q = f"&next={urllib.parse.quote(next, safe='/')}" if next else ""
+        _login_fails.setdefault(key, []).append(_time.time())
         return RedirectResponse(url=f"/login?error=invalid{q}", status_code=303)
+    _login_fails.pop(key, None)   # 성공 시 카운터 초기화
     login_user(request, user)
     return RedirectResponse(url=_safe_next(next), status_code=303)
 

@@ -80,7 +80,7 @@
     </div>
 
     {% if error %}
-    <div class="error">이메일 또는 비밀번호가 올바르지 않습니다.</div>
+    <div class="error">{% if error == 'ratelimited' %}로그인 시도가 너무 많습니다. 잠시 후(5분) 다시 시도하세요.{% else %}이메일 또는 비밀번호가 올바르지 않습니다.{% endif %}</div>
     {% endif %}
     {% if request.query_params.get('reset') == 'ok' %}
     <div style="background: rgba(220,38,38,0.08); border: 1px solid var(--danger); color: var(--danger); padding: 10px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 16px;">
