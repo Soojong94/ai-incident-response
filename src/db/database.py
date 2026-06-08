@@ -26,6 +26,41 @@ def init_db():
     from src.db import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
     _migrate()
+    _cleanup_orphans()
+
+
+def _cleanup_orphans():
+    """SQLite는 AUTOINCREMENT가 없으면 삭제된 ID를 재사용한다. 옛 사이트 삭제 시 남은 자식 행
+    (메모/incident)이 ID 재사용으로 새 사이트에 딸려 보이는 것을 정리.
+    판별: 자식이 자기 사이트보다 '먼저 생성'됐으면(= 이전 사이트의 잔재) 정리.
+    - 사이트보다 오래되었거나 사이트가 없는 메모 → 삭제
+    - 사이트보다 오래된 incident → 연결만 해제(이력 보존)"""
+    from sqlalchemy import text
+    import logging
+    log = logging.getLogger(__name__)
+    try:
+        with engine.connect() as conn:
+            r1 = conn.execute(text(
+                "DELETE FROM site_notes WHERE id IN ("
+                " SELECT n.id FROM site_notes n JOIN sites s ON n.site_id = s.id"
+                " WHERE n.created_at < s.created_at)"
+            ))
+            r2 = conn.execute(text(
+                "DELETE FROM site_notes WHERE site_id IS NOT NULL"
+                " AND site_id NOT IN (SELECT id FROM sites)"
+            ))
+            r3 = conn.execute(text(
+                "UPDATE incidents SET site_id = NULL WHERE site_id IS NOT NULL AND ("
+                " site_id NOT IN (SELECT id FROM sites)"
+                " OR created_at < (SELECT s.created_at FROM sites s WHERE s.id = incidents.site_id))"
+            ))
+            conn.commit()
+            n = (r1.rowcount or 0) + (r2.rowcount or 0) + (r3.rowcount or 0)
+            if n:
+                log.info("orphan 정리: 메모 삭제 %s+%s, incident 연결해제 %s",
+                         r1.rowcount, r2.rowcount, r3.rowcount)
+    except Exception as e:
+        log.warning("orphan 정리 실패(무시): %s", e)
 
 
 def _migrate():
