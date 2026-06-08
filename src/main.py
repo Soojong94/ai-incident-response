@@ -743,6 +743,16 @@ def stats_page(
     )
 
 
+@app.get("/system", response_class=HTMLResponse)
+def system_status_page(request: Request, admin=Depends(require_admin)):
+    """메타 모니터링 — 중앙 디스크/저장소, 파이프라인 헬스, 에이전트 생존."""
+    from src.health import gather_system_status
+    return templates.TemplateResponse(
+        request, "system_status.html",
+        {"status": gather_system_status(), "current_user": admin},
+    )
+
+
 # ── 알림 발송 로그 (admin 전용) ───────────────────────────────────────────────
 
 @app.get("/notifications", response_class=HTMLResponse)

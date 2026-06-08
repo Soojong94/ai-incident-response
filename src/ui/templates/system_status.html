@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}시스템 상태 — AI 장애 대응{% endblock %}
+{% block content %}
+<style>
+  .ss-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; margin: 8px 0 20px; }
+  .ss-kpi { background: var(--card-bg); border:1px solid var(--border); border-radius:10px; padding:16px 18px; box-shadow:0 1px 2px rgba(16,24,40,.04); }
+  .ss-kpi .lbl { font-size:12px; color:var(--text-subtle); margin-bottom:6px; }
+  .ss-kpi .val { font-size:26px; font-weight:800; color:var(--text); }
+  .ss-kpi .sub { font-size:12px; color:var(--text-muted); margin-top:4px; }
+  .ss-ok { color:#1f9d55; } .ss-bad { color:var(--danger); }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+  .dot-ok { background:#2f9e44; } .dot-bad { background:var(--danger); }
+  .bar { height:10px; background:var(--card-bg-alt); border-radius:6px; overflow:hidden; border:1px solid var(--border); }
+  .bar-fill { height:100%; background: linear-gradient(90deg,#3b5b9e,#5b7cc9); }
+  .bar-fill.warn { background: linear-gradient(90deg,#d97706,#f59e0b); }
+  .bar-fill.crit { background: linear-gradient(90deg,#dc2626,#ef4444); }
+  @media (max-width:900px){ .ss-grid{ grid-template-columns: repeat(2,1fr);} }
+</style>
+
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
+  <h2 style="font-size:20px;">시스템 상태</h2>
+  <span style="font-size:13px; color:var(--text-subtle);">메타 모니터링 — 중앙 인프라 · 파이프라인 · 에이전트</span>
+  <button class="refresh-btn" onclick="location.reload()" style="margin-left:auto;">새로고침</button>
+</div>
+
+{% set st = status %}
+<div class="ss-grid">
+  <div class="ss-kpi">
+    <div class="lbl">파이프라인</div>
+    <div class="val {{ 'ss-ok' if st.pipeline_ok else 'ss-bad' }}">{{ '정상' if st.pipeline_ok else '이상' }}</div>
+    <div class="sub">수집·룰·알람 경로</div>
+  </div>
+  <div class="ss-kpi">
+    <div class="lbl">중앙 디스크</div>
+    {% if st.disk %}
+    <div class="val {{ 'ss-bad' if st.disk.pct >= 85 else '' }}">{{ st.disk.pct }}<span style="font-size:14px;">%</span></div>
+    <div class="sub">{{ st.disk.used_gb }} / {{ st.disk.total_gb }} GB · 여유 {{ st.disk.free_gb }}GB</div>
+    {% else %}<div class="val">-</div><div class="sub">조회 불가</div>{% endif %}
+  </div>
+  <div class="ss-kpi">
+    <div class="lbl">에이전트</div>
+    <div class="val {{ 'ss-bad' if st.agents_down else 'ss-ok' }}">{{ st.agents_total - st.agents_down }}<span style="font-size:14px;"> / {{ st.agents_total }}</span></div>
+    <div class="sub">{% if st.agents_down %}{{ st.agents_down }}대 무응답{% else %}전부 정상{% endif %}</div>
+  </div>
+  <div class="ss-kpi">
+    <div class="lbl">저장소 (메트릭+로그)</div>
+    <div class="val">{{ ((st.storage.vm_gb or 0) + (st.storage.vl_gb or 0)) | round(1) }}<span style="font-size:14px;"> GB</span></div>
+    <div class="sub">VM {{ st.storage.vm_gb if st.storage.vm_gb is not none else '?' }} · VL {{ st.storage.vl_gb if st.storage.vl_gb is not none else '?' }} GB</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>파이프라인 헬스</h2>
+  <table>
+    <thead><tr><th style="width:40%;">구성요소</th><th style="width:20%;">상태</th><th>응답</th></tr></thead>
+    <tbody>
+      {% for c in st.checks %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td><span class="dot {{ 'dot-ok' if c.ok else 'dot-bad' }}"></span>{{ 'UP' if c.ok else 'DOWN' }}</td>
+        <td style="font-family:monospace; font-size:12px; color:var(--text-muted);">{{ c.info }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="font-size:12px; color:var(--text-subtle); margin-top:10px;">하나라도 DOWN이면 알람이 조용히 멈출 수 있습니다 — 즉시 점검 필요.</p>
+</div>
+
+<div class="card">
+  <h2>스토리지</h2>
+  {% if st.disk %}
+  <div style="margin-bottom:6px; font-size:13px; color:var(--text-muted);">중앙 디스크 ({{ st.disk.path }}) — {{ st.disk.used_gb }} / {{ st.disk.total_gb }} GB ({{ st.disk.pct }}%)</div>
+  <div class="bar"><div class="bar-fill {{ 'crit' if st.disk.pct >= 90 else 'warn' if st.disk.pct >= 75 else '' }}" style="width: {{ st.disk.pct }}%;"></div></div>
+  {% endif %}
+  <table style="margin-top:14px;">
+    <thead><tr><th>저장소</th><th>크기</th><th>보관</th></tr></thead>
+    <tbody>
+      <tr><td>VictoriaMetrics (메트릭)</td><td>{{ st.storage.vm_gb ~ ' GB' if st.storage.vm_gb is not none else '조회 불가' }}</td><td>3개월</td></tr>
+      <tr><td>VictoriaLogs (로그)</td><td>{{ st.storage.vl_gb ~ ' GB' if st.storage.vl_gb is not none else '조회 불가' }}</td><td>7일</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:12px; color:var(--text-subtle); margin-top:8px;">보관기간 롤링이라 일정 수준에서 평형. 디스크가 차오르면 보관기간을 줄이세요(docker-compose retentionPeriod).</p>
+</div>
+
+<div class="card">
+  <h2>에이전트 생존 <span style="font-size:13px; color:var(--text-subtle); font-weight:400;">(마지막 수신 기준)</span></h2>
+  {% if st.agents %}
+  <table>
+    <thead><tr><th style="width:45%;">서버 (host)</th><th style="width:20%;">상태</th><th>마지막 수신</th></tr></thead>
+    <tbody>
+      {% for a in st.agents %}
+      <tr>
+        <td>{{ a.host }}</td>
+        <td><span class="dot {{ 'dot-ok' if a.alive else 'dot-bad' }}"></span>{{ '정상' if a.alive else '무응답' }}</td>
+        <td style="color:var(--text-muted); font-size:13px;">
+          {% if a.stale_seconds is not none %}{{ a.stale_seconds }}초 전{% else %}-{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--text-subtle);">수신 중인 에이전트가 없습니다.</p>
+  {% endif %}
+</div>
+{% endblock %}

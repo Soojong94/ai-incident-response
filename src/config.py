@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     victoriametrics_url: str = "http://localhost:8428"
     # vmalert 룰 디렉토리 — 사이트별 알람 임계값을 generated.yml로 써서 vmalert가 핫리로드
     vmalert_rules_dir: str = "/etc/vmalert/rules"
+    # 메타 모니터링(시스템 상태 페이지) — 파이프라인 헬스 체크용 내부 주소
+    vmalert_url: str = "http://vmalert:8880"
+    alertmanager_url: str = "http://alertmanager:9093"
     # 서버 무응답(dead-man) 감지 — N초 이상 메트릭 미수신이면 "서버 무응답" 장애 자동 등록
     deadman_enabled: bool = True
     deadman_seconds: int = 180          # 3분
