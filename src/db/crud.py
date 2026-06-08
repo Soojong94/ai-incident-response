@@ -554,7 +554,13 @@ def avg_analysis_duration_seconds(db: Session, days: int = 30) -> dict:
     )
     if not rows:
         return {"avg_seconds": 0, "count": 0, "under_5min_rate": 0.0}
-    deltas = [(u - c).total_seconds() for c, u in rows if c and u]
+    # 0 <= delta <= 1시간만 유효치로. 음수(=ID 재사용 잔재로 분석이 incident보다 과거)나
+    # 비정상적으로 큰 값은 데이터 오류이므로 평균에서 제외.
+    deltas = [
+        d for c, u in rows if c and u
+        for d in [(u - c).total_seconds()]
+        if 0 <= d <= 3600
+    ]
     if not deltas:
         return {"avg_seconds": 0, "count": 0, "under_5min_rate": 0.0}
     avg = sum(deltas) / len(deltas)

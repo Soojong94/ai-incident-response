@@ -54,11 +54,21 @@ def _cleanup_orphans():
                 " site_id NOT IN (SELECT id FROM sites)"
                 " OR created_at < (SELECT s.created_at FROM sites s WHERE s.id = incidents.site_id))"
             ))
+            # 분석결과(AnalysisResult) — incident 없는 고아 + incident보다 과거인 것(ID 재사용 잔재) 삭제.
+            # (이게 '평균 분석시간' 음수의 원인)
+            r4 = conn.execute(text(
+                "DELETE FROM analysis_results WHERE incident_id NOT IN (SELECT id FROM incidents)"
+            ))
+            r5 = conn.execute(text(
+                "DELETE FROM analysis_results WHERE id IN ("
+                " SELECT a.id FROM analysis_results a JOIN incidents i ON a.incident_id = i.id"
+                " WHERE a.created_at < i.created_at)"
+            ))
             conn.commit()
-            n = (r1.rowcount or 0) + (r2.rowcount or 0) + (r3.rowcount or 0)
+            n = sum(r.rowcount or 0 for r in (r1, r2, r3, r4, r5))
             if n:
-                log.info("orphan 정리: 메모 삭제 %s+%s, incident 연결해제 %s",
-                         r1.rowcount, r2.rowcount, r3.rowcount)
+                log.info("orphan 정리: 메모 %s+%s, incident 연결해제 %s, 분석결과 %s+%s",
+                         r1.rowcount, r2.rowcount, r3.rowcount, r4.rowcount, r5.rowcount)
     except Exception as e:
         log.warning("orphan 정리 실패(무시): %s", e)
 
