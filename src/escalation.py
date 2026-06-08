@@ -43,7 +43,7 @@ def _notify_level(db, inc, level: int, recips) -> None:
             record_notification(db, inc.id, recipient_id=r.id, recipient_label=f"[esc L{level}] {r.name} <{r.email}>",
                                 channel="email", status="sent" if ok else "failed", error_message=err)
         if r.slack_webhook:
-            ok, err = send_slack(r.slack_webhook, inc.id, name, adict)
+            ok, err = send_slack(r.slack_webhook, inc.id, name, adict, ack_token=inc.ack_token)
             record_notification(db, inc.id, recipient_id=r.id, recipient_label=f"[esc L{level}] {r.name} (Slack)",
                                 channel="slack", status="sent" if ok else "failed", error_message=err)
 

@@ -15,7 +15,28 @@ SEVERITY_COLOR = {
 }
 
 
-def _build_payload(incident_id: int, alarm_name: str, analysis: dict) -> dict:
+def _action_buttons(incident_id: int, ack_token: str | None) -> list:
+    """ack_token이 있으면 '확인'(에스컬레이션 중지) 버튼 + 상세보기. 없으면 상세보기만."""
+    btns = []
+    if ack_token:
+        btns.append({
+            "type": "button",
+            "text": {"type": "plain_text", "text": "✓ 확인 (에스컬레이션 중지)"},
+            "url": f"{DASHBOARD_URL}/ack/{ack_token}?by=Slack",
+            "style": "primary",
+        })
+    detail = {
+        "type": "button",
+        "text": {"type": "plain_text", "text": "상세 분석 보기 →"},
+        "url": f"{DASHBOARD_URL}/incidents/{incident_id}",
+    }
+    if not ack_token:
+        detail["style"] = "primary"   # ack 버튼 없을 때만 상세보기를 강조색으로
+    btns.append(detail)
+    return btns
+
+
+def _build_payload(incident_id: int, alarm_name: str, analysis: dict, ack_token: str | None = None) -> dict:
     severity = analysis.get("severity", "-")
     category = analysis.get("cause_category", "-")
     detail = analysis.get("cause_detail", "-")
@@ -49,14 +70,7 @@ def _build_payload(incident_id: int, alarm_name: str, analysis: dict) -> dict:
         },
         {
             "type": "actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "상세 분석 보기 →"},
-                    "url": f"{DASHBOARD_URL}/incidents/{incident_id}",
-                    "style": "primary",
-                }
-            ],
+            "elements": _action_buttons(incident_id, ack_token),
         },
     ]
 
@@ -66,11 +80,11 @@ def _build_payload(incident_id: int, alarm_name: str, analysis: dict) -> dict:
     }
 
 
-def send_slack(webhook_url: str, incident_id: int, alarm_name: str, analysis: dict) -> tuple[bool, str | None]:
-    """반환: (성공 여부, 실패 시 사유)"""
+def send_slack(webhook_url: str, incident_id: int, alarm_name: str, analysis: dict, ack_token: str | None = None) -> tuple[bool, str | None]:
+    """반환: (성공 여부, 실패 시 사유). ack_token이 있으면 '확인'(에스컬레이션 중지) 버튼 포함."""
     if not webhook_url:
         return False, "webhook URL 없음"
-    payload = _build_payload(incident_id, alarm_name, analysis)
+    payload = _build_payload(incident_id, alarm_name, analysis, ack_token=ack_token)
     try:
         with httpx.Client(timeout=10) as client:
             resp = client.post(webhook_url, json=payload)
