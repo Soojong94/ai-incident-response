@@ -229,7 +229,7 @@ def _dispatch_notifications(db, incident_id: int, alarm_name: str, analysis: dic
                 error_message=err,
             )
         if r.slack_webhook:
-            ok, err = send_slack(r.slack_webhook, incident_id, alarm_name, analysis, ack_token=ack_token)
+            ok, err = send_slack(r.slack_webhook, incident_id, alarm_name, analysis, ack_token=ack_token, host=host, group=group)
             record_notification(
                 db, incident_id, recipient_id=r.id,
                 recipient_label=f"{r.name} (Slack)",

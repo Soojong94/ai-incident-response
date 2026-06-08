@@ -411,6 +411,20 @@ def ack_incident_page(token: str, by: str = "", db: Session = Depends(get_db)):
             msg="확인 링크가 잘못되었거나 만료되었습니다.", link=""), status_code=404)
     when = inc.acknowledged_at.strftime("%Y-%m-%d %H:%M") if inc.acknowledged_at else ""
     who = f" ({inc.acknowledged_by})" if inc.acknowledged_by else ""
+    # Slack 채널에 '확인됨 by X' 후속 알림 — 누가 확인했는지 Slack에서도 보이게 (webhook 중복 제거)
+    try:
+        from src.notifier.slack_notifier import send_ack_notice
+        from src.db.crud import get_recipients_for_site
+        _host = inc.resource_name or ""
+        _group = (inc.site.group_name if inc.site else "") or ""
+        _by = inc.acknowledged_by or (by.strip() or "익명")
+        _seen = set()
+        for r in (get_recipients_for_site(db, inc.site_id) if inc.site_id else []):
+            if r.slack_webhook and r.slack_webhook not in _seen:
+                _seen.add(r.slack_webhook)
+                send_ack_notice(r.slack_webhook, inc.id, _by, host=_host, group=_group)
+    except Exception as _e:
+        logger.warning("ack Slack 알림 실패(무시): %s", _e)
     link = (
         f'<a href="/incidents/{inc.id}" style="display:inline-block; margin-top:18px; '
         f'background:#c0564b; color:#fff; padding:10px 22px; border-radius:6px; '
