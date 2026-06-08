@@ -26,6 +26,23 @@ def _matcher(site: Site) -> str:
     return f"host={json.dumps(site.name)}"
 
 
+# 리눅스(node_exporter) + 윈도우(windows_exporter) 둘 다 커버 — 한 호스트는 한쪽 메트릭만
+# 있으므로 `or`로 합치면 OS 구분 없이 동작. (PromQL: 비교 > 가 or 보다 우선)
+def _cpu_expr(m: str, thr: int) -> str:
+    return (f'(1 - avg by (host) (rate(node_cpu_seconds_total{{mode="idle",{m}}}[1m]))) * 100 > {thr}'
+            f' or (1 - avg by (host) (rate(windows_cpu_time_total{{mode="idle",{m}}}[1m]))) * 100 > {thr}')
+
+
+def _mem_expr(m: str, thr: int) -> str:
+    return (f'(1 - (node_memory_MemAvailable_bytes{{{m}}} / node_memory_MemTotal_bytes{{{m}}})) * 100 > {thr}'
+            f' or (1 - (windows_memory_available_bytes{{{m}}} / windows_cs_physical_memory_bytes{{{m}}})) * 100 > {thr}')
+
+
+def _disk_expr(m: str, thr: int) -> str:
+    return (f'(1 - (node_filesystem_avail_bytes{{{m},{_FSTYPE}}} / node_filesystem_size_bytes{{{m},{_FSTYPE}}})) * 100 > {thr}'
+            f' or (1 - (windows_logical_disk_free_bytes{{{m}}} / windows_logical_disk_size_bytes{{{m}}})) * 100 > {thr}')
+
+
 def _rule(alert: str, expr: str, for_seconds: int, alarm: str, summary: str) -> str:
     return (
         f"      - alert: {alert}\n"
@@ -54,24 +71,21 @@ def generate_rules_yaml(sites: list[Site]) -> str:
         m = _matcher(s)
         fr = s.alarm_for_seconds or 300
         if s.cpu_threshold:
-            # 1분 평균 CPU% — 지속시간(for=alarm_for_seconds) 동안 연속 초과해야 발화
+            # 1분 평균 CPU% — 지속시간(for=alarm_for_seconds) 동안 연속 초과해야 발화 (리눅스+윈도우)
             out.append(_rule(
-                "HighCPUUsage",
-                f'(1 - avg by (host) (rate(node_cpu_seconds_total{{mode="idle",{m}}}[1m]))) * 100 > {s.cpu_threshold}',
+                "HighCPUUsage", _cpu_expr(m, s.cpu_threshold),
                 fr, "cpu", "CPU 과부하: {{ $labels.host }} {{ $value | humanize }}%",
             ))
             any_rule = True
         if s.mem_threshold:
             out.append(_rule(
-                "HighMemoryUsage",
-                f'(1 - (node_memory_MemAvailable_bytes{{{m}}} / node_memory_MemTotal_bytes{{{m}}})) * 100 > {s.mem_threshold}',
+                "HighMemoryUsage", _mem_expr(m, s.mem_threshold),
                 fr, "mem", "메모리 과부하: {{ $labels.host }} {{ $value | humanize }}%",
             ))
             any_rule = True
         if s.disk_threshold:
             out.append(_rule(
-                "HighDiskUsage",
-                f'(1 - (node_filesystem_avail_bytes{{{m},{_FSTYPE}}} / node_filesystem_size_bytes{{{m},{_FSTYPE}}})) * 100 > {s.disk_threshold}',
+                "HighDiskUsage", _disk_expr(m, s.disk_threshold),
                 fr, "disk", "디스크 부족: {{ $labels.host }} {{ $value | humanize }}%",
             ))
             any_rule = True
