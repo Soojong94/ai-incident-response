@@ -56,6 +56,26 @@ def send_password_reset(target_email: str, reset_url: str) -> tuple[bool, str | 
         return False, str(e)[:500]
 
 
+def send_plain(target_email: str, subject: str, html: str) -> tuple[bool, str | None]:
+    """범용 HTML 메일 발송 (메타 경보 등). 반환: (성공, 실패 사유)."""
+    if not target_email or not settings.smtp_user:
+        return False, "SMTP/수신자 미설정"
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = settings.smtp_user
+    msg["To"] = target_email
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+            server.starttls()
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.sendmail(settings.smtp_user, target_email, msg.as_string())
+        return True, None
+    except Exception as e:
+        logger.error("메일 발송 실패 (%s): %s", target_email, e)
+        return False, str(e)[:500]
+
+
 def send_analysis_complete(
     incident_id: int,
     alarm_name: str,

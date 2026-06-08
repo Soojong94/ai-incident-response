@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     # 메타 모니터링(시스템 상태 페이지) — 파이프라인 헬스 체크용 내부 주소
     vmalert_url: str = "http://vmalert:8880"
     alertmanager_url: str = "http://alertmanager:9093"
+    # 메타 자동 감시·경보 — 파이프라인 DOWN/디스크 임계 시 상태 변화에만 알림(중복 방지)
+    sysmonitor_enabled: bool = True
+    sysmonitor_interval_seconds: int = 120
+    disk_alert_pct: int = 90               # 중앙 디스크 이 % 이상이면 경보
+    meta_alert_email: str = ""             # 비면 alert_email 로 폴백
+    meta_slack_webhook: str = ""           # 운영 채널 webhook(선택)
     # 서버 무응답(dead-man) 감지 — N초 이상 메트릭 미수신이면 "서버 무응답" 장애 자동 등록
     deadman_enabled: bool = True
     deadman_seconds: int = 180          # 3분

@@ -53,15 +53,18 @@ async def lifespan(app: FastAPI):
         write_rules(db)   # 사이트별 알람 임계값 → vmalert 룰 초기 생성
     finally:
         db.close()
-    # 백그라운드 루프 — 서버 무응답(dead-man) 감지 + 에스컬레이션
+    # 백그라운드 루프 — 서버 무응답(dead-man) 감지 + 에스컬레이션 + 메타 자가감시
     import asyncio
     from src.deadman import deadman_loop
     from src.escalation import escalation_loop
+    from src.sysmonitor import system_monitor_loop
     deadman_task = asyncio.create_task(deadman_loop())
     escalation_task = asyncio.create_task(escalation_loop())
+    sysmonitor_task = asyncio.create_task(system_monitor_loop())
     yield
     deadman_task.cancel()
     escalation_task.cancel()
+    sysmonitor_task.cancel()
 
 
 app = FastAPI(title="AI Incident Response", lifespan=lifespan)

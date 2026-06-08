@@ -88,6 +88,20 @@ def _build_payload(incident_id: int, alarm_name: str, analysis: dict, ack_token:
     }
 
 
+def send_text(webhook_url: str, text: str) -> tuple[bool, str | None]:
+    """범용 Slack 텍스트 발송 (메타 경보 등)."""
+    if not webhook_url:
+        return False, "webhook URL 없음"
+    try:
+        with httpx.Client(timeout=10) as client:
+            resp = client.post(webhook_url, json={"text": text})
+        if resp.status_code >= 400:
+            return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
+        return True, None
+    except Exception as e:
+        return False, str(e)[:500]
+
+
 def send_ack_notice(webhook_url: str, incident_id: int, by: str, host: str = "", group: str = "") -> tuple[bool, str | None]:
     """장애가 확인(ack)됐음을 Slack 채널에 후속 메시지로 알림 — '누가 확인했는지' 표시용."""
     if not webhook_url:
