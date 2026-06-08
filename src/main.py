@@ -25,7 +25,7 @@ from src.db.crud import (
     list_site_notes, add_site_note, update_site_note, delete_site_note, delete_site_notes,
     get_feedback_for_incident, upsert_feedback,
     daily_incident_counts, severity_distribution, status_distribution,
-    top_sites_by_incident, notification_success_rate, avg_analysis_duration_seconds,
+    top_sites_by_incident, notification_success_rate, avg_analysis_duration_seconds, count_analyzed,
     list_notifications, count_notifications,
     delete_notification, delete_notifications_filtered,
 )
@@ -737,6 +737,7 @@ def stats_page(
             "top_sites": top_sites_by_incident(db, days, 8),
             "notif": notification_success_rate(db, days),
             "analysis_dur": avg_analysis_duration_seconds(db, days),
+            "analyzed_count": count_analyzed(db, days),
             "current_user": admin,
         },
     )

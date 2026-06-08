@@ -541,6 +541,19 @@ def notification_success_rate(db: Session, days: int = 30) -> dict:
     return {"sent": sent, "failed": failed, "skipped": skipped, "total": total, "success_rate": round(rate, 1)}
 
 
+def count_analyzed(db: Session, days: int = 30) -> int:
+    """'분석 완료' 장애 수 — 분석을 마친 것(analyzed) + 이후 해결된 것(resolved) 모두 포함.
+    (resolved도 분석은 끝난 것이므로 카운트에 들어가야 Top사이트/분포와 일치)"""
+    from datetime import timedelta
+    cutoff = datetime.now() - timedelta(days=days)
+    return (
+        db.query(Incident)
+        .filter(Incident.created_at >= cutoff)
+        .filter(Incident.status.in_(("analyzed", "resolved")))
+        .count()
+    )
+
+
 def avg_analysis_duration_seconds(db: Session, days: int = 30) -> dict:
     """incident 생성 → AI 분석 완료(AnalysisResult.created_at)까지 평균.
     분석이 끝난 incident면 이후 resolved 되어도 포함(분석결과가 있으므로). updated_at 미사용 → resolve 시각에 안 흔들림."""
