@@ -57,6 +57,31 @@ async function reanalyze(id) {
   </div>
 </div>
 
+<!-- 메트릭 추이 (자원 알람만 — 데이터 있을 때만 표시) -->
+<div class="card" id="metric-card" style="display:none;">
+  <h2>메트릭 추이 <span style="font-size:12px; color:var(--text-subtle); font-weight:400; margin-left:6px;">알람 시점 전후</span></h2>
+  <div style="height:240px;"><canvas id="metricChart"></canvas></div>
+</div>
+<script src="/static/chart.umd.min.js"></script>
+<script>
+(function(){
+  fetch('/api/incidents/{{ incident.id }}/metric').then(r=>r.json()).then(d=>{
+    if(!d.points || !d.points.length) return;
+    document.getElementById('metric-card').style.display='';
+    const labels = d.points.map(p => new Date(p[0]*1000).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
+    const vals = d.points.map(p => p[1]);
+    const ds = [{label:d.label, data:vals, borderColor:'#3b5b9e', backgroundColor:'rgba(59,91,158,.12)', fill:true, tension:.25, pointRadius:0, borderWidth:2}];
+    if(d.threshold!=null){ ds.push({label:'임계값 '+d.threshold, data:vals.map(()=>d.threshold), borderColor:'#dc2626', borderDash:[6,4], pointRadius:0, borderWidth:1.5, fill:false}); }
+    new Chart(document.getElementById('metricChart'), {
+      type:'line', data:{labels, datasets:ds},
+      options:{responsive:true, maintainAspectRatio:false,
+        scales:{y:{beginAtZero:true, suggestedMax:100, ticks:{callback:v=>v+'%'}}},
+        plugins:{legend:{labels:{boxWidth:12}}}}
+    });
+  }).catch(()=>{});
+})();
+</script>
+
 <!-- AI 분석 결과 -->
 {% set analysis = incident.analysis_result %}
 {% if analysis %}

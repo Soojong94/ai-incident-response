@@ -494,6 +494,48 @@ async def slack_interact(request: Request, db: Session = Depends(get_db)):
     return PlainTextResponse("", status_code=200)
 
 
+@app.get("/api/incidents/{incident_id}/metric")
+async def api_incident_metric(incident_id: int, db: Session = Depends(get_db), user=Depends(require_user)) -> dict:
+    """장애 상세 추이 그래프 — host의 해당 메트릭(%)을 알람 시점 ±윈도우로 VM range 조회. graceful."""
+    from src.db.crud import get_incident
+    from src.alarm_rules import graph_expr
+    import httpx
+    inc = get_incident(db, incident_id)
+    if not inc or not inc.resource_name:
+        return {"points": []}
+    expr = graph_expr(inc.resource_name, inc.alarm_name or "")
+    if not expr:
+        return {"points": []}
+    end_dt = inc.alarm_time or datetime.now()
+    try:
+        end_ts = end_dt.timestamp()
+    except Exception:
+        end_ts = datetime.now().timestamp()
+    thr = None
+    try:
+        thr = float(str(inc.threshold_value).strip())
+    except (TypeError, ValueError):
+        pass
+    points = []
+    try:
+        async with httpx.AsyncClient(timeout=8) as c:
+            r = await c.get(
+                settings.victoriametrics_url.rstrip("/") + "/api/v1/query_range",
+                params={"query": expr, "start": int(end_ts - 1800), "end": int(end_ts + 600), "step": 30},
+            )
+        res = r.json().get("data", {}).get("result", [])
+        if res:
+            points = [[int(t), round(float(v), 1)] for t, v in res[0].get("values", [])]
+    except Exception as e:
+        logger.warning("metric graph 조회 실패 (incident=%d): %s", incident_id, e)
+    labels = {"HighCPUUsage": "CPU %", "HighMemoryUsage": "메모리 %", "HighDiskUsage": "디스크 %"}
+    return {
+        "points": points, "threshold": thr,
+        "label": labels.get(inc.alarm_name or "", "%"),
+        "host": inc.resource_name, "alarm_ts": int(end_ts),
+    }
+
+
 @app.get("/api/logs/raw")
 async def api_logs_raw(host: str, hours: int = 24, download: int = 0, user=Depends(require_user)):
     """서버(host)의 최근 N시간 로그를 VictoriaLogs(7일 보관)에서 raw 텍스트로 반환.

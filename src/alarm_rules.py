@@ -43,6 +43,22 @@ def _disk_expr(m: str, thr: int) -> str:
             f' or (1 - (windows_logical_disk_free_bytes{{{m}}} / windows_logical_disk_size_bytes{{{m}}})) * 100 > {thr}')
 
 
+def graph_expr(host: str, alarm_name: str) -> str | None:
+    """장애 상세의 추이 그래프용 — 임계 비교 없는 사용률(%) expr. 그릴 수 없으면 None.
+    리눅스/윈도우 둘 다 커버, host 단일 라인."""
+    m = f"host={json.dumps(host)}"
+    if alarm_name == "HighCPUUsage":
+        return (f'(1 - avg by (host) (rate(node_cpu_seconds_total{{mode="idle",{m}}}[1m]))) * 100'
+                f' or (1 - avg by (host) (rate(windows_cpu_time_total{{mode="idle",{m}}}[1m]))) * 100')
+    if alarm_name == "HighMemoryUsage":
+        return (f'(1 - (node_memory_MemAvailable_bytes{{{m}}} / node_memory_MemTotal_bytes{{{m}}})) * 100'
+                f' or (1 - (windows_memory_available_bytes{{{m}}} / windows_cs_physical_memory_bytes{{{m}}})) * 100')
+    if alarm_name == "HighDiskUsage":
+        return (f'max by (host) ((1 - (node_filesystem_avail_bytes{{{m},{_FSTYPE}}} / node_filesystem_size_bytes{{{m},{_FSTYPE}}})) * 100)'
+                f' or max by (host) ((1 - (windows_logical_disk_free_bytes{{{m}}} / windows_logical_disk_size_bytes{{{m}}})) * 100)')
+    return None
+
+
 def _rule(alert: str, expr: str, for_seconds: int, alarm: str, summary: str) -> str:
     return (
         f"      - alert: {alert}\n"
