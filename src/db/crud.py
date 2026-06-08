@@ -162,7 +162,9 @@ def resolve_incidents_for(db: Session, resource_name: str, alarm_name: str, with
         db.query(Incident)
         .filter(Incident.resource_name == resource_name)
         .filter(Incident.alarm_name == alarm_name)
-        .filter(Incident.status.in_(("processing", "analyzed")))
+        # 분석 완료(analyzed)만 resolved 처리. 분석 중(processing)을 닫으면 분석이 빈 채로 가려짐
+        # → 그건 재시작 복구 루프가 재실행하도록 둔다.
+        .filter(Incident.status == "analyzed")
         .filter(Incident.created_at >= cutoff)
         .all()
     )

@@ -46,15 +46,27 @@ async def lifespan(app: FastAPI):
     logger.info("DB initialized")
     check_security_config()
     # 초기 admin 계정 보장
+    import asyncio
     db = SessionLocal()
     try:
         ensure_initial_admin(db)
         from src.alarm_rules import write_rules
         write_rules(db)   # 사이트별 알람 임계값 → vmalert 룰 초기 생성
+        # 재배포/재시작으로 유실된 '분석 중'(processing) incident 자동 재실행
+        # (run_pipeline은 in-memory BackgroundTask라 재시작 시 사라짐 → 여기서 복구)
+        from datetime import datetime as _dt, timedelta as _td
+        from src.db.models import Incident as _Inc
+        stuck = (db.query(_Inc)
+                 .filter(_Inc.status == "processing")
+                 .filter(_Inc.created_at >= _dt.now() - _td(hours=24))
+                 .all())
+        for _inc in stuck:
+            asyncio.create_task(run_pipeline(_inc.id, _inc.raw_alarm or {}))
+        if stuck:
+            logger.info("재시작 복구: 처리중이던 incident %d건 재분석 큐잉", len(stuck))
     finally:
         db.close()
     # 백그라운드 루프 — 서버 무응답(dead-man) 감지 + 에스컬레이션 + 메타 자가감시
-    import asyncio
     from src.deadman import deadman_loop
     from src.escalation import escalation_loop
     from src.sysmonitor import system_monitor_loop
