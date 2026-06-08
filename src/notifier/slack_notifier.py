@@ -19,10 +19,13 @@ def _action_buttons(incident_id: int, ack_token: str | None) -> list:
     """ack_token이 있으면 '확인'(에스컬레이션 중지) 버튼 + 상세보기. 없으면 상세보기만."""
     btns = []
     if ack_token:
+        # 인터랙티브 버튼 — 클릭 시 Slack이 /slack/interact 로 누른 사용자 정보와 함께 POST.
+        # (Slack 앱에서 Interactivity 활성화 + Request URL 설정 필요)
         btns.append({
             "type": "button",
             "text": {"type": "plain_text", "text": "✓ 확인 (에스컬레이션 중지)"},
-            "url": f"{DASHBOARD_URL}/ack/{ack_token}?by=Slack",
+            "action_id": "ack_incident",
+            "value": ack_token,
             "style": "primary",
         })
     detail = {

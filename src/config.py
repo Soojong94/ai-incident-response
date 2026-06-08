@@ -46,5 +46,9 @@ class Settings(BaseSettings):
     # 공개 베이스 URL (대시보드)
     public_base_url: str = "https://tbit-msp.kro.kr"
 
+    # Slack 인터랙티브 버튼(확인 클릭 시 누가 눌렀는지 식별) — 앱 Basic Information의 Signing Secret.
+    # 비어 있으면 /slack/interact 가 검증 불가로 무시(보안). 설정 시 서명 검증 후 ack 처리.
+    slack_signing_secret: str = ""
+
 
 settings = Settings()

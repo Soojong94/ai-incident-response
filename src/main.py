@@ -85,7 +85,7 @@ def _inject_user(request: Request, ctx: dict) -> dict:
 AUTH_EXEMPT_PATHS = {"/login", "/logout", "/favicon.svg", "/favicon.ico", "/forgot-password"}
 # /webhook/ 은 Alertmanager가 내부에서 호출(세션 없음) → 면제. 외부 노출은 nginx가 차단 + WEBHOOK_SECRET.
 # /reset/·/ack/ 는 토큰이 자격증명 역할이라 면제 prefix.
-AUTH_EXEMPT_PREFIXES = ("/webhook/", "/reset/", "/static/", "/ack/")
+AUTH_EXEMPT_PREFIXES = ("/webhook/", "/reset/", "/static/", "/ack/", "/slack/")
 
 
 def _safe_next(next_url: str) -> str:
@@ -435,6 +435,60 @@ def ack_incident_page(token: str, by: str = "", db: Session = Depends(get_db)):
         color="#2f9e44", title="확인 완료 ✓",
         msg=f"장애 #{inc.id} — {inc.alarm_name or ''} 을(를) 확인{who} 처리했습니다.<br>추가 에스컬레이션이 중지됩니다. ({when})",
         link=link))
+
+
+@app.post("/slack/interact")
+async def slack_interact(request: Request, db: Session = Depends(get_db)):
+    """Slack 인터랙티브 버튼('확인') 처리 — Signing Secret으로 서명 검증 후,
+    버튼을 누른 Slack 사용자명을 확인자로 기록(에스컬레이션 중지)."""
+    import hashlib, hmac, time, json as _json, urllib.parse
+    from fastapi.responses import PlainTextResponse
+    raw = await request.body()
+    secret = settings.slack_signing_secret
+    if not secret:
+        logger.warning("SLACK_SIGNING_SECRET 미설정 — Slack interaction 무시")
+        return PlainTextResponse("server misconfigured (SLACK_SIGNING_SECRET)", status_code=200)
+    ts = request.headers.get("X-Slack-Request-Timestamp", "")
+    sig = request.headers.get("X-Slack-Signature", "")
+    try:
+        if abs(time.time() - int(ts)) > 300:   # 재전송 공격 방지(5분)
+            return PlainTextResponse("stale", status_code=400)
+    except ValueError:
+        return PlainTextResponse("bad timestamp", status_code=400)
+    base = b"v0:" + ts.encode() + b":" + raw
+    expected = "v0=" + hmac.new(secret.encode(), base, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, sig):
+        return PlainTextResponse("bad signature", status_code=401)
+
+    form = urllib.parse.parse_qs(raw.decode("utf-8"))
+    try:
+        payload = _json.loads(form.get("payload", ["{}"])[0])
+    except Exception:
+        return PlainTextResponse("bad payload", status_code=400)
+    actions = payload.get("actions") or []
+    if not actions or actions[0].get("action_id") != "ack_incident":
+        return PlainTextResponse("", status_code=200)
+    token = actions[0].get("value", "")
+    user = payload.get("user", {}) or {}
+    who = user.get("username") or user.get("name") or user.get("id") or "Slack"
+
+    from src.db.crud import acknowledge_incident, get_recipients_for_site
+    inc = acknowledge_incident(db, token, by=f"@{who}")
+    if not inc:
+        return PlainTextResponse("", status_code=200)
+    # 채널에 '확인됨 by @user' 후속 알림 (같은 webhook 중복 제거)
+    try:
+        from src.notifier.slack_notifier import send_ack_notice
+        _host = inc.resource_name or ""
+        _group = (inc.site.group_name if inc.site else "") or ""
+        _seen = set()
+        for r in (get_recipients_for_site(db, inc.site_id) if inc.site_id else []):
+            if r.slack_webhook and r.slack_webhook not in _seen:
+                _seen.add(r.slack_webhook)
+                send_ack_notice(r.slack_webhook, inc.id, f"@{who}", host=_host, group=_group)
+    except Exception as _e:
+        logger.warning("ack Slack 알림 실패(무시): %s", _e)
+    return PlainTextResponse("", status_code=200)
 
 
 @app.get("/api/logs/raw")
