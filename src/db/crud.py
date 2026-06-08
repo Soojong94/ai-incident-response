@@ -162,7 +162,7 @@ def resolve_incidents_for(db: Session, resource_name: str, alarm_name: str, with
         db.query(Incident)
         .filter(Incident.resource_name == resource_name)
         .filter(Incident.alarm_name == alarm_name)
-        .filter(Incident.status == "analyzed")
+        .filter(Incident.status.in_(("processing", "analyzed")))
         .filter(Incident.created_at >= cutoff)
         .all()
     )
@@ -633,6 +633,8 @@ def delete_incident(db: Session, incident_id: int) -> bool:
         SiteNote.related_incident_id == incident_id,
         SiteNote.author == "ai",
     ).delete(synchronize_session=False)
+    # AnalysisFeedback은 cascade 관계가 없어 직접 삭제 (logs/analysis/notifications는 db.delete로 cascade)
+    db.query(AnalysisFeedback).filter(AnalysisFeedback.incident_id == incident_id).delete(synchronize_session=False)
     db.delete(incident)
     db.commit()
     return True
@@ -642,7 +644,11 @@ def delete_all_incidents(db: Session) -> int:
     count = db.query(Incident).count()
     # 장애 내역 전체 삭제 시 AI 메모도 전부 삭제
     db.query(SiteNote).filter(SiteNote.author == "ai").delete(synchronize_session=False)
-    db.query(Incident).delete()
+    # ⚠ 벌크 delete는 ORM cascade가 동작하지 않으므로 자식 테이블을 명시적으로 먼저 비운다.
+    # (안 그러면 고아 자식 행 + SQLite ID 재사용 → 새 incident에 옛 로그/분석/알림이 딸려 보임)
+    for _child in (IncidentLog, AnalysisResult, NotificationLog, AnalysisFeedback):
+        db.query(_child).delete(synchronize_session=False)
+    db.query(Incident).delete(synchronize_session=False)
     db.commit()
     return count
 

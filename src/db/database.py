@@ -54,21 +54,37 @@ def _cleanup_orphans():
                 " site_id NOT IN (SELECT id FROM sites)"
                 " OR created_at < (SELECT s.created_at FROM sites s WHERE s.id = incidents.site_id))"
             ))
-            # 분석결과(AnalysisResult) — incident 없는 고아 + incident보다 과거인 것(ID 재사용 잔재) 삭제.
-            # (이게 '평균 분석시간' 음수의 원인)
-            r4 = conn.execute(text(
-                "DELETE FROM analysis_results WHERE incident_id NOT IN (SELECT id FROM incidents)"
+            # 수신자(Recipient) — 사이트 없는 고아 + 사이트보다 과거인 것(ID 재사용 잔재) 삭제
+            conn.execute(text("DELETE FROM recipients WHERE site_id NOT IN (SELECT id FROM sites)"))
+            conn.execute(text(
+                "DELETE FROM recipients WHERE id IN ("
+                " SELECT r.id FROM recipients r JOIN sites s ON r.site_id = s.id"
+                " WHERE r.created_at < s.created_at)"
             ))
-            r5 = conn.execute(text(
-                "DELETE FROM analysis_results WHERE id IN ("
-                " SELECT a.id FROM analysis_results a JOIN incidents i ON a.incident_id = i.id"
-                " WHERE a.created_at < i.created_at)"
-            ))
+            # incident 자식 테이블 — incident 없는 고아 + incident보다 과거인 것(ID 재사용 잔재) 삭제.
+            # (벌크 삭제로 남은 고아가 ID 재사용으로 새 incident에 딸려 보이는 것 방지 — 평균분석시간 음수 등)
+            # (table, time_col) — 이름은 코드 상수라 안전.
+            child_specs = [
+                ("analysis_results", "created_at"),
+                ("incident_logs", "log_timestamp"),
+                ("notification_logs", "sent_at"),
+                ("analysis_feedback", "created_at"),
+            ]
+            child_deleted = 0
+            for _tbl, _tcol in child_specs:
+                child_deleted += (conn.execute(text(
+                    f"DELETE FROM {_tbl} WHERE incident_id NOT IN (SELECT id FROM incidents)"
+                )).rowcount or 0)
+                child_deleted += (conn.execute(text(
+                    f"DELETE FROM {_tbl} WHERE id IN ("
+                    f" SELECT c.id FROM {_tbl} c JOIN incidents i ON c.incident_id = i.id"
+                    f" WHERE c.{_tcol} < i.created_at)"
+                )).rowcount or 0)
             conn.commit()
-            n = sum(r.rowcount or 0 for r in (r1, r2, r3, r4, r5))
+            n = (r1.rowcount or 0) + (r2.rowcount or 0) + (r3.rowcount or 0) + child_deleted
             if n:
-                log.info("orphan 정리: 메모 %s+%s, incident 연결해제 %s, 분석결과 %s+%s",
-                         r1.rowcount, r2.rowcount, r3.rowcount, r4.rowcount, r5.rowcount)
+                log.info("orphan 정리: 메모 %s+%s, incident 연결해제 %s, 자식행 %s",
+                         r1.rowcount, r2.rowcount, r3.rowcount, child_deleted)
     except Exception as e:
         log.warning("orphan 정리 실패(무시): %s", e)
 
