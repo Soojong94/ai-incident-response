@@ -280,11 +280,18 @@ def count_incidents(
 
 # ── Site notes ─────────────────────────────────────────────────────────────
 
+def _note_floor(db: Session, site_id: int):
+    """이 사이트의 created_at. 그보다 오래된 메모는 ID 재사용 잔재이므로 조회에서 제외하는 기준."""
+    return db.query(Site.created_at).filter(Site.id == site_id).scalar()
+
+
 def list_site_notes(db: Session, site_id: int, limit: int = 50) -> list[SiteNote]:
+    floor = _note_floor(db, site_id)
+    q = db.query(SiteNote).filter(SiteNote.site_id == site_id)
+    if floor is not None:
+        q = q.filter(SiteNote.created_at >= floor)   # 사이트보다 오래된 잔재 제외
     return (
-        db.query(SiteNote)
-        .filter(SiteNote.site_id == site_id)
-        .order_by(SiteNote.pinned.desc(), SiteNote.created_at.desc())
+        q.order_by(SiteNote.pinned.desc(), SiteNote.created_at.desc())
         .limit(limit)
         .all()
     )
@@ -410,22 +417,16 @@ def get_recent_analyses_for_resource(
 
 def get_site_notes_for_prompt(db: Session, site_id: int, max_count: int = 8) -> list[SiteNote]:
     """AI prompt 주입용 — pinned 우선, 그 다음 최근 순. 토큰 절약 위해 max_count로 제한."""
-    pinned = (
-        db.query(SiteNote)
-        .filter(SiteNote.site_id == site_id, SiteNote.pinned.is_(True))
-        .order_by(SiteNote.updated_at.desc())
-        .limit(max_count)
-        .all()
-    )
+    floor = _note_floor(db, site_id)
+    pq = db.query(SiteNote).filter(SiteNote.site_id == site_id, SiteNote.pinned.is_(True))
+    rq = db.query(SiteNote).filter(SiteNote.site_id == site_id, SiteNote.pinned.is_(False))
+    if floor is not None:   # 사이트보다 오래된 잔재(ID 재사용) 제외
+        pq = pq.filter(SiteNote.created_at >= floor)
+        rq = rq.filter(SiteNote.created_at >= floor)
+    pinned = pq.order_by(SiteNote.updated_at.desc()).limit(max_count).all()
     if len(pinned) >= max_count:
         return pinned
-    recent = (
-        db.query(SiteNote)
-        .filter(SiteNote.site_id == site_id, SiteNote.pinned.is_(False))
-        .order_by(SiteNote.created_at.desc())
-        .limit(max_count - len(pinned))
-        .all()
-    )
+    recent = rq.order_by(SiteNote.created_at.desc()).limit(max_count - len(pinned)).all()
     return pinned + recent
 
 
