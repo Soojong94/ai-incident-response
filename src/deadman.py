@@ -16,6 +16,7 @@ import httpx
 from src.config import settings
 from src.db.database import SessionLocal
 from src.db.crud import create_incident, create_analysis, update_incident_status, _match_or_create_site
+from src.db.models import IgnoredHost
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,10 @@ def check_deadman_once() -> None:
                 continue
             if host in _down:
                 continue              # 이미 발화함
+            # 관리자가 삭제(무시)한 host는 dead-man도 존중 — 사이트 재생성/발화하지 않음(tombstone)
+            if db.query(IgnoredHost.id).filter(IgnoredHost.host == host).first():
+                _down.add(host)
+                continue
             site = _match_or_create_site(db, host)
             if not site or not site.enabled or not getattr(site, "alarm_enabled", True):
                 _down.add(host)       # 감시 대상 아님 — 반복 평가만 막음
